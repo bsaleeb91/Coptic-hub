@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Coptic Hub",
+    "slug": "coptic-hub",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "coptichub",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#FBF6EC"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.coptichub.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#14404A"
+      },
+      "package": "com.coptichub.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
