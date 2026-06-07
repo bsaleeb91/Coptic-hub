@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, Redirect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import {
@@ -15,9 +15,24 @@ import {
   Lato_700Bold,
   useFonts as useLato,
 } from '@expo-google-fonts/lato';
-import '../global.css';
+import { AuthProvider, useSession } from '@/lib/auth';
 
 SplashScreen.preventAutoHideAsync();
+
+function RootLayoutNav() {
+  const { session, loading } = useSession();
+
+  if (loading) return null;
+  if (!session) return <Redirect href="/sign-in" />;
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="(priest)" />
+      <Stack.Screen name="sign-in" />
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   const [cormorantLoaded] = useCormorant({
@@ -42,9 +57,9 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <>
-      <Stack screenOptions={{ headerShown: false }} />
+    <AuthProvider>
+      <RootLayoutNav />
       <StatusBar style="light" />
-    </>
+    </AuthProvider>
   );
 }
