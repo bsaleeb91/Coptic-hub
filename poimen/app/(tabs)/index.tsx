@@ -48,9 +48,14 @@ export default function DashboardScreen() {
             <Text style={styles.greeting}>Peace be with you, Michael</Text>
             <Text style={styles.subtitle}>Sunday, June 7 · Apostles' Fast · Day 12</Text>
           </View>
-          <TouchableOpacity style={styles.btnGold} onPress={() => router.push('/(tabs)/confession')}>
-            <Text style={styles.btnGoldText}>PREPARE</Text>
-          </TouchableOpacity>
+          <View style={styles.topbarButtons}>
+            <TouchableOpacity style={styles.btnPriestToggle} onPress={() => router.push('/(priest)')}>
+              <Text style={styles.btnPriestToggleText}>FOC VIEW</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.btnGold} onPress={() => router.push('/(tabs)/confession')}>
+              <Text style={styles.btnGoldText}>PREPARE</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Vital Cards */}
@@ -73,13 +78,6 @@ export default function DashboardScreen() {
             <Text style={styles.vitalValue}>8 / 10</Text>
             <Text style={styles.vitalMeta}>Sundays this quarter</Text>
             <Badge variant="green" label="✓ Consistent" />
-          </View>
-          <View style={styles.vitalCard}>
-            <View style={styles.vitalGoldLine} />
-            <Text style={styles.vitalLabel}>Discipleship Stage</Text>
-            <Text style={[styles.vitalValue, { fontSize: 20, paddingTop: 4 }]}>Growing</Text>
-            <Text style={styles.vitalMeta}>Assigned: Fr. Bishoy Marcos</Text>
-            <Badge variant="green" label="✓ Active" />
           </View>
         </ScrollView>
 
@@ -194,6 +192,9 @@ const styles = StyleSheet.create({
   content: { padding: 20, paddingBottom: 40 },
 
   topbar: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 },
+  topbarButtons: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  btnPriestToggle: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 9 },
+  btnPriestToggleText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.muted, letterSpacing: 1.5 },
   greeting: { fontFamily: fonts.cormorantMedium, fontSize: 26, color: colors.cream, lineHeight: 32 },
   subtitle: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 4 },
 
