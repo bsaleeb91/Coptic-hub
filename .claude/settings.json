@@ -10,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node C:\\Users\\17165\\Coptic-hub\\scripts\\hooks\\session-start.js"
+            "command": "node C:/Users/17165/Coptic-hub/scripts/hooks/session-start.js"
           }
         ]
       }
@@ -21,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node C:\\Users\\17165\\Coptic-hub\\scripts\\hooks\\session-end.js"
+            "command": "node C:/Users/17165/Coptic-hub/scripts/hooks/session-end.js"
           }
         ]
       }
@@ -32,7 +32,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node C:\\Users\\17165\\Coptic-hub\\scripts\\hooks\\file-save.js"
+            "command": "node C:/Users/17165/Coptic-hub/scripts/hooks/file-save.js"
           }
         ]
       }
