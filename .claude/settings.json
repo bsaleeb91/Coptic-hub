@@ -1,0 +1,42 @@
+{
+  "model": "claude-sonnet-4-6",
+  "env": {
+    "MAX_THINKING_TOKENS": "10000"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node C:\\Users\\17165\\Coptic-hub\\scripts\\hooks\\session-start.js"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node C:\\Users\\17165\\Coptic-hub\\scripts\\hooks\\session-end.js"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node C:\\Users\\17165\\Coptic-hub\\scripts\\hooks\\file-save.js"
+          }
+        ]
+      }
+    ]
+  },
+  "mcpServers": {}
+}

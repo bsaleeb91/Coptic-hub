@@ -1,0 +1,32 @@
+export const colors = {
+  navy: '#0f1f3d',
+  navyMid: '#162847',
+  navyDark: 'rgba(10,16,30,0.97)',
+  gold: '#c9a84c',
+  goldLight: '#e2c97e',
+  goldDim: 'rgba(201,168,76,0.15)',
+  cream: '#f5f0e8',
+  creamDim: 'rgba(245,240,232,0.06)',
+  muted: 'rgba(245,240,232,0.45)',
+  cardBg: 'rgba(22,40,71,0.85)',
+  border: 'rgba(201,168,76,0.2)',
+  green: '#5dca87',
+  greenBg: 'rgba(39,174,96,0.15)',
+  yellow: '#f5c842',
+  yellowBg: 'rgba(243,156,18,0.15)',
+  red: '#e07070',
+  redBg: 'rgba(192,57,43,0.12)',
+  blue: '#7fc4e8',
+  blueBg: 'rgba(41,128,185,0.15)',
+  purple: '#c9a0dc',
+} as const;
+
+export const fonts = {
+  cormorant: 'CormorantGaramond_400Regular',
+  cormorantMedium: 'CormorantGaramond_500Medium',
+  cormorantLight: 'CormorantGaramond_300Light',
+  cormorantItalic: 'CormorantGaramond_400Regular_Italic',
+  lato: 'Lato_400Regular',
+  latoLight: 'Lato_300Light',
+  latoBold: 'Lato_700Bold',
+} as const;

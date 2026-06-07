@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Poimen",
+    "slug": "poimen",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "poimen",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0f1f3d"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.coptic.poimen"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0f1f3d"
+      },
+      "package": "com.coptic.poimen"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": ["expo-router", "expo-font"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
