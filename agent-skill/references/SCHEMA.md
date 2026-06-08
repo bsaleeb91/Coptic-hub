@@ -139,6 +139,47 @@ Priest writes, priest reads. Congregant has zero visibility into this table.
 
 ---
 
+### `pastoral_contacts`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `user_id` | uuid PK FK → profiles | congregant owns this row |
+| `phone` | text nullable | |
+| `email` | text nullable | preferred contact email (may differ from auth email) |
+| `address_line1` | text nullable | |
+| `address_line2` | text nullable | |
+| `city` | text nullable | |
+| `state` | text nullable | |
+| `zip` | text nullable | |
+| `country` | text | default 'US' |
+| `updated_at` | timestamptz | |
+
+Congregant fills in via their profile screen. Active FOC reads only. Portable: access transfers automatically when the FOC link changes.
+
+### `pastoral_profile`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `user_id` | uuid PK FK → profiles | congregant owns this row |
+| `life_stage` | text | `'single'` \| `'engaged'` \| `'married'` \| `'widowed'` \| `'divorced'` |
+| `spouse_name` | text nullable | only stored when life_stage is married or engaged |
+| `updated_at` | timestamptz | |
+
+### `pastoral_children`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | uuid PK | |
+| `parent_id` | uuid FK → profiles | congregant who owns this record |
+| `name` | text | |
+| `birth_year` | integer | year only — not full DOB, to minimise child data sensitivity |
+| `created_at` | timestamptz | |
+| `updated_at` | timestamptz | |
+
+Age displayed as `~N yrs` derived from `current_year - birth_year`. Full DOB deliberately not stored.
+
+---
+
 ## RLS Policies
 
 | Table | Policy |
@@ -148,6 +189,9 @@ Priest writes, priest reads. Congregant has zero visibility into this table.
 | `priest_congregant_links` | Each party sees only their own links |
 | `confession_sessions` | Congregants insert own sessions; priests read sessions for active linked congregants only |
 | `priest_pastoral_notes` | Priests CRUD their own notes; congregants cannot read this table at all |
+| `pastoral_contacts` | Congregants CRUD own row; active FOC reads only |
+| `pastoral_profile` | Congregants CRUD own row; active FOC reads only |
+| `pastoral_children` | Congregants CRUD own rows; active FOC reads only |
 | `agent_progress` | Users read/write own rows only |
 | `conversations` | Users read/write own rows only |
 | `messages` | Users read/write via conversation ownership |

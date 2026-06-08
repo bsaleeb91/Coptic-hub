@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import {
+  ScrollView, View, Text, StyleSheet, TouchableOpacity,
+  TextInput, ActivityIndicator, Alert, Modal, Linking, Platform,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
@@ -9,7 +12,23 @@ import { supabase } from '@/lib/supabase';
 import { useDemoMode } from '@/lib/demo';
 
 // ── Demo data ─────────────────────────────────────────────────
-const DEMO_MEMBER = { initials: 'PB', name: 'Peter Botros', stage: 'New', phone: '(614) 555-0182', joined: 'February 2026', daysSince: 74, flagged: true, flagNote: 'Missed two follow-up appointments.' };
+const DEMO_MEMBER = {
+  initials: 'PB', name: 'Peter Botros', stage: 'New',
+  joined: 'February 2026', daysSince: 74, flagged: true,
+  flagNote: 'Missed two follow-up appointments.',
+};
+const DEMO_CONTACT = {
+  phone: '(614) 555-0182',
+  email: 'pbotros@example.com',
+  address_line1: '2847 Riverside Dr',
+  address_line2: null as string | null,
+  city: 'Columbus', state: 'OH', zip: '43221', country: 'US',
+};
+const DEMO_LIFE = { life_stage: 'married', spouse_name: 'Maria Botros' };
+const DEMO_CHILDREN_DATA = [
+  { id: 'dc1', name: 'Anthony', birth_year: 2018 },
+  { id: 'dc2', name: 'Mary', birth_year: 2021 },
+];
 const DEMO_VITALS = [
   { label: 'Daily Prayer', pct: 20, shared: true },
   { label: 'Scripture Reading', pct: 30, shared: true },
@@ -39,6 +58,25 @@ const TABS: { value: TabType; label: string }[] = [
   { value: 'notes', label: 'Notes' },
 ];
 
+// ── Helpers ───────────────────────────────────────────────────
+function initials(name: string | null | undefined): string {
+  if (!name) return '?';
+  const parts = name.split(' ');
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
+}
+
+function formatLifeStageLine(ls: any, kids: any[]): string | null {
+  if (!ls?.life_stage) return null;
+  const stage = ls.life_stage.charAt(0).toUpperCase() + ls.life_stage.slice(1);
+  const yr = new Date().getFullYear();
+  const parts: string[] = [stage];
+  if (kids.length > 0) {
+    const ages = kids.map((k: any) => `~${yr - k.birth_year}`).join(', ');
+    parts.push(`${kids.length} ${kids.length === 1 ? 'child' : 'children'} (${ages})`);
+  }
+  return parts.join(' · ');
+}
+
 export default function MemberScreen() {
   const router = useRouter();
   const { id: memberId, name: memberName } = useLocalSearchParams<{ id: string; name: string }>();
@@ -49,6 +87,9 @@ export default function MemberScreen() {
 
   // Display data
   const [memberInfo, setMemberInfo] = useState<any>(DEMO_MEMBER);
+  const [contact, setContact] = useState<any>(demoMode ? DEMO_CONTACT : null);
+  const [lifeStageData, setLifeStageData] = useState<any>(demoMode ? DEMO_LIFE : null);
+  const [memberChildren, setMemberChildren] = useState<any[]>(demoMode ? DEMO_CHILDREN_DATA : []);
   const [vitals, setVitals] = useState<any[]>(DEMO_VITALS);
   const [confessions, setConfessions] = useState<any[]>(DEMO_CONFESSIONS);
   const [prayerRequests, setPrayerRequests] = useState<any[]>(DEMO_PRAYER);
@@ -58,6 +99,9 @@ export default function MemberScreen() {
   const [noteInput, setNoteInput] = useState('');
   const [savedNote, setSavedNote] = useState(DEMO_NOTE);
   const [savingNote, setSavingNote] = useState(false);
+
+  // Contact sheet
+  const [showContactSheet, setShowContactSheet] = useState(false);
 
   useEffect(() => {
     if (!demoMode && memberId) {
@@ -69,14 +113,18 @@ export default function MemberScreen() {
     if (!user || !memberId) return;
     setLoading(true);
 
-    const [profileRes, vitalsRes, confRes, prayerRes, canonRes, noteRes] = await Promise.all([
-      supabase.from('profiles').select('full_name, created_at, role').eq('id', memberId).single(),
-      supabase.from('agent_progress').select('payload').eq('user_id', memberId).eq('agent_slug', 'vitals').single(),
-      supabase.from('pastoral_encounters').select('encountered_at, member_note').eq('congregant_id', memberId).eq('encounter_type', 'confession').order('encountered_at', { ascending: false }),
-      supabase.from('prayer_requests').select('created_at, topic').eq('user_id', memberId).eq('visibility', 'foc_only').eq('answered', false).order('created_at', { ascending: false }),
-      supabase.from('spiritual_canons').select('id, component, frequency, start_date').eq('congregant_id', memberId).eq('active', true),
-      supabase.from('agent_progress').select('payload').eq('user_id', user.id).eq('agent_slug', `pastoral-notes-${memberId}`).single(),
-    ]);
+    const [profileRes, vitalsRes, confRes, prayerRes, canonRes, noteRes, contactRes, lifeRes, kidsRes] =
+      await Promise.all([
+        supabase.from('profiles').select('full_name, created_at, role').eq('id', memberId).single(),
+        supabase.from('agent_progress').select('payload').eq('user_id', memberId).eq('agent_slug', 'vitals').single(),
+        supabase.from('pastoral_encounters').select('encountered_at, member_note').eq('congregant_id', memberId).eq('encounter_type', 'confession').order('encountered_at', { ascending: false }),
+        supabase.from('prayer_requests').select('created_at, topic').eq('user_id', memberId).eq('visibility', 'foc_only').eq('answered', false).order('created_at', { ascending: false }),
+        supabase.from('spiritual_canons').select('id, component, frequency, start_date').eq('congregant_id', memberId).eq('active', true),
+        supabase.from('agent_progress').select('payload').eq('user_id', user.id).eq('agent_slug', `pastoral-notes-${memberId}`).single(),
+        supabase.from('pastoral_contacts').select('*').eq('user_id', memberId).maybeSingle(),
+        supabase.from('pastoral_profile').select('*').eq('user_id', memberId).maybeSingle(),
+        supabase.from('pastoral_children').select('*').eq('parent_id', memberId).order('birth_year', { ascending: true }),
+      ]);
 
     if (profileRes.data) {
       const p = profileRes.data;
@@ -124,6 +172,10 @@ export default function MemberScreen() {
       setSavedNote('');
     }
 
+    if (contactRes.data) setContact(contactRes.data);
+    if (lifeRes.data) setLifeStageData(lifeRes.data);
+    if (kidsRes.data) setMemberChildren(kidsRes.data);
+
     setLoading(false);
   }
 
@@ -146,9 +198,18 @@ export default function MemberScreen() {
     setSavingNote(false);
   }
 
+  function openMaps() {
+    if (!contact?.address_line1) return;
+    const parts = [contact.address_line1, contact.address_line2, contact.city, contact.state, contact.zip].filter(Boolean);
+    const encoded = encodeURIComponent(parts.join(', '));
+    const url = Platform.OS === 'ios' ? `maps:?q=${encoded}` : `geo:0,0?q=${encoded}`;
+    Linking.openURL(url);
+  }
+
   const daysSince = memberInfo?.daysSince;
   const sinceTxt = daysSince !== null && daysSince !== undefined ? `${daysSince}d` : '—';
   const sinceColor = daysSince === null || daysSince === undefined ? colors.muted : daysSince < 30 ? colors.green : daysSince < 60 ? colors.yellow : colors.red;
+  const lifeStageDisplay = formatLifeStageLine(lifeStageData, memberChildren);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -163,6 +224,7 @@ export default function MemberScreen() {
           <ActivityIndicator color={colors.gold} style={{ paddingTop: 40 }} />
         ) : (
           <>
+            {/* ── Hero card ── */}
             <View style={styles.heroCard}>
               <View style={[styles.heroAvatar, memberInfo?.flagged && styles.heroAvatarFlagged]}>
                 <Text style={styles.heroAvatarText}>{memberInfo?.initials ?? '?'}</Text>
@@ -173,6 +235,9 @@ export default function MemberScreen() {
                   {memberInfo?.stage ? `Stage: ${memberInfo.stage} · ` : ''}
                   {memberInfo?.joined ? `Joined ${memberInfo.joined}` : ''}
                 </Text>
+                {lifeStageDisplay ? (
+                  <Text style={styles.heroLifeStage}>{lifeStageDisplay}</Text>
+                ) : null}
                 {memberInfo?.flagged && (
                   <View style={styles.flagBadge}>
                     <Text style={styles.flagBadgeText}>⚑ {memberInfo.flagNote}</Text>
@@ -181,6 +246,7 @@ export default function MemberScreen() {
               </View>
             </View>
 
+            {/* ── Stats strip ── */}
             <View style={styles.statStrip}>
               <View style={styles.statItem}>
                 <Text style={[styles.statVal, { color: sinceColor }]}>{sinceTxt}</Text>
@@ -198,24 +264,42 @@ export default function MemberScreen() {
               </View>
             </View>
 
+            {/* ── Action row (three buttons) ── */}
             <View style={styles.actionRow}>
-              <TouchableOpacity style={styles.btnGold} onPress={() => router.push({ pathname: '/(priest)/log-encounter', params: { memberId: memberId ?? '', memberName: memberName ?? memberInfo?.name ?? '' } })}>
+              <TouchableOpacity
+                style={[styles.btnGold, { flex: 1 }]}
+                onPress={() => router.push({ pathname: '/(priest)/log-encounter', params: { memberId: memberId ?? '', memberName: memberName ?? memberInfo?.name ?? '' } })}
+              >
                 <Text style={styles.btnGoldText}>LOG ENCOUNTER</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.btnGhost} onPress={() => router.push({ pathname: '/(priest)/assign-canon', params: { memberId: memberId ?? '', memberName: memberName ?? memberInfo?.name ?? '' } })}>
+              <TouchableOpacity
+                style={[styles.btnGhost, { flex: 1 }]}
+                onPress={() => router.push({ pathname: '/(priest)/assign-canon', params: { memberId: memberId ?? '', memberName: memberName ?? memberInfo?.name ?? '' } })}
+              >
                 <Text style={styles.btnGhostText}>ASSIGN CANON</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnGhost, { flex: 1 }]}
+                onPress={() => setShowContactSheet(true)}
+              >
+                <Text style={styles.btnGhostText}>CONTACT</Text>
               </TouchableOpacity>
             </View>
 
+            {/* ── Tab bar ── */}
             <View style={styles.tabBar}>
               {TABS.map(t => (
-                <TouchableOpacity key={t.value} style={[styles.tabItem, tab === t.value && styles.tabItemActive]} onPress={() => setTab(t.value)}>
+                <TouchableOpacity
+                  key={t.value}
+                  style={[styles.tabItem, tab === t.value && styles.tabItemActive]}
+                  onPress={() => setTab(t.value)}
+                >
                   <Text style={[styles.tabText, tab === t.value && styles.tabTextActive]}>{t.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            {/* Overview */}
+            {/* ── Overview ── */}
             {tab === 'overview' && (
               <>
                 <Card title="Spiritual Vitals (Shared Only)" titleIcon="✦">
@@ -253,7 +337,7 @@ export default function MemberScreen() {
               </>
             )}
 
-            {/* Canon */}
+            {/* ── Canon ── */}
             {tab === 'canon' && (
               <Card title="Assigned Canon" titleIcon="📜">
                 {canons.length === 0 ? (
@@ -280,7 +364,7 @@ export default function MemberScreen() {
               </Card>
             )}
 
-            {/* Prayer */}
+            {/* ── Prayer ── */}
             {tab === 'prayer' && (
               <Card title="Prayer Requests (FOC Only)" titleIcon="◇">
                 <View style={styles.privacyNote}>
@@ -297,7 +381,7 @@ export default function MemberScreen() {
               </Card>
             )}
 
-            {/* Notes */}
+            {/* ── Notes ── */}
             {tab === 'notes' && (
               <Card title="Pastoral Notes (Private)" titleIcon="✎">
                 <View style={styles.privacyNote}>
@@ -328,14 +412,83 @@ export default function MemberScreen() {
         )}
 
       </ScrollView>
+
+      {/* ── Contact sheet ── */}
+      <Modal
+        visible={showContactSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowContactSheet(false)}
+      >
+        <TouchableOpacity
+          style={styles.sheetOverlay}
+          onPress={() => setShowContactSheet(false)}
+          activeOpacity={1}
+        >
+          <View style={styles.sheet} onStartShouldSetResponder={() => true}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>{memberInfo?.name ?? 'Contact'}</Text>
+
+            {contact?.phone ? (
+              <TouchableOpacity
+                style={styles.sheetRow}
+                onPress={() => Linking.openURL(`tel:${contact.phone.replace(/[^0-9+]/g, '')}`)}
+              >
+                <Text style={styles.sheetRowIcon}>☎</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sheetRowLabel}>Phone</Text>
+                  <Text style={styles.sheetRowValue}>{contact.phone}</Text>
+                </View>
+                <Text style={styles.sheetRowAction}>CALL</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {contact?.email ? (
+              <TouchableOpacity
+                style={styles.sheetRow}
+                onPress={() => Linking.openURL(`mailto:${contact.email}`)}
+              >
+                <Text style={styles.sheetRowIcon}>✉</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sheetRowLabel}>Email</Text>
+                  <Text style={styles.sheetRowValue}>{contact.email}</Text>
+                </View>
+                <Text style={styles.sheetRowAction}>EMAIL</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {contact?.address_line1 ? (
+              <TouchableOpacity style={styles.sheetRow} onPress={openMaps}>
+                <Text style={styles.sheetRowIcon}>⌖</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sheetRowLabel}>Address</Text>
+                  <Text style={styles.sheetRowValue}>{contact.address_line1}</Text>
+                  {contact.address_line2 ? (
+                    <Text style={styles.sheetRowValue}>{contact.address_line2}</Text>
+                  ) : null}
+                  <Text style={styles.sheetRowValue}>
+                    {[contact.city, contact.state, contact.zip].filter(Boolean).join(', ')}
+                  </Text>
+                </View>
+                <Text style={styles.sheetRowAction}>MAP</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {!contact?.phone && !contact?.email && !contact?.address_line1 ? (
+              <Text style={styles.sheetEmpty}>
+                No contact info on file yet.{'\n'}Member can add this in their Profile settings.
+              </Text>
+            ) : null}
+
+            <TouchableOpacity style={styles.sheetCloseBtn} onPress={() => setShowContactSheet(false)}>
+              <Text style={styles.sheetCloseBtnText}>CLOSE</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
     </SafeAreaView>
   );
-}
-
-function initials(name: string | null | undefined): string {
-  if (!name) return '?';
-  const parts = name.split(' ');
-  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
 }
 
 const styles = StyleSheet.create({
@@ -353,6 +506,7 @@ const styles = StyleSheet.create({
   heroAvatarText: { fontFamily: fonts.cormorantMedium, fontSize: 20, color: colors.cream },
   heroName: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 2 },
   heroMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
+  heroLifeStage: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 3 },
   flagBadge: { backgroundColor: 'rgba(192,57,43,0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, alignSelf: 'flex-start', marginTop: 6 },
   flagBadgeText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.red, letterSpacing: 0.5 },
 
@@ -362,10 +516,10 @@ const styles = StyleSheet.create({
   statLabel: { fontFamily: fonts.latoBold, fontSize: 8, letterSpacing: 1.5, color: colors.muted, textTransform: 'uppercase', marginTop: 2 },
   statDivider: { width: 1, backgroundColor: colors.border },
 
-  actionRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  btnGold: { backgroundColor: colors.gold, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 9 },
+  actionRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  btnGold: { backgroundColor: colors.gold, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, alignItems: 'center' },
   btnGoldText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.navy, letterSpacing: 0.8 },
-  btnGhost: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 9 },
+  btnGhost: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, alignItems: 'center' },
   btnGhostText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.muted, letterSpacing: 0.8 },
 
   tabBar: { flexDirection: 'row', backgroundColor: 'rgba(10,16,30,0.6)', borderRadius: 10, padding: 4, marginBottom: 16, gap: 2 },
@@ -400,4 +554,21 @@ const styles = StyleSheet.create({
 
   savedNoteText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20, marginBottom: 12, padding: 12, backgroundColor: 'rgba(10,16,30,0.4)', borderRadius: 8 },
   noteInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', minHeight: 100 },
+
+  // ── Contact sheet ──
+  sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: colors.navyMid, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    borderWidth: 1, borderColor: colors.border, paddingHorizontal: 20, paddingBottom: 34, paddingTop: 12,
+  },
+  sheetHandle: { width: 36, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 18 },
+  sheetTitle: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 18 },
+  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  sheetRowIcon: { fontSize: 18, width: 26, textAlign: 'center', color: colors.gold },
+  sheetRowLabel: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.muted, marginBottom: 2 },
+  sheetRowValue: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.cream },
+  sheetRowAction: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1, color: colors.gold, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 },
+  sheetEmpty: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textAlign: 'center', paddingVertical: 28, lineHeight: 20 },
+  sheetCloseBtn: { marginTop: 18, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
+  sheetCloseBtnText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.muted, letterSpacing: 1 },
 });
