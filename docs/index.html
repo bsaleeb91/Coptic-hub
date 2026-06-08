@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Poimen — Pastoral care, rooted in Tradition</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #0f1f3d;
+      --navy-mid: #162847;
+      --navy-dark: #0a1020;
+      --gold: #c9a84c;
+      --gold-light: #dfc278;
+      --gold-dim: rgba(201,168,76,0.12);
+      --cream: #f5f0e8;
+      --muted: rgba(245,240,232,0.45);
+      --border: rgba(201,168,76,0.18);
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--navy-dark);
+      color: var(--cream);
+      font-family: 'Lato', sans-serif;
+      font-weight: 300;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── Scroll animations ── */
+    .fade-up { opacity: 0; transform: translateY(28px); transition: opacity 0.75s ease, transform 0.75s ease; }
+    .fade-up.visible { opacity: 1; transform: translateY(0); }
+    .fade-up.d1 { transition-delay: 0.08s; }
+    .fade-up.d2 { transition-delay: 0.18s; }
+    .fade-up.d3 { transition-delay: 0.28s; }
+    .fade-up.d4 { transition-delay: 0.38s; }
+
+    /* ── Nav ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 48px;
+      background: rgba(10,16,32,0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-brand { display: flex; align-items: center; gap: 12px; }
+    .nav-cross { color: var(--gold); font-size: 1.1rem; }
+    .nav-title { font-family: 'Cormorant Garamond', serif; font-size: 1.35rem; }
+    .nav-greek { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.15em; }
+    .nav-links { display: flex; align-items: center; gap: 32px; }
+    .nav-link { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); text-decoration: none; transition: color 0.2s; }
+    .nav-link:hover { color: var(--gold-light); }
+    .nav-cta { border: 1px solid var(--gold); color: var(--gold-light); padding: 8px 22px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; text-decoration: none; border-radius: 4px; transition: background 0.2s; }
+    .nav-cta:hover { background: var(--gold-dim); }
+
+    /* ── Shared ── */
+    .rule { width: 1px; height: 56px; background: linear-gradient(to bottom, transparent, var(--gold), transparent); margin: 0 auto; }
+    .upper { text-transform: uppercase; letter-spacing: 0.18em; font-size: 0.65rem; font-weight: 700; }
+    .gold { color: var(--gold); }
+    .muted { color: var(--muted); }
+
+    /* ── Hero ── */
+    .hero {
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; text-align: center;
+      padding: 120px 24px 80px;
+      background: radial-gradient(ellipse 60% 50% at 50% 40%, rgba(201,168,76,0.06) 0%, transparent 70%), var(--navy-dark);
+    }
+    .hero-eyebrow { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); margin-bottom: 24px; }
+    .hero-cross { font-size: 2.4rem; color: var(--gold); opacity: 0.65; margin-bottom: 24px; display: block; }
+    .hero-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(5rem, 13vw, 9.5rem); font-weight: 300; line-height: 1; margin-bottom: 16px; letter-spacing: -0.02em; }
+    .hero-greek { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: clamp(1.1rem, 2.5vw, 1.6rem); color: var(--gold); opacity: 0.65; margin-bottom: 32px; }
+    .hero-tagline { font-size: clamp(0.95rem, 1.8vw, 1.15rem); color: var(--muted); max-width: 460px; line-height: 1.75; margin-bottom: 48px; }
+    .hero-scroll { font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-top: 56px; animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:0.35;} 50%{opacity:0.85;} }
+
+    /* ── Scripture ── */
+    .scripture { padding: 100px 24px; text-align: center; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: linear-gradient(135deg, rgba(201,168,76,0.04) 0%, transparent 60%); }
+    .scripture-quote { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: clamp(1.5rem, 3.5vw, 2.6rem); font-weight: 300; color: var(--cream); max-width: 780px; margin: 0 auto 20px; line-height: 1.4; }
+    .scripture-ref { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
+
+    /* ── Problem ── */
+    .problem { padding: 120px 24px; max-width: 1100px; margin: 0 auto; }
+    .problem-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: center; margin-top: 56px; }
+    .problem-text h2 { font-family: 'Cormorant Garamond', serif; font-size: clamp(2rem, 4.5vw, 3.6rem); font-weight: 500; line-height: 1.15; margin-bottom: 24px; }
+    .problem-text p { font-size: 0.95rem; color: var(--muted); line-height: 1.85; margin-bottom: 14px; }
+    .stat-col { display: flex; flex-direction: column; gap: 20px; }
+    .stat-card { background: rgba(201,168,76,0.04); border: 1px solid var(--border); border-radius: 12px; padding: 26px; }
+    .stat-num { font-family: 'Cormorant Garamond', serif; font-size: 3.2rem; font-weight: 300; color: var(--gold); line-height: 1; margin-bottom: 8px; }
+    .stat-lbl { font-size: 0.78rem; color: var(--muted); line-height: 1.6; }
+
+    /* ── Gap ── */
+    .gap-section { padding: 100px 24px; background: var(--navy); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .gap-inner { max-width: 900px; margin: 0 auto; text-align: center; }
+    .gap-inner h2 { font-family: 'Cormorant Garamond', serif; font-size: clamp(1.8rem, 4vw, 3.2rem); margin-bottom: 56px; line-height: 1.2; }
+    .gap-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; text-align: left; }
+    .gap-card { background: rgba(10,16,30,0.7); border: 1px solid var(--border); border-radius: 12px; padding: 26px; }
+    .gap-icon { font-size: 1.3rem; margin-bottom: 14px; display: block; }
+    .gap-card h3 { font-family: 'Cormorant Garamond', serif; font-size: 1.15rem; margin-bottom: 9px; }
+    .gap-card p { font-size: 0.82rem; color: var(--muted); line-height: 1.75; }
+
+    /* ── Solution ── */
+    .solution { padding: 140px 24px; text-align: center; max-width: 780px; margin: 0 auto; }
+    .solution h2 { font-family: 'Cormorant Garamond', serif; font-size: clamp(2.2rem, 5.5vw, 4.2rem); font-weight: 300; line-height: 1.15; margin-bottom: 28px; }
+    .solution p { font-size: 1rem; color: var(--muted); line-height: 1.9; margin-bottom: 16px; }
+    .solution-pull { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: clamp(1.3rem, 2.8vw, 1.9rem); color: var(--gold-light); margin: 36px auto; max-width: 580px; line-height: 1.45; }
+
+    /* ── TOC ── */
+    .toc { padding: 100px 24px; background: var(--navy); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .toc-inner { max-width: 1000px; margin: 0 auto; }
+    .toc-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); text-align: center; margin-bottom: 14px; }
+    .toc-heading { font-family: 'Cormorant Garamond', serif; font-size: clamp(1.8rem, 3.5vw, 2.8rem); text-align: center; margin-bottom: 12px; }
+    .toc-sub { text-align: center; color: var(--muted); font-size: 0.9rem; max-width: 500px; margin: 0 auto 56px; line-height: 1.7; }
+    .toc-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+    .toc-card {
+      display: block; text-decoration: none;
+      background: rgba(10,16,30,0.6);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 36px 28px;
+      text-align: center;
+      transition: border-color 0.25s, background 0.25s, transform 0.25s;
+      cursor: pointer;
+    }
+    .toc-card:hover { border-color: rgba(201,168,76,0.5); background: rgba(22,40,71,0.7); transform: translateY(-4px); }
+    .toc-card-number { font-family: 'Cormorant Garamond', serif; font-size: 3rem; font-weight: 300; color: var(--gold); opacity: 0.35; line-height: 1; margin-bottom: 12px; display: block; }
+    .toc-card-icon { font-size: 1.6rem; margin-bottom: 14px; display: block; }
+    .toc-card-title { font-family: 'Cormorant Garamond', serif; font-size: 1.45rem; color: var(--cream); margin-bottom: 10px; }
+    .toc-card-desc { font-size: 0.78rem; color: var(--muted); line-height: 1.7; margin-bottom: 20px; }
+    .toc-card-cta { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold); }
+
+    /* ── Chapter break ── */
+    .chapter {
+      padding: 100px 24px 80px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+    .chapter::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 70% 60% at 50% 50%, rgba(201,168,76,0.05) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .chapter-number { font-family: 'Cormorant Garamond', serif; font-size: clamp(6rem, 18vw, 14rem); font-weight: 300; color: rgba(201,168,76,0.06); line-height: 1; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none; white-space: nowrap; }
+    .chapter-label { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); margin-bottom: 16px; position: relative; }
+    .chapter-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(2.8rem, 7vw, 5.5rem); font-weight: 300; line-height: 1.1; margin-bottom: 20px; position: relative; }
+    .chapter-sub { font-size: clamp(0.9rem, 1.6vw, 1.05rem); color: var(--muted); max-width: 520px; margin: 0 auto; line-height: 1.75; position: relative; }
+
+    /* ── Feature section ── */
+    .feature { padding: 100px 24px; max-width: 1140px; margin: 0 auto; }
+    .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: center; }
+    .feature-grid.rev { direction: rtl; }
+    .feature-grid.rev > * { direction: ltr; }
+    .feat-label { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; }
+    .feat-h2 { font-family: 'Cormorant Garamond', serif; font-size: clamp(1.9rem, 3.8vw, 3rem); font-weight: 500; line-height: 1.15; margin-bottom: 20px; }
+    .feat-p { font-size: 0.92rem; color: var(--muted); line-height: 1.85; margin-bottom: 14px; }
+    .feat-list { list-style: none; margin-top: 18px; display: flex; flex-direction: column; gap: 11px; }
+    .feat-list li { display: flex; gap: 11px; align-items: flex-start; font-size: 0.88rem; color: var(--muted); line-height: 1.6; }
+    .feat-list li::before { content: '◈'; color: var(--gold); font-size: 0.65rem; flex-shrink: 0; margin-top: 4px; }
+
+    /* ── Phone ── */
+    .phone-col { display: flex; justify-content: center; align-items: flex-start; gap: 18px; }
+    .phone {
+      width: 210px; background: #0a1020; border-radius: 30px;
+      border: 2px solid rgba(201,168,76,0.3); padding: 14px 11px 11px;
+      box-shadow: 0 36px 72px rgba(0,0,0,0.55), 0 0 0 1px rgba(201,168,76,0.07);
+      flex-shrink: 0;
+    }
+    .phone::before { content:''; display:block; width:56px; height:5px; background:rgba(201,168,76,0.18); border-radius:3px; margin:0 auto 12px; }
+    .phone-screen { border-radius: 18px; overflow: hidden; background: #0f1f3d; }
+    .phone-bar { background:rgba(10,16,30,0.97); border-top:1px solid rgba(201,168,76,0.18); display:flex; justify-content:space-around; padding:5px 0; }
+    .phone-tab { font-size:0.5rem; color:rgba(245,240,232,0.28); text-align:center; padding:2px 3px; }
+    .phone-tab.on { color:var(--gold); }
+
+    /* ── UI atoms ── */
+    .ui-hdr { padding:9px 11px 7px; border-bottom:1px solid rgba(201,168,76,0.1); }
+    .ui-title { font-family:'Cormorant Garamond',serif; font-size:1.05rem; color:var(--cream); }
+    .ui-sub { font-size:0.46rem; color:var(--muted); margin-top:1px; }
+    .ui-body { padding:9px 11px; display:flex; flex-direction:column; gap:7px; }
+    .ui-row { display:flex; align-items:center; gap:7px; padding:7px 9px; background:rgba(22,40,71,0.8); border-radius:7px; border:1px solid rgba(201,168,76,0.07); }
+    .ui-av { width:24px; height:24px; border-radius:12px; background:#2c4a7c; display:flex; align-items:center; justify-content:center; font-size:0.52rem; color:var(--cream); flex-shrink:0; font-family:'Cormorant Garamond',serif; }
+    .ui-av.red { background:rgba(192,57,43,0.25); border:1px solid rgba(192,57,43,0.35); }
+    .ui-name { font-size:0.57rem; font-weight:700; color:var(--cream); }
+    .ui-meta { font-size:0.45rem; color:var(--muted); }
+    .ui-pill { margin-left:auto; padding:2px 6px; border-radius:20px; font-size:0.4rem; font-weight:700; }
+    .ui-pill.red { background:rgba(192,57,43,0.15); color:#e74c3c; }
+    .ui-pill.yellow { background:rgba(243,156,18,0.15); color:#f39c12; }
+    .ui-pill.green { background:rgba(39,174,96,0.15); color:#27ae60; }
+    .ui-stats { display:flex; gap:5px; padding:0 11px 7px; }
+    .ui-stat { flex:1; background:rgba(10,16,30,0.6); border:1px solid rgba(201,168,76,0.1); border-radius:7px; padding:7px 5px; text-align:center; }
+    .ui-stat-v { font-family:'Cormorant Garamond',serif; font-size:1rem; }
+    .ui-stat-v.red{color:#e74c3c;} .ui-stat-v.yellow{color:#f39c12;} .ui-stat-v.cream{color:var(--cream);} .ui-stat-v.gold{color:var(--gold);}
+    .ui-stat-l { font-size:0.37rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.07em; }
+    .ui-slabel { font-size:0.42rem; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--gold); opacity:0.65; padding:3px 11px 1px; }
+    .ui-canon { margin:0 11px 5px; background:rgba(22,40,71,0.8); border:1px solid rgba(201,168,76,0.07); border-radius:7px; padding:7px 9px; }
+    .ui-canon-name { font-size:0.55rem; font-weight:700; color:var(--cream); margin-bottom:2px; }
+    .ui-canon-meta { font-size:0.43rem; color:var(--muted); margin-bottom:4px; }
+    .ui-track { height:3px; background:rgba(245,240,232,0.06); border-radius:2px; overflow:hidden; }
+    .ui-fill { height:100%; background:var(--gold); border-radius:2px; }
+    .ui-check-row { display:flex; align-items:center; gap:7px; padding:4px 11px; }
+    .ui-check { width:11px; height:11px; border-radius:3px; border:1px solid rgba(201,168,76,0.28); flex-shrink:0; }
+    .ui-check.done { background:var(--gold); border-color:var(--gold); font-size:0.45rem; display:flex; align-items:center; justify-content:center; }
+    .ui-check-text { font-size:0.5rem; color:var(--muted); }
+    .ui-check-text.done { text-decoration:line-through; opacity:0.35; }
+    .ui-banner { margin:5px 11px; background:rgba(201,168,76,0.05); border:1px solid rgba(201,168,76,0.15); border-radius:5px; padding:5px 7px; font-size:0.42rem; color:var(--muted); line-height:1.55; }
+    .ui-timeline { margin:0 11px 5px; padding:7px 9px; border-left:2px solid rgba(201,168,76,0.25); }
+    .ui-tl-date { font-size:0.39rem; color:var(--gold); opacity:0.65; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:1px; }
+    .ui-tl-title { font-size:0.52rem; font-weight:700; color:var(--cream); margin-bottom:1px; }
+    .ui-tl-body { font-size:0.42rem; color:var(--muted); line-height:1.45; }
+    .ui-vital-row { display:flex; align-items:center; gap:7px; padding:4px 11px; }
+    .ui-vital-label { font-size:0.47rem; color:var(--muted); flex:1; }
+    .ui-vital-track { flex:2; height:4px; background:rgba(245,240,232,0.06); border-radius:2px; overflow:hidden; }
+    .ui-vital-fill { height:100%; border-radius:2px; }
+    .ui-vital-val { font-size:0.47rem; color:var(--gold); font-weight:700; width:18px; text-align:right; }
+    .ui-journal-body { margin:4px 11px 8px; background:rgba(10,16,30,0.5); border:1px solid rgba(201,168,76,0.08); border-radius:6px; padding:8px 9px; }
+    .ui-journal-date { font-size:0.39rem; color:var(--gold); opacity:0.6; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:4px; }
+    .ui-journal-text { font-size:0.46rem; color:var(--muted); line-height:1.6; font-style:italic; }
+    .ui-tag-row { display:flex; gap:4px; flex-wrap:wrap; padding:0 11px 6px; }
+    .ui-tag { font-size:0.38rem; padding:2px 6px; border-radius:20px; border:1px solid rgba(201,168,76,0.2); color:var(--muted); }
+    .ui-prayer-row { margin:0 11px 6px; background:rgba(22,40,71,0.8); border:1px solid rgba(201,168,76,0.07); border-radius:7px; padding:7px 9px; }
+    .ui-prayer-text { font-size:0.5rem; color:var(--cream); margin-bottom:3px; font-style:italic; }
+    .ui-prayer-meta { font-size:0.4rem; color:var(--muted); display:flex; gap:8px; }
+    .ui-share-badge { font-size:0.38rem; padding:1px 5px; border-radius:3px; background:rgba(201,168,76,0.1); color:var(--gold); }
+
+    /* ── Privacy ── */
+    .privacy { padding: 110px 24px; background: var(--navy); border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+    .privacy-inner { max-width: 880px; margin: 0 auto; }
+    .privacy h2 { font-family:'Cormorant Garamond',serif; font-size:clamp(1.9rem,4vw,3.2rem); text-align:center; margin-bottom:14px; }
+    .privacy-sub { text-align:center; color:var(--muted); max-width:540px; margin:0 auto 56px; font-size:0.9rem; line-height:1.75; }
+    .privacy-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+    .privacy-card { background:rgba(10,16,30,0.6); border:1px solid var(--border); border-radius:12px; padding:26px; text-align:center; }
+    .privacy-card-icon { font-size:1.5rem; margin-bottom:14px; display:block; }
+    .privacy-card h3 { font-family:'Cormorant Garamond',serif; font-size:1.1rem; margin-bottom:9px; }
+    .privacy-card p { font-size:0.78rem; color:var(--muted); line-height:1.72; }
+    .privacy-stmt { margin-top:44px; padding:26px 30px; background:rgba(201,168,76,0.05); border:1px solid rgba(201,168,76,0.22); border-radius:12px; text-align:center; font-family:'Cormorant Garamond',serif; font-style:italic; font-size:1.1rem; color:var(--cream); line-height:1.6; }
+
+    /* ── Features grid ── */
+    .feats { padding: 110px 24px; max-width: 1080px; margin: 0 auto; }
+    .feats h2 { font-family:'Cormorant Garamond',serif; font-size:clamp(1.9rem,3.8vw,2.9rem); text-align:center; margin-bottom:56px; }
+    .feat-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+    .feat-card { background:rgba(22,40,71,0.4); border:1px solid var(--border); border-radius:12px; padding:26px; transition:border-color 0.2s,background 0.2s; }
+    .feat-card:hover { border-color:rgba(201,168,76,0.4); background:rgba(22,40,71,0.7); }
+    .feat-card-icon { font-size:1.2rem; margin-bottom:12px; display:block; }
+    .feat-card h3 { font-family:'Cormorant Garamond',serif; font-size:1.05rem; margin-bottom:7px; }
+    .feat-card p { font-size:0.78rem; color:var(--muted); line-height:1.7; }
+
+    /* ── CTA ── */
+    .cta { padding: 100px 24px 110px; text-align:center; background:var(--navy); border-top:1px solid var(--border); }
+    .cta h2 { font-family:'Cormorant Garamond',serif; font-size:clamp(1.9rem,4vw,3rem); margin-bottom:14px; }
+    .cta p { color:var(--muted); max-width:460px; margin:0 auto 44px; font-size:0.92rem; line-height:1.75; }
+    .cta-btns { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+    .btn-primary { background:var(--gold); color:var(--navy-dark); padding:13px 34px; font-size:0.72rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; border-radius:6px; text-decoration:none; transition:opacity 0.2s; }
+    .btn-primary:hover { opacity:0.85; }
+    .btn-ghost { border:1px solid rgba(201,168,76,0.38); color:var(--gold-light); padding:13px 34px; font-size:0.72rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; border-radius:6px; text-decoration:none; transition:background 0.2s; }
+    .btn-ghost:hover { background:var(--gold-dim); }
+
+    /* ── Footer ── */
+    footer { padding:32px 48px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:var(--navy-dark); }
+    .footer-brand { font-family:'Cormorant Garamond',serif; font-size:1.05rem; }
+    .footer-text { font-size:0.65rem; color:var(--muted); text-align:center; line-height:1.6; }
+
+    /* ── Responsive ── */
+    @media(max-width:860px){
+      nav { padding:14px 20px; }
+      .nav-links { display:none; }
+      .problem-grid,.feature-grid,.feature-grid.rev,.gap-cards,.privacy-grid,.feat-grid,.toc-cards { grid-template-columns:1fr; }
+      .feature-grid.rev { direction:ltr; }
+      footer { flex-direction:column; gap:14px; text-align:center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<nav>
+  <div class="nav-brand">
+    <span class="nav-cross">✝</span>
+    <div>
+      <div class="nav-title">Poimen</div>
+      <div class="nav-greek">ποιμήν · shepherd</div>
+    </div>
+  </div>
+  <div class="nav-links">
+    <a href="#priest" class="nav-link">For the Priest</a>
+    <a href="#servant" class="nav-link">For the Servant</a>
+    <a href="#congregant" class="nav-link">For the Faithful</a>
+  </div>
+  <a href="#cta" class="nav-cta">Request a Demo</a>
+</nav>
+
+<!-- ── Hero ── -->
+<section class="hero">
+  <div class="fade-up">
+    <p class="hero-eyebrow">Introducing</p>
+    <span class="hero-cross">✝</span>
+    <h1 class="hero-title">Poimen</h1>
+    <p class="hero-greek">ποιμήν — shepherd</p>
+    <p class="hero-tagline">A pastoral care companion built for the Coptic Orthodox priest, servant, and spiritual child.</p>
+  </div>
+  <p class="hero-scroll fade-up d2">↓ &nbsp; scroll</p>
+</section>
+
+<!-- ── Scripture ── -->
+<section class="scripture">
+  <div class="rule fade-up"></div><br>
+  <blockquote class="scripture-quote fade-up d1">"I am the good shepherd. I know my sheep and my sheep know me."</blockquote>
+  <p class="scripture-ref fade-up d2">John 10:14</p>
+  <br><div class="rule fade-up d3"></div>
+</section>
+
+<!-- ── Problem ── -->
+<section>
+  <div class="problem">
+    <p class="upper gold fade-up">The weight of shepherding</p>
+    <div class="problem-grid">
+      <div class="fade-up d1">
+        <h2>You carry them all.<br><span style="font-style:italic;color:var(--gold-light);font-weight:300;">Every single one.</span></h2>
+        <p>A Coptic priest doesn't have 10 spiritual children. He has 150. Some seasons, 200. Each one carries their own burdens — a struggling marriage, a faith that's growing cold, a sin that keeps returning.</p>
+        <p>He remembers faces. He prays for names. But the details — the canon he assigned in January, the prayer request shared in confidence, the person who hasn't come to confession since Lent — those are harder to hold.</p>
+        <p>He relies on a notebook. His memory. The rare moment someone reaches out first. It is not enough — not because he doesn't care, but because no human mind was built to shepherd at this scale without a tool.</p>
+      </div>
+      <div class="stat-col fade-up d2">
+        <div class="stat-card"><div class="stat-num gold">150+</div><div class="stat-lbl">The average number of spiritual children under a single Coptic priest's care in an active parish</div></div>
+        <div class="stat-card"><div class="stat-num gold">74</div><div class="stat-lbl">Days can pass between confessions before a priest even notices someone has gone quiet</div></div>
+        <div class="stat-card"><div class="stat-num gold">0</div><div class="stat-lbl">Digital tools built specifically for the Coptic Orthodox pastoral relationship — until now</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Gap ── -->
+<section class="gap-section">
+  <div class="gap-inner">
+    <h2 class="fade-up">What gets <span style="font-style:italic;color:var(--gold-light);">missed</span> today</h2>
+    <div class="gap-cards">
+      <div class="gap-card fade-up d1"><span class="gap-icon">✝</span><h3>The drifting child</h3><p>Someone confesses a deep struggle in February. By May they've stopped coming. The priest finds out months later — or never. There was no signal, no alert, no way to know.</p></div>
+      <div class="gap-card fade-up d2"><span class="gap-icon">📜</span><h3>The forgotten canon</h3><p>You assigned 40 days of the Agpeya at the end of confession. You have no way to follow up. The canon lives in a notebook and dies there.</p></div>
+      <div class="gap-card fade-up d3"><span class="gap-icon">◇</span><h3>The unheard prayer</h3><p>A spiritual child shares a private prayer request — a sick parent, a marriage in trouble. Between confessions there is no channel. No way to follow up.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Solution ── -->
+<section class="solution">
+  <div class="rule fade-up"></div><br><br>
+  <p class="upper gold fade-up">Introducing Poimen</p><br>
+  <h2 class="fade-up d1">No one falls<br><span style="font-style:italic;color:var(--gold-light);">through the cracks.</span></h2>
+  <p class="fade-up d2">Poimen is a pastoral care companion — not a productivity app, not a CRM, not a generic tool repurposed for ministry. Every feature was designed around a single relationship: the Father of Confession and his spiritual child.</p>
+  <div class="solution-pull fade-up d3">"The Good Shepherd leaves the 99 to find the one. Poimen tells him which one."</div>
+  <br><br><div class="rule fade-up d4"></div>
+</section>
+
+<!-- ── TOC ── -->
+<section class="toc">
+  <div class="toc-inner">
+    <p class="toc-label fade-up">Built for every role</p>
+    <h2 class="toc-heading fade-up d1">Who is Poimen for?</h2>
+    <p class="toc-sub fade-up d2">Three different people. One shared mission. Each sees only what their role requires.</p>
+    <div class="toc-cards">
+      <a href="#priest" class="toc-card fade-up d1">
+        <span class="toc-card-number">I</span>
+        <span class="toc-card-icon">✝</span>
+        <div class="toc-card-title">The Priest</div>
+        <p class="toc-card-desc">The Father of Confession who carries his flock — and needs to know who is drifting before it's too late.</p>
+        <span class="toc-card-cta">See the priest view →</span>
+      </a>
+      <a href="#servant" class="toc-card fade-up d2">
+        <span class="toc-card-number">II</span>
+        <span class="toc-card-icon">📖</span>
+        <div class="toc-card-title">The Servant</div>
+        <p class="toc-card-desc">The Sunday School servant whose lesson doesn't end on Sunday — and who wants to know if students are reading.</p>
+        <span class="toc-card-cta">See the servant view →</span>
+      </a>
+      <a href="#congregant" class="toc-card fade-up d3">
+        <span class="toc-card-number">III</span>
+        <span class="toc-card-icon">◈</span>
+        <div class="toc-card-title">The Faithful</div>
+        <p class="toc-card-desc">The spiritual child who wants to grow — privately, intentionally, and in communion with their father.</p>
+        <span class="toc-card-cta">See the faithful view →</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+
+<!-- ════════════════════════════════════════════ -->
+<!-- CHAPTER I — THE PRIEST                       -->
+<!-- ════════════════════════════════════════════ -->
+<section class="chapter" id="priest">
+  <div class="chapter-number">I</div>
+  <p class="chapter-label fade-up">Chapter I</p>
+  <h2 class="chapter-title fade-up d1">For the Priest</h2>
+  <p class="chapter-sub fade-up d2">Flock oversight, encounter logging, canon assignment, and pastoral notes — all in one quiet dashboard.</p>
+</section>
+
+<!-- Priest: Flock dashboard -->
+<section class="feature" style="border-top:1px solid var(--border);">
+  <div class="feature-grid">
+    <div class="fade-up">
+      <p class="feat-label">Flock Dashboard</p>
+      <h2 class="feat-h2">Your flock,<br>at a glance.</h2>
+      <p class="feat-p">The Flock dashboard shows every spiritual child — colour-coded by confession cadence. Overdue. Due. Recent. At a glance, the priest knows exactly who needs his attention today.</p>
+      <p class="feat-p">Tap any name to see their spiritual vitals (what they've chosen to share), their confession history (dates only — content is never recorded), assigned canons, and prayer requests.</p>
+      <ul class="feat-list">
+        <li>Confession cadence — see who hasn't come in 30, 60, 90 days</li>
+        <li>Flagged members surface to the top automatically</li>
+        <li>Private pastoral notes — never visible to the member</li>
+        <li>Member-visible encounter notes appear in their pastoral timeline</li>
+      </ul>
+    </div>
+    <div class="phone-col fade-up d2">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="ui-hdr">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div><div class="ui-title">My Flock</div><div class="ui-sub">Sunday · Apostles' Fast · Fr. Bishoy</div></div>
+              <div style="font-size:0.43rem;border:1px solid rgba(201,168,76,0.28);padding:3px 6px;border-radius:3px;color:var(--muted);">MY VIEW</div>
+            </div>
+          </div>
+          <div class="ui-stats">
+            <div class="ui-stat"><div class="ui-stat-v red">2</div><div class="ui-stat-l">Overdue</div></div>
+            <div class="ui-stat"><div class="ui-stat-v yellow">2</div><div class="ui-stat-l">Due</div></div>
+            <div class="ui-stat"><div class="ui-stat-v cream">6</div><div class="ui-stat-l">Total</div></div>
+          </div>
+          <div class="ui-slabel">MEMBERS (6)</div>
+          <div class="ui-body" style="gap:5px;padding-top:3px;">
+            <div class="ui-row"><div class="ui-av">MH</div><div><div class="ui-name">Michael Hanna</div><div class="ui-meta">✝ 47d ago</div></div><div class="ui-pill yellow">⚠ Due</div></div>
+            <div class="ui-row"><div class="ui-av">SG</div><div><div class="ui-name">Sara Girgis</div><div class="ui-meta">✝ 18d ago</div></div><div class="ui-pill green">✓ Recent</div></div>
+            <div class="ui-row"><div class="ui-av red">PB</div><div><div class="ui-name">Peter Botros</div><div class="ui-meta">✝ 74d ago · ⚑ Flagged</div></div><div class="ui-pill red">⚠ Overdue</div></div>
+            <div class="ui-row"><div class="ui-av">CN</div><div><div class="ui-name">Christine Naguib</div><div class="ui-meta">✝ 35d ago</div></div><div class="ui-pill yellow">⚠ Due</div></div>
+          </div>
+          <div class="phone-bar">
+            <div class="phone-tab on">◉ Flock</div>
+            <div class="phone-tab">◈ Member</div>
+            <div class="phone-tab">📜 Canon</div>
+            <div class="phone-tab">✝ Log</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Priest: Member detail -->
+<section class="feature" style="background:var(--navy);border-top:1px solid var(--border);max-width:100%;padding:100px 24px;">
+  <div class="feature-grid rev" style="max-width:1140px;margin:0 auto;">
+    <div class="phone-col fade-up">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="ui-hdr">
+            <div class="ui-title">Peter Botros</div>
+            <div class="ui-sub">✝ Last confession 74 days ago · ⚑ Flagged</div>
+          </div>
+          <div class="ui-slabel">CONFESSION HISTORY</div>
+          <div class="ui-timeline" style="margin-top:4px;">
+            <div class="ui-tl-date">MAR 24, 2026</div>
+            <div class="ui-tl-title">Holy Confession</div>
+            <div class="ui-tl-body">Canon assigned: Psalm 50 daily for 30 days.</div>
+          </div>
+          <div class="ui-timeline">
+            <div class="ui-tl-date">JAN 10, 2026</div>
+            <div class="ui-tl-title">Holy Confession</div>
+            <div class="ui-tl-body">Counseling re: work stress. Follow-up in 3 weeks.</div>
+          </div>
+          <div class="ui-slabel" style="margin-top:3px;">PRAYER REQUESTS (FOC ONLY)</div>
+          <div class="ui-prayer-row">
+            <div class="ui-prayer-text">"Please pray for my father's recovery."</div>
+            <div class="ui-prayer-meta"><span>May 10</span><span class="ui-share-badge">FOC only</span></div>
+          </div>
+          <div class="ui-slabel" style="margin-top:3px;">PASTORAL NOTES (PRIVATE)</div>
+          <div class="ui-journal-body">
+            <div class="ui-journal-text">Peter is going through a difficult season at work. Encourage him to call when it feels heavy.</div>
+          </div>
+          <div class="phone-bar">
+            <div class="phone-tab">◉ Flock</div>
+            <div class="phone-tab on">◈ Member</div>
+            <div class="phone-tab">📜 Canon</div>
+            <div class="phone-tab">✝ Log</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="fade-up d2">
+      <p class="feat-label">Member Detail & Encounter Log</p>
+      <h2 class="feat-h2">The full picture<br>of every relationship.</h2>
+      <p class="feat-p">Tap a member to see everything at once: confession history, prayer requests shared only with him, active canons, spiritual vitals, and private pastoral notes only he can see.</p>
+      <p class="feat-p">Log any encounter — a confession, counseling, a pastoral visit, a phone call — and optionally leave a member-visible note that appears in their spiritual timeline.</p>
+      <ul class="feat-list">
+        <li>Confession history: dates and assigned canons, never content</li>
+        <li>Log encounter types: confession, counseling, visit, phone, group</li>
+        <li>Private pastoral notes — stored under the priest's account only</li>
+        <li>Canon assignment with preset library or custom disciplines</li>
+        <li>Prayer requests visible only when the member chose to share them</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+
+<!-- ════════════════════════════════════════════ -->
+<!-- CHAPTER II — THE SERVANT                     -->
+<!-- ════════════════════════════════════════════ -->
+<section class="chapter" id="servant" style="background:var(--navy-dark);">
+  <div class="chapter-number">II</div>
+  <p class="chapter-label fade-up">Chapter II</p>
+  <h2 class="chapter-title fade-up d1">For the Servant</h2>
+  <p class="chapter-sub fade-up d2">A focused portal for Sunday School servants — student roster, canon assignment, and daily completion tracking.</p>
+</section>
+
+<!-- Servant: Student roster -->
+<section class="feature" style="border-top:1px solid var(--border);">
+  <div class="feature-grid">
+    <div class="fade-up">
+      <p class="feat-label">The Sunday School Servant</p>
+      <h2 class="feat-h2">Sunday didn't end<br><span style="font-style:italic;color:var(--gold-light);">on Sunday.</span></h2>
+      <p class="feat-p">You gave your students a Gospel chapter to read each morning. A prayer to say each evening. Did they do it? Right now you have no way to know until next Sunday — if they remember to tell you.</p>
+      <p class="feat-p">With Poimen, you assign the practice and your student checks it off in the app. You see their completion. The lesson continues all week.</p>
+      <ul class="feat-list">
+        <li>Student roster — all your Sunday School children in one place</li>
+        <li>Assign Prayer and Scripture canons tailored to each student</li>
+        <li>See daily completion — who is reading, who needs encouragement</li>
+        <li>Scoped access — servants never see confession history or counseling records</li>
+        <li>Deactivate a canon when a student completes the practice period</li>
+      </ul>
+    </div>
+    <div class="phone-col fade-up d2">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="ui-hdr">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div><div class="ui-title">My Students</div><div class="ui-sub">Sunday · Bishoy — Servant</div></div>
+              <div style="font-size:0.43rem;border:1px solid rgba(201,168,76,0.28);padding:3px 6px;border-radius:3px;color:var(--muted);">MY VIEW</div>
+            </div>
+          </div>
+          <div class="ui-stats">
+            <div class="ui-stat"><div class="ui-stat-v cream">4</div><div class="ui-stat-l">Students</div></div>
+            <div class="ui-stat"><div class="ui-stat-v gold">6</div><div class="ui-stat-l">Canons</div></div>
+            <div class="ui-stat"><div class="ui-stat-v" style="color:#27ae60;">3</div><div class="ui-stat-l">Active</div></div>
+          </div>
+          <div class="ui-slabel">STUDENTS (4)</div>
+          <div class="ui-body" style="gap:5px;padding-top:3px;">
+            <div class="ui-row"><div class="ui-av">JM</div><div><div class="ui-name">John Mark</div><div class="ui-meta">📜 2 canons · Active 2d ago</div></div></div>
+            <div class="ui-row"><div class="ui-av">EM</div><div><div class="ui-name">Esther Mikhail</div><div class="ui-meta">📜 1 canon · Active 5d ago</div></div></div>
+            <div class="ui-row"><div class="ui-av">TG</div><div><div class="ui-name">Timothy George</div><div class="ui-meta">📜 0 canons · No activity</div></div></div>
+            <div class="ui-row"><div class="ui-av">RH</div><div><div class="ui-name">Ruth Hanna</div><div class="ui-meta">📜 3 canons · Active today</div></div></div>
+          </div>
+          <div class="phone-bar">
+            <div class="phone-tab on">◉ Students</div>
+            <div class="phone-tab">📖 Student</div>
+            <div class="phone-tab">📜 Canon</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Servant: Canon detail -->
+<section class="feature" style="background:var(--navy);border-top:1px solid var(--border);max-width:100%;padding:100px 24px;">
+  <div class="feature-grid rev" style="max-width:1140px;margin:0 auto;">
+    <div class="phone-col fade-up">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="ui-hdr">
+            <div class="ui-title">John Mark</div>
+            <div class="ui-sub">Sunday School Student · 2 canons assigned</div>
+          </div>
+          <div class="ui-slabel">ASSIGNED CANONS</div>
+          <div class="ui-canon" style="margin-top:5px;">
+            <div class="ui-canon-name">Morning Agpeya</div>
+            <div class="ui-canon-meta">Daily · since Jun 1</div>
+            <div style="display:flex;align-items:center;gap:7px;">
+              <div class="ui-track" style="flex:1;"><div class="ui-fill" style="width:71%;"></div></div>
+              <span style="font-size:0.42rem;color:#f39c12;font-weight:700;">5/7 this week</span>
+            </div>
+          </div>
+          <div class="ui-canon">
+            <div class="ui-canon-name">Gospel Reading (1 chapter)</div>
+            <div class="ui-canon-meta">Daily · since Jun 1</div>
+            <div style="display:flex;align-items:center;gap:7px;">
+              <div class="ui-track" style="flex:1;"><div class="ui-fill" style="width:57%;"></div></div>
+              <span style="font-size:0.42rem;color:#f39c12;font-weight:700;">4/7 this week</span>
+            </div>
+          </div>
+          <div class="ui-banner" style="margin-top:6px;">✦ Confession history and pastoral notes are accessible only to John's Father of Confession.</div>
+          <div style="margin:6px 11px 9px;">
+            <div style="background:var(--gold);border-radius:5px;padding:6px;text-align:center;font-size:0.48rem;font-weight:700;color:var(--navy);">+ ASSIGN CANON</div>
+          </div>
+          <div class="phone-bar">
+            <div class="phone-tab">◉ Students</div>
+            <div class="phone-tab on">📖 Student</div>
+            <div class="phone-tab">📜 Canon</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="fade-up d2">
+      <p class="feat-label">Completion Tracking</p>
+      <h2 class="feat-h2">You assigned it.<br>Did they do it?</h2>
+      <p class="feat-p">See how many days each student completed their assigned practice this week. At a glance, you know who to encourage on Sunday morning before they even sit down.</p>
+      <p class="feat-p">Students check off their practices in their own Canon tab — the same simple screen as any member. No extra login, no separate app.</p>
+      <ul class="feat-list">
+        <li>Weekly completion count per canon — "5/7 this week"</li>
+        <li>Assign from a curated preset library: Agpeya, Gospel, Psalms, Rosary</li>
+        <li>Set a start date and frequency; students see it in their daily view</li>
+        <li>Deactivate a canon once the practice period is complete</li>
+        <li>No confession or counseling data ever visible to the servant</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+
+<!-- ════════════════════════════════════════════ -->
+<!-- CHAPTER III — THE FAITHFUL                   -->
+<!-- ════════════════════════════════════════════ -->
+<section class="chapter" id="congregant" style="background:var(--navy-dark);">
+  <div class="chapter-number">III</div>
+  <p class="chapter-label fade-up">Chapter III</p>
+  <h2 class="chapter-title fade-up d1">For the Faithful</h2>
+  <p class="chapter-sub fade-up d2">A private, personal space to tend your spiritual life — on your own terms, in your own time, shared only when you choose.</p>
+</section>
+
+<!-- Congregant: Daily canon -->
+<section class="feature" style="border-top:1px solid var(--border);">
+  <div class="feature-grid">
+    <div class="fade-up">
+      <p class="feat-label">Daily Spiritual Life</p>
+      <h2 class="feat-h2">Your disciplines,<br>tracked by you.</h2>
+      <p class="feat-p">Your Father of Confession assigned a canon — the Agpeya each morning, a chapter of the Gospel each day. Poimen gives you a simple daily checklist. Check it off. Build the habit. See your streak.</p>
+      <p class="feat-p">Nothing is mandatory. No one sees your completion unless you choose to share it. The canon tracker exists to help you, not to report on you.</p>
+      <ul class="feat-list">
+        <li>Daily checklist of all active spiritual practices</li>
+        <li>Progress bar and weekly streak — your own private accountability</li>
+        <li>Canons assigned by your priest or servant appear automatically</li>
+        <li>Add personal practices beyond what was assigned</li>
+        <li>Completion data is yours — never shared without your consent</li>
+      </ul>
+    </div>
+    <div class="phone-col fade-up d2">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="ui-hdr">
+            <div class="ui-title">Today's Practices</div>
+            <div class="ui-sub">Sunday, Jun 7 · Apostles' Fast</div>
+          </div>
+          <div class="ui-stats">
+            <div class="ui-stat"><div class="ui-stat-v" style="color:#27ae60;">3</div><div class="ui-stat-l">Done</div></div>
+            <div class="ui-stat"><div class="ui-stat-v yellow">1</div><div class="ui-stat-l">Remaining</div></div>
+            <div class="ui-stat"><div class="ui-stat-v gold">14</div><div class="ui-stat-l">Day Streak</div></div>
+          </div>
+          <div class="ui-slabel">ASSIGNED BY FR. BISHOY</div>
+          <div class="ui-check-row"><div class="ui-check done">✓</div><div class="ui-check-text done">Morning Agpeya</div></div>
+          <div class="ui-check-row"><div class="ui-check done">✓</div><div class="ui-check-text done">Gospel Reading — Matthew 6</div></div>
+          <div class="ui-check-row"><div class="ui-check"></div><div class="ui-check-text">Psalm 50 — evening</div></div>
+          <div class="ui-slabel" style="margin-top:4px;">MY OWN PRACTICE</div>
+          <div class="ui-check-row"><div class="ui-check done">✓</div><div class="ui-check-text done">Morning thanksgiving</div></div>
+          <div class="ui-canon" style="margin-top:5px;">
+            <div class="ui-canon-name">Weekly progress</div>
+            <div class="ui-track"><div class="ui-fill" style="width:80%;"></div></div>
+          </div>
+          <div class="phone-bar">
+            <div class="phone-tab">◈ Home</div>
+            <div class="phone-tab">✝ Confess</div>
+            <div class="phone-tab">✦ Journal</div>
+            <div class="phone-tab">◇ Prayer</div>
+            <div class="phone-tab on">📜 Canon</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Congregant: Confession prep -->
+<section class="feature" style="background:var(--navy);border-top:1px solid var(--border);max-width:100%;padding:100px 24px;">
+  <div class="feature-grid rev" style="max-width:1140px;margin:0 auto;">
+    <div class="phone-col fade-up">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="ui-hdr">
+            <div class="ui-title">Confession Prep</div>
+            <div class="ui-sub">Private — never stored or transmitted</div>
+          </div>
+          <div class="ui-banner">🔒 <strong>Complete privacy.</strong> Your notes exist only in this session. Nothing is stored anywhere.</div>
+          <div class="ui-slabel">TOWARD GOD</div>
+          <div class="ui-check-row"><div class="ui-check done">✓</div><div class="ui-check-text done">Have I neglected my daily prayers?</div></div>
+          <div class="ui-check-row"><div class="ui-check done">✓</div><div class="ui-check-text done">Have I kept the fasts with sincerity?</div></div>
+          <div class="ui-check-row"><div class="ui-check"></div><div class="ui-check-text">Have I harbored doubt or distrust?</div></div>
+          <div class="ui-slabel" style="margin-top:3px;">TOWARD OTHERS</div>
+          <div class="ui-check-row"><div class="ui-check done">✓</div><div class="ui-check-text done">Have I judged or spoken harshly?</div></div>
+          <div class="ui-check-row"><div class="ui-check"></div><div class="ui-check-text">Have I carried resentment or anger?</div></div>
+          <div class="ui-check-row"><div class="ui-check"></div><div class="ui-check-text">Have I withheld forgiveness?</div></div>
+          <div class="ui-slabel" style="margin-top:3px;">LAST CONFESSION</div>
+          <div class="ui-timeline">
+            <div class="ui-tl-date">APR 20, 2026</div>
+            <div class="ui-tl-title">Holy Confession — 48 days ago</div>
+          </div>
+          <div class="phone-bar">
+            <div class="phone-tab">◈ Home</div>
+            <div class="phone-tab on">✝ Confess</div>
+            <div class="phone-tab">✦ Journal</div>
+            <div class="phone-tab">◇ Prayer</div>
+            <div class="phone-tab">📜 Canon</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="fade-up d2">
+      <p class="feat-label">Confession Preparation</p>
+      <h2 class="feat-h2">Come to confession<br><span style="font-style:italic;color:var(--gold-light);">prepared.</span></h2>
+      <p class="feat-p">The examination of conscience guides you through four areas — toward God, toward others, toward self, toward the Church. Checkboxes. Text notes. A quiet space to be honest before you are honest with your priest.</p>
+      <p class="feat-p">What you write exists only in this session. When you close the screen, it is gone. Not encrypted. Not anonymized. Gone. The seal of confession begins before you step into the room.</p>
+      <ul class="feat-list">
+        <li>Guided examination across four spiritual dimensions</li>
+        <li>Free-text notes for the details only you and God need to see</li>
+        <li>Session-only — no data is written to any server, ever</li>
+        <li>View your last confession date and assigned canon as a reminder</li>
+        <li>No account of your sins goes to a database. Not one line.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- Congregant: Journal + Vitals -->
+<section class="feature" style="border-top:1px solid var(--border);">
+  <div class="feature-grid">
+    <div class="fade-up">
+      <p class="feat-label">Spiritual Journal & Vitals</p>
+      <h2 class="feat-h2">A private place<br>to tend your soul.</h2>
+      <p class="feat-p">The journal is yours. Write about your prayer life, your struggles, what moved you in the liturgy. Add tags. Reflect on a scripture. No one reads it unless you invite them to.</p>
+      <p class="feat-p">Spiritual vitals let you share a snapshot of your inner life with your Father of Confession — prayer frequency, scripture reading, fasting, liturgy attendance. You control the dial. Share it or keep it. His care becomes more personal when he knows where you are.</p>
+      <ul class="feat-list">
+        <li>Private journal — entries, tags, scripture references</li>
+        <li>Share a single entry with your FOC with one tap</li>
+        <li>Spiritual vitals: self-rated across five dimensions</li>
+        <li>Vitals are only shared when you explicitly choose to send them</li>
+        <li>Your FOC sees a snapshot — not a live feed, not a log</li>
+      </ul>
+    </div>
+    <div class="phone-col fade-up d2">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="ui-hdr">
+            <div class="ui-title">My Journal</div>
+            <div class="ui-sub">Private · 12 entries this month</div>
+          </div>
+          <div class="ui-journal-body" style="margin-top:7px;">
+            <div class="ui-journal-date">JUN 5, 2026 · Thursday</div>
+            <div class="ui-journal-text">"The Liturgy felt different today. Like I was actually present for once. I kept thinking about the words of the Fraction — 'He gave it to His holy disciples...' Something opened."</div>
+          </div>
+          <div class="ui-tag-row">
+            <div class="ui-tag">Gratitude</div>
+            <div class="ui-tag">Liturgy</div>
+            <div class="ui-tag">Prayer</div>
+          </div>
+          <div class="ui-slabel" style="margin-top:3px;">SPIRITUAL VITALS <span style="color:var(--muted);font-size:0.38rem;margin-left:4px;">(shared with Fr. Bishoy)</span></div>
+          <div class="ui-vital-row"><div class="ui-vital-label">Prayer</div><div class="ui-vital-track"><div class="ui-vital-fill" style="width:80%;background:var(--gold);"></div></div><div class="ui-vital-val">8</div></div>
+          <div class="ui-vital-row"><div class="ui-vital-label">Scripture</div><div class="ui-vital-track"><div class="ui-vital-fill" style="width:65%;background:var(--gold);"></div></div><div class="ui-vital-val">6</div></div>
+          <div class="ui-vital-row"><div class="ui-vital-label">Fasting</div><div class="ui-vital-track"><div class="ui-vital-fill" style="width:90%;background:#27ae60;"></div></div><div class="ui-vital-val">9</div></div>
+          <div class="ui-vital-row"><div class="ui-vital-label">Liturgy</div><div class="ui-vital-track"><div class="ui-vital-fill" style="width:55%;background:#f39c12;"></div></div><div class="ui-vital-val">5</div></div>
+          <div class="phone-bar">
+            <div class="phone-tab">◈ Home</div>
+            <div class="phone-tab">✝ Confess</div>
+            <div class="phone-tab on">✦ Journal</div>
+            <div class="phone-tab">◇ Prayer</div>
+            <div class="phone-tab">📜 Canon</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Congregant: Prayer + Pastoral timeline -->
+<section class="feature" style="background:var(--navy);border-top:1px solid var(--border);max-width:100%;padding:100px 24px;">
+  <div class="feature-grid rev" style="max-width:1140px;margin:0 auto;">
+    <div class="phone-col fade-up">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="ui-hdr">
+            <div class="ui-title">Prayer & Pastoral</div>
+            <div class="ui-sub">Michael Hanna</div>
+          </div>
+          <div class="ui-slabel">MY PRAYER REQUESTS</div>
+          <div class="ui-prayer-row">
+            <div class="ui-prayer-text">"For my father's health and peace in his last days."</div>
+            <div class="ui-prayer-meta"><span>Jun 1</span><span class="ui-share-badge">FOC only</span></div>
+          </div>
+          <div class="ui-prayer-row">
+            <div class="ui-prayer-text">"Strength through this season at work."</div>
+            <div class="ui-prayer-meta"><span>May 14</span><span style="font-size:0.38rem;padding:1px 5px;border-radius:3px;background:rgba(245,240,232,0.06);color:var(--muted);">Private</span></div>
+          </div>
+          <div class="ui-slabel" style="margin-top:3px;">FROM FR. BISHOY</div>
+          <div class="ui-timeline">
+            <div class="ui-tl-date">MAY 21, 2026</div>
+            <div class="ui-tl-title">Holy Confession</div>
+            <div class="ui-tl-body">Assigned Psalm 50 for 40 days. Encouraged to call when the season feels heavy.</div>
+          </div>
+          <div class="ui-timeline">
+            <div class="ui-tl-date">MAY 4, 2026</div>
+            <div class="ui-tl-title">Pastoral Visit — Home</div>
+            <div class="ui-tl-body">Prayers and blessings for the birth of your daughter, Mary.</div>
+          </div>
+          <div class="phone-bar">
+            <div class="phone-tab">◈ Home</div>
+            <div class="phone-tab">✝ Confess</div>
+            <div class="phone-tab">✦ Journal</div>
+            <div class="phone-tab on">◇ Prayer</div>
+            <div class="phone-tab">📜 Canon</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="fade-up d2">
+      <p class="feat-label">Prayer Requests & Pastoral Timeline</p>
+      <h2 class="feat-h2">Stay connected<br>between confessions.</h2>
+      <p class="feat-p">Share a prayer request directly with your Father of Confession — without waiting until your next confession. He sees it in his member view. He prays for it. He can follow up.</p>
+      <p class="feat-p">Your pastoral timeline shows you what your priest has shared back — the note from your last confession, the blessing from a home visit, the canon he assigned and why. The relationship doesn't end when you leave the room.</p>
+      <ul class="feat-list">
+        <li>Prayer requests — private (only you) or shared with your FOC</li>
+        <li>Your FOC sees only what you explicitly send him</li>
+        <li>Pastoral timeline: a record of your journey together</li>
+        <li>Encounter notes from your priest appear here when he chooses to share them</li>
+        <li>A living record of the relationship, visible to both sides</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+
+<!-- ── Privacy ── -->
+<section class="privacy">
+  <div class="privacy-inner">
+    <h2 class="fade-up">Privacy is a <span style="font-style:italic;color:var(--gold-light);">theological commitment.</span></h2>
+    <p class="privacy-sub fade-up d1">The holy seal of confession is absolute. Poimen was designed from the ground up to honor it — not as a legal compliance matter, but as a matter of faith.</p>
+    <div class="privacy-grid">
+      <div class="privacy-card fade-up d1"><span class="privacy-card-icon">🔒</span><h3>Confession content never stored</h3><p>The examination of conscience and all preparation notes exist only in the session. They are never written to a database, never transmitted, never cached. When the screen closes, they are gone.</p></div>
+      <div class="privacy-card fade-up d2"><span class="privacy-card-icon">✝</span><h3>Only the date is recorded</h3><p>When a priest logs a confession, only the date and encounter type are saved — matching what he already writes in a notebook. Nothing more. The seal is honored in every line of code.</p></div>
+      <div class="privacy-card fade-up d3"><span class="privacy-card-icon">◈</span><h3>Sharing is always a choice</h3><p>Spiritual vitals, prayer requests, journal entries — none are shared with the priest unless the congregant explicitly chooses to share them. The default is private. Always.</p></div>
+    </div>
+    <div class="privacy-stmt fade-up d2">"What you bring to God stays between you and God. Poimen exists to support that relationship — not to observe it."</div>
+  </div>
+</section>
+
+<!-- ── Features grid ── -->
+<section class="feats">
+  <h2 class="fade-up">Everything the shepherd — <span style="font-style:italic;color:var(--gold-light);">and the flock</span> — needs.</h2>
+  <div class="feat-grid">
+    <div class="feat-card fade-up d1"><span class="feat-card-icon">◉</span><h3>Flock Dashboard</h3><p>Every spiritual child at a glance. Confession cadence, prayer requests. Overdue, Due, Recent — colour-coded.</p></div>
+    <div class="feat-card fade-up d2"><span class="feat-card-icon">✝</span><h3>Encounter Logging</h3><p>Confession, counseling, pastoral visit, phone call, group encounter. Member-visible notes appear in the spiritual child's timeline.</p></div>
+    <div class="feat-card fade-up d3"><span class="feat-card-icon">📜</span><h3>Canon Assignment</h3><p>Assign spiritual disciplines from a curated Coptic library. Track completion. Add encouragement.</p></div>
+    <div class="feat-card fade-up d1"><span class="feat-card-icon">◇</span><h3>Prayer Requests</h3><p>Private, or shared with the Father of Confession only. He sees only what is explicitly shared — nothing more.</p></div>
+    <div class="feat-card fade-up d2"><span class="feat-card-icon">✦</span><h3>Spiritual Journal</h3><p>A personal journal of disciplines, reflections, and growth. Share sections with your FOC, or keep them entirely private.</p></div>
+    <div class="feat-card fade-up d3"><span class="feat-card-icon">◈</span><h3>Spiritual Vitals</h3><p>Self-reported wellness across prayer, scripture, liturgy, fasting, and service. Shared with the priest only if you choose.</p></div>
+    <div class="feat-card fade-up d1"><span class="feat-card-icon">🔒</span><h3>Confession Preparation</h3><p>Guided examination of conscience. Session-only — never stored anywhere, by anyone, ever.</p></div>
+    <div class="feat-card fade-up d2"><span class="feat-card-icon">📖</span><h3>Student Canons</h3><p>Sunday School servants assign Bible reading and prayer. Students check them off daily. Completion visible to the servant.</p></div>
+    <div class="feat-card fade-up d3"><span class="feat-card-icon">⊕</span><h3>Role-Aware Access</h3><p>Priest, servant, and congregant each see exactly what their role requires — nothing more.</p></div>
+  </div>
+</section>
+
+<!-- ── Closing Scripture ── -->
+<section class="scripture" style="background:var(--navy);">
+  <div class="rule fade-up"></div><br>
+  <blockquote class="scripture-quote fade-up d1">"Be shepherds of God's flock that is under your care, watching over them — not because you must, but because you are willing."</blockquote>
+  <p class="scripture-ref fade-up d2">1 Peter 5:2</p>
+  <br><div class="rule fade-up d3"></div>
+</section>
+
+<!-- ── CTA ── -->
+<section class="cta" id="cta">
+  <h2 class="fade-up">Ready to shepherd<br><span style="font-style:italic;color:var(--gold-light);">with clarity?</span></h2>
+  <p class="fade-up d1">Poimen is available now for priests, servants, and their communities. Request a demo or reach out to learn more.</p>
+  <div class="cta-btns fade-up d2">
+    <a href="mailto:bsaleeb@gmail.com?subject=Poimen Demo Request" class="btn-primary">Request a Demo</a>
+    <a href="mailto:bsaleeb@gmail.com?subject=Poimen — Question" class="btn-ghost">Ask a Question</a>
+  </div>
+</section>
+
+<!-- ── Footer ── -->
+<footer>
+  <div class="footer-brand">✝ &nbsp; Poimen</div>
+  <div class="footer-text">A ministry of the Coptic Orthodox Church.<br>All spiritual data is private and protected.</div>
+  <div class="footer-text" style="text-align:right;">ποιμήν — shepherd<br>Built with reverence.</div>
+</footer>
+
+<script>
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.fade-up').forEach(el => obs.observe(el));
+</script>
+</body>
+</html>
