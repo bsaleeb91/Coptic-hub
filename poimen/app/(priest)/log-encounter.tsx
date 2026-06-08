@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { useSession } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
+import { DEMO_MODE } from '@/lib/config';
 
 type EncounterType = 'confession' | 'counseling' | 'advice' | 'visit' | 'phone' | 'group';
 
@@ -16,43 +19,91 @@ const ENCOUNTER_TYPES: { value: EncounterType; label: string; desc: string }[] =
   { value: 'group', label: '◉ Group Encounter', desc: 'Retreat, group study, etc.' },
 ];
 
-const MEMBERS_FAKE = [
-  'Peter Botros', 'Michael Hanna', 'Sara Girgis', 'Mary Mikhail',
-  'Andrew George', 'Christine Naguib',
+const DEMO_MEMBERS = [
+  { id: 'demo-pb', name: 'Peter Botros' },
+  { id: 'demo-mh', name: 'Michael Hanna' },
+  { id: 'demo-sg', name: 'Sara Girgis' },
+  { id: 'demo-mm', name: 'Mary Mikhail' },
+  { id: 'demo-ag', name: 'Andrew George' },
+  { id: 'demo-cn', name: 'Christine Naguib' },
 ];
 
-const OUTCOMES: string[] = [
+const OUTCOMES = [
   'Canon assigned', 'Canon adjusted', 'Prayer offered', 'Scripture given',
   'Referral made', 'Follow-up scheduled', 'No action needed',
 ];
 
 export default function LogEncounterScreen() {
   const router = useRouter();
+  const { memberId: preselectedId, memberName: preselectedName } = useLocalSearchParams<{ memberId: string; memberName: string }>();
+  const { user } = useSession();
 
   const [encounterType, setEncounterType] = useState<EncounterType>('confession');
-  const [encounterDate, setEncounterDate] = useState('Jun 7, 2026');
-  const [member, setMember] = useState('Peter Botros');
-  const [memberSearch, setMemberSearch] = useState('Peter Botros');
+  const [encounterDate, setEncounterDate] = useState(today());
+  const [selectedMemberId, setSelectedMemberId] = useState(preselectedId ?? (DEMO_MODE ? 'demo-pb' : ''));
+  const [memberSearch, setMemberSearch] = useState(preselectedName ?? (DEMO_MODE ? 'Peter Botros' : ''));
   const [showMemberList, setShowMemberList] = useState(false);
   const [memberNote, setMemberNote] = useState('');
   const [privateNote, setPrivateNote] = useState('');
   const [selectedOutcomes, setSelectedOutcomes] = useState<string[]>([]);
   const [followUpDate, setFollowUpDate] = useState('');
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const filteredMembers = MEMBERS_FAKE.filter(m =>
-    m.toLowerCase().includes(memberSearch.toLowerCase())
+  // Member list (real mode: loaded from Supabase)
+  const [memberList, setMemberList] = useState<{ id: string; name: string }[]>(DEMO_MODE ? DEMO_MEMBERS : []);
+
+  useEffect(() => {
+    if (!DEMO_MODE) loadMembers();
+  }, [user]);
+
+  async function loadMembers() {
+    if (!user) return;
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .eq('foc_id', user.id)
+      .order('full_name');
+    if (data) {
+      const list = data.map(p => ({ id: p.id, name: p.full_name ?? 'Unknown' }));
+      setMemberList(list);
+      // If preselected member not already set, don't change
+      if (!preselectedId && list.length > 0) {
+        setSelectedMemberId(list[0].id);
+        setMemberSearch(list[0].name);
+      }
+    }
+  }
+
+  const filteredMembers = memberList.filter(m =>
+    m.name.toLowerCase().includes(memberSearch.toLowerCase())
   );
 
   function toggleOutcome(o: string) {
-    setSelectedOutcomes(prev =>
-      prev.includes(o) ? prev.filter(x => x !== o) : [...prev, o]
-    );
+    setSelectedOutcomes(prev => prev.includes(o) ? prev.filter(x => x !== o) : [...prev, o]);
   }
 
-  function handleSave() {
+  async function handleSave() {
+    if (!selectedMemberId || saving) return;
+    if (DEMO_MODE) {
+      setSaved(true);
+      setTimeout(() => router.push('/(priest)'), 1300);
+      return;
+    }
+    setSaving(true);
+    await supabase.from('pastoral_encounters').insert({
+      priest_id: user!.id,
+      congregant_id: selectedMemberId,
+      encounter_type: encounterType,
+      encountered_at: new Date(encounterDate).toISOString(),
+      member_note: memberNote.trim() || null,
+      foc_note: privateNote.trim() || null,
+      outcomes: selectedOutcomes.length > 0 ? selectedOutcomes : null,
+      follow_up_date: followUpDate.trim() || null,
+    });
     setSaved(true);
-    setTimeout(() => { setSaved(false); router.push('/(priest)'); }, 1300);
+    setSaving(false);
+    setTimeout(() => router.push('/(priest)'), 1300);
   }
 
   return (
@@ -65,14 +116,14 @@ export default function LogEncounterScreen() {
         </TouchableOpacity>
 
         <Text style={styles.pageTitle}>Log Pastoral Encounter</Text>
-        <Text style={styles.pageSub}>Sunday, June 7, 2026 · Apostles' Fast</Text>
+        <Text style={styles.pageSub}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</Text>
 
         {/* Member */}
         <Card title="Member" titleIcon="◉">
           <TextInput
             style={styles.textInput}
             value={memberSearch}
-            onChangeText={t => { setMemberSearch(t); setShowMemberList(true); }}
+            onChangeText={t => { setMemberSearch(t); setShowMemberList(true); setSelectedMemberId(''); }}
             onFocus={() => setShowMemberList(true)}
             placeholder="Search member..."
             placeholderTextColor="rgba(245,240,232,0.22)"
@@ -81,12 +132,12 @@ export default function LogEncounterScreen() {
             <View style={styles.memberDropdown}>
               {filteredMembers.map(m => (
                 <TouchableOpacity
-                  key={m}
+                  key={m.id}
                   style={styles.memberOption}
-                  onPress={() => { setMember(m); setMemberSearch(m); setShowMemberList(false); }}
+                  onPress={() => { setSelectedMemberId(m.id); setMemberSearch(m.name); setShowMemberList(false); }}
                 >
-                  <Text style={[styles.memberOptionText, member === m && styles.memberOptionTextActive]}>
-                    {m}
+                  <Text style={[styles.memberOptionText, selectedMemberId === m.id && styles.memberOptionTextActive]}>
+                    {m.name}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -104,9 +155,7 @@ export default function LogEncounterScreen() {
             >
               <View style={[styles.typeRadio, encounterType === opt.value && styles.typeRadioActive]} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.typeLabel, encounterType === opt.value && styles.typeLabelActive]}>
-                  {opt.label}
-                </Text>
+                <Text style={[styles.typeLabel, encounterType === opt.value && styles.typeLabelActive]}>{opt.label}</Text>
                 <Text style={styles.typeDesc}>{opt.desc}</Text>
               </View>
             </TouchableOpacity>
@@ -125,10 +174,10 @@ export default function LogEncounterScreen() {
         </Card>
 
         {/* Member-visible note */}
-        <Card title="Note to Member (Visible to them)" titleIcon="◈">
+        <Card title="Note to Member (Visible in their Timeline)" titleIcon="◈">
           <TextInput
             style={[styles.textInput, { minHeight: 90, textAlignVertical: 'top' }]}
-            placeholder="E.g., We discussed the importance of the Agpeya as a rhythm of prayer. Encouraged to be consistent and patient..."
+            placeholder="E.g., We discussed the importance of the Agpeya as a rhythm of prayer..."
             placeholderTextColor="rgba(245,240,232,0.22)"
             multiline
             value={memberNote}
@@ -144,7 +193,7 @@ export default function LogEncounterScreen() {
           </View>
           <TextInput
             style={[styles.textInput, { minHeight: 90, textAlignVertical: 'top' }]}
-            placeholder="E.g., Peter is struggling with anger toward his father. Underlying resentment — suggested reading the parable of the prodigal son..."
+            placeholder="Your private observations and pastoral notes..."
             placeholderTextColor="rgba(245,240,232,0.22)"
             multiline
             value={privateNote}
@@ -161,9 +210,7 @@ export default function LogEncounterScreen() {
                 style={[styles.outcomePill, selectedOutcomes.includes(o) && styles.outcomePillActive]}
                 onPress={() => toggleOutcome(o)}
               >
-                <Text style={[styles.outcomePillText, selectedOutcomes.includes(o) && styles.outcomePillTextActive]}>
-                  {o}
-                </Text>
+                <Text style={[styles.outcomePillText, selectedOutcomes.includes(o) && styles.outcomePillTextActive]}>{o}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -186,18 +233,29 @@ export default function LogEncounterScreen() {
           <View style={styles.confessionNotice}>
             <Text style={styles.confessionNoticeTitle}>✝ Sacramental Privacy</Text>
             <Text style={styles.confessionNoticeBody}>
-              Confession content is protected by holy seal. Only the date and encounter type are recorded here. No content from the member's examination is stored or transmitted.
+              Confession content is protected by holy seal. Only the date and encounter type are recorded. No content from the member's examination is stored or transmitted.
             </Text>
           </View>
         )}
 
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-          <Text style={styles.saveBtnText}>{saved ? '✓ ENCOUNTER LOGGED' : 'LOG ENCOUNTER'}</Text>
+        <TouchableOpacity
+          style={[styles.saveBtn, (!selectedMemberId || saving) && styles.saveBtnDisabled]}
+          onPress={handleSave}
+          disabled={!selectedMemberId || saving}
+        >
+          {saving
+            ? <ActivityIndicator color={colors.navy} />
+            : <Text style={styles.saveBtnText}>{saved ? '✓ ENCOUNTER LOGGED' : 'LOG ENCOUNTER'}</Text>
+          }
         </TouchableOpacity>
 
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function today(): string {
+  return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 const styles = StyleSheet.create({
@@ -211,17 +269,10 @@ const styles = StyleSheet.create({
   pageTitle: { fontFamily: fonts.cormorantMedium, fontSize: 26, color: colors.cream, marginBottom: 4 },
   pageSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 20 },
 
-  textInput: {
-    backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border,
-    borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight,
-    fontSize: 13, padding: 12,
-  },
+  textInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12 },
   fieldHint: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, marginTop: 6, lineHeight: 15 },
 
-  memberDropdown: {
-    backgroundColor: colors.navyDark, borderWidth: 1, borderColor: colors.border,
-    borderRadius: 8, marginTop: 4, overflow: 'hidden',
-  },
+  memberDropdown: { backgroundColor: colors.navyDark, borderWidth: 1, borderColor: colors.border, borderRadius: 8, marginTop: 4, overflow: 'hidden' },
   memberOption: { padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
   memberOptionText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted },
   memberOptionTextActive: { color: colors.goldLight, fontFamily: fonts.latoBold },
@@ -243,13 +294,11 @@ const styles = StyleSheet.create({
   outcomePillText: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.muted },
   outcomePillTextActive: { color: colors.goldLight },
 
-  confessionNotice: {
-    backgroundColor: 'rgba(201,168,76,0.08)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.3)',
-    borderRadius: 12, padding: 16, marginBottom: 16,
-  },
+  confessionNotice: { backgroundColor: 'rgba(201,168,76,0.08)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.3)', borderRadius: 12, padding: 16, marginBottom: 16 },
   confessionNoticeTitle: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.gold, marginBottom: 6 },
   confessionNoticeBody: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },
 
   saveBtn: { backgroundColor: colors.gold, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
+  saveBtnDisabled: { opacity: 0.35 },
   saveBtnText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.navy, letterSpacing: 1 },
 });

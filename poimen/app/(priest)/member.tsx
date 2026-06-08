@@ -1,48 +1,37 @@
-import React, { useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { useSession } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
+import { DEMO_MODE } from '@/lib/config';
 
-const MEMBER = {
-  initials: 'PB',
-  name: 'Peter Botros',
-  stage: 'New',
-  phone: '(614) 555-0182',
-  joined: 'February 2026',
-  daysSince: 74,
-  attendancePct: 45,
-  canonPct: 20,
-  flagged: true,
-  flagNote: 'Missed two follow-up appointments.',
-};
-
-const VITALS = [
+// ── Demo data ─────────────────────────────────────────────────
+const DEMO_MEMBER = { initials: 'PB', name: 'Peter Botros', stage: 'New', phone: '(614) 555-0182', joined: 'February 2026', daysSince: 74, flagged: true, flagNote: 'Missed two follow-up appointments.' };
+const DEMO_VITALS = [
   { label: 'Daily Prayer', pct: 20, shared: true },
   { label: 'Scripture Reading', pct: 30, shared: true },
   { label: 'Divine Liturgy', pct: 45, shared: true },
   { label: 'Small Group', pct: 0, shared: false },
   { label: 'Service', pct: 0, shared: false },
 ];
-
-const CONFESSION_HISTORY = [
-  { date: 'FEB 25, 2026', type: 'First Confession', note: 'Initial meeting. Set spiritual goals.' },
-  { date: 'FEB 11, 2026', type: 'Introductory Meeting', note: 'Getting to know one another. Background shared.' },
+const DEMO_CONFESSIONS = [
+  { date: 'FEB 25, 2026', type: 'Holy Confession', note: 'Set spiritual goals.' },
+  { date: 'FEB 11, 2026', type: 'Introductory Meeting', note: 'Getting to know one another.' },
 ];
-
-const PRAYER_REQUESTS = [
-  { date: 'MAY 28, 2026', topic: 'Job transition — feeling lost', visibility: 'foc_only' },
-  { date: 'MAY 5, 2026', topic: 'Family reconciliation with brother', visibility: 'foc_only' },
+const DEMO_PRAYER = [
+  { date: 'MAY 28, 2026', topic: 'Job transition — feeling lost' },
+  { date: 'MAY 5, 2026', topic: 'Family reconciliation with brother' },
 ];
-
-const CANON_ASSIGNED = [
-  { component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Mar 1, 2026', status: 20 },
-  { component: 'Gospel Reading (1 chapter)', frequency: 'Daily', startDate: 'Mar 1, 2026', status: 30 },
+const DEMO_CANONS = [
+  { id: 'dc1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 20 },
+  { id: 'dc2', component: 'Gospel Reading (1 chapter)', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 30 },
 ];
+const DEMO_NOTE = 'Needs consistent follow-up. Has expressed interest in deepening faith but struggles with consistency. Suggested accountability partner from the young adult group.';
 
 type TabType = 'overview' | 'canon' | 'prayer' | 'notes';
-
 const TABS: { value: TabType; label: string }[] = [
   { value: 'overview', label: 'Overview' },
   { value: 'canon', label: 'Canon' },
@@ -52,184 +41,300 @@ const TABS: { value: TabType; label: string }[] = [
 
 export default function MemberScreen() {
   const router = useRouter();
+  const { id: memberId, name: memberName } = useLocalSearchParams<{ id: string; name: string }>();
+  const { user } = useSession();
   const [tab, setTab] = useState<TabType>('overview');
-  const [note, setNote] = useState('');
-  const [savedNote, setSavedNote] = useState(
-    'Needs consistent follow-up. Has expressed interest in deepening faith but struggles with consistency. Suggested accountability partner from the young adult group.'
-  );
+  const [loading, setLoading] = useState(!DEMO_MODE);
+
+  // Display data
+  const [memberInfo, setMemberInfo] = useState<any>(DEMO_MEMBER);
+  const [vitals, setVitals] = useState<any[]>(DEMO_VITALS);
+  const [confessions, setConfessions] = useState<any[]>(DEMO_CONFESSIONS);
+  const [prayerRequests, setPrayerRequests] = useState<any[]>(DEMO_PRAYER);
+  const [canons, setCanons] = useState<any[]>(DEMO_CANONS);
+
+  // Notes state
+  const [noteInput, setNoteInput] = useState('');
+  const [savedNote, setSavedNote] = useState(DEMO_NOTE);
+  const [savingNote, setSavingNote] = useState(false);
+
+  useEffect(() => {
+    if (!DEMO_MODE && memberId) {
+      loadMemberData();
+    }
+  }, [memberId, user]);
+
+  async function loadMemberData() {
+    if (!user || !memberId) return;
+    setLoading(true);
+
+    const [profileRes, vitalsRes, confRes, prayerRes, canonRes, noteRes] = await Promise.all([
+      supabase.from('profiles').select('full_name, created_at, role').eq('id', memberId).single(),
+      supabase.from('agent_progress').select('payload').eq('user_id', memberId).eq('agent_slug', 'vitals').single(),
+      supabase.from('pastoral_encounters').select('encountered_at, member_note').eq('congregant_id', memberId).eq('encounter_type', 'confession').order('encountered_at', { ascending: false }),
+      supabase.from('prayer_requests').select('created_at, topic').eq('user_id', memberId).eq('visibility', 'foc_only').eq('answered', false).order('created_at', { ascending: false }),
+      supabase.from('spiritual_canons').select('id, component, frequency, start_date').eq('user_id', memberId).eq('active', true),
+      supabase.from('agent_progress').select('payload').eq('user_id', user.id).eq('agent_slug', `pastoral-notes-${memberId}`).single(),
+    ]);
+
+    if (profileRes.data) {
+      const p = profileRes.data;
+      const joined = new Date(p.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const lastConf = confRes.data?.[0];
+      const daysSince = lastConf ? Math.floor((Date.now() - new Date(lastConf.encountered_at).getTime()) / 86400000) : null;
+      setMemberInfo({ initials: initials(memberName ?? p.full_name), name: memberName ?? p.full_name, stage: '', joined, daysSince, flagged: false, flagNote: '' });
+    }
+
+    if (vitalsRes.data?.payload) {
+      const v = vitalsRes.data.payload as any;
+      setVitals([
+        { label: 'Daily Prayer', pct: v.prayer ?? 0, shared: true },
+        { label: 'Scripture Reading', pct: v.scripture ?? 0, shared: true },
+        { label: 'Divine Liturgy', pct: v.liturgy ?? 0, shared: true },
+        { label: 'Fasting', pct: v.fasting ?? 0, shared: true },
+        { label: 'Service', pct: v.service ?? 0, shared: true },
+      ]);
+    } else if (!DEMO_MODE) {
+      setVitals([]);
+    }
+
+    if (confRes.data) {
+      setConfessions(confRes.data.map(c => ({
+        date: new Date(c.encountered_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
+        type: 'Holy Confession',
+        note: c.member_note ?? '',
+      })));
+    }
+
+    if (prayerRes.data) {
+      setPrayerRequests(prayerRes.data.map(p => ({
+        date: new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
+        topic: p.topic,
+      })));
+    }
+
+    if (canonRes.data) {
+      setCanons(canonRes.data.map(c => ({ id: c.id, component: c.component, frequency: c.frequency, startDate: c.start_date, pct: 0 })));
+    }
+
+    if (noteRes.data?.payload) {
+      setSavedNote((noteRes.data.payload as any).text ?? '');
+    } else if (!DEMO_MODE) {
+      setSavedNote('');
+    }
+
+    setLoading(false);
+  }
+
+  async function handleSaveNote() {
+    if (!noteInput.trim()) return;
+    const newNote = savedNote ? `${savedNote}\n\n${noteInput.trim()}` : noteInput.trim();
+    if (DEMO_MODE) {
+      setSavedNote(newNote);
+      setNoteInput('');
+      return;
+    }
+    setSavingNote(true);
+    await supabase.from('agent_progress').upsert({
+      user_id: user!.id,
+      agent_slug: `pastoral-notes-${memberId}`,
+      payload: { text: newNote, updated_at: new Date().toISOString() },
+    }, { onConflict: 'user_id,agent_slug' });
+    setSavedNote(newNote);
+    setNoteInput('');
+    setSavingNote(false);
+  }
+
+  const daysSince = memberInfo?.daysSince;
+  const sinceTxt = daysSince !== null && daysSince !== undefined ? `${daysSince}d` : '—';
+  const sinceColor = daysSince === null || daysSince === undefined ? colors.muted : daysSince < 30 ? colors.green : daysSince < 60 ? colors.yellow : colors.red;
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
 
-        {/* Back + header */}
         <TouchableOpacity style={styles.backRow} onPress={() => router.push('/(priest)')}>
           <Text style={styles.backArrow}>‹</Text>
           <Text style={styles.backText}>My Flock</Text>
         </TouchableOpacity>
 
-        <View style={styles.heroCard}>
-          <View style={[styles.heroAvatar, MEMBER.flagged && styles.heroAvatarFlagged]}>
-            <Text style={styles.heroAvatarText}>{MEMBER.initials}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.heroName}>{MEMBER.name}</Text>
-            <Text style={styles.heroMeta}>Stage: {MEMBER.stage} · Joined {MEMBER.joined}</Text>
-            {MEMBER.flagged && (
-              <View style={styles.flagBadge}>
-                <Text style={styles.flagBadgeText}>⚑ {MEMBER.flagNote}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* Quick stat strip */}
-        <View style={styles.statStrip}>
-          <View style={styles.statItem}>
-            <Text style={[styles.statVal, { color: colors.red }]}>{MEMBER.daysSince}d</Text>
-            <Text style={styles.statLabel}>SINCE CONF.</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statVal, { color: colors.yellow }]}>{MEMBER.attendancePct}%</Text>
-            <Text style={styles.statLabel}>ATTENDANCE</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statVal, { color: colors.yellow }]}>{MEMBER.canonPct}%</Text>
-            <Text style={styles.statLabel}>CANON</Text>
-          </View>
-        </View>
-
-        {/* Action buttons */}
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.btnGold} onPress={() => router.push('/(priest)/log-encounter')}>
-            <Text style={styles.btnGoldText}>LOG ENCOUNTER</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.btnGhost} onPress={() => router.push('/(priest)/assign-canon')}>
-            <Text style={styles.btnGhostText}>ASSIGN CANON</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Tab bar */}
-        <View style={styles.tabBar}>
-          {TABS.map(t => (
-            <TouchableOpacity
-              key={t.value}
-              style={[styles.tabItem, tab === t.value && styles.tabItemActive]}
-              onPress={() => setTab(t.value)}
-            >
-              <Text style={[styles.tabText, tab === t.value && styles.tabTextActive]}>{t.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Overview tab */}
-        {tab === 'overview' && (
+        {loading ? (
+          <ActivityIndicator color={colors.gold} style={{ paddingTop: 40 }} />
+        ) : (
           <>
-            <Card title="Spiritual Vitals (Shared)" titleIcon="✦">
-              {VITALS.map((v, i) => (
-                <View key={i} style={[styles.vitalRow, i < VITALS.length - 1 && { marginBottom: 10 }]}>
-                  <Text style={[styles.vitalLabel, !v.shared && styles.vitalLabelDim]}>
-                    {v.label} {!v.shared && '(not shared)'}
-                  </Text>
-                  <View style={styles.vitalTrack}>
-                    {v.shared
-                      ? <View style={[styles.vitalFill, { width: `${v.pct}%` as any }]} />
-                      : null}
+            <View style={styles.heroCard}>
+              <View style={[styles.heroAvatar, memberInfo?.flagged && styles.heroAvatarFlagged]}>
+                <Text style={styles.heroAvatarText}>{memberInfo?.initials ?? '?'}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.heroName}>{memberInfo?.name ?? memberName ?? 'Member'}</Text>
+                <Text style={styles.heroMeta}>
+                  {memberInfo?.stage ? `Stage: ${memberInfo.stage} · ` : ''}
+                  {memberInfo?.joined ? `Joined ${memberInfo.joined}` : ''}
+                </Text>
+                {memberInfo?.flagged && (
+                  <View style={styles.flagBadge}>
+                    <Text style={styles.flagBadgeText}>⚑ {memberInfo.flagNote}</Text>
                   </View>
-                  <Text style={[styles.vitalVal, !v.shared && { color: colors.muted, opacity: 0.4 }]}>
-                    {v.shared ? `${v.pct}%` : '—'}
-                  </Text>
-                </View>
-              ))}
-            </Card>
-
-            <Card title="Confession History" titleIcon="✝">
-              <View style={styles.privacyNote}>
-                <Text style={styles.privacyNoteText}>✦ Dates and type only. Content is never stored.</Text>
+                )}
               </View>
-              {CONFESSION_HISTORY.map((c, i) => (
-                <View key={i} style={[styles.histRow, i < CONFESSION_HISTORY.length - 1 && styles.histBorder]}>
-                  <Text style={styles.histDate}>{c.date}</Text>
-                  <Text style={styles.histType}>{c.type}</Text>
-                  <Text style={styles.histNote}>{c.note}</Text>
-                </View>
-              ))}
-            </Card>
-          </>
-        )}
+            </View>
 
-        {/* Canon tab */}
-        {tab === 'canon' && (
-          <Card title="Assigned Canon" titleIcon="📜">
-            {CANON_ASSIGNED.length === 0 && (
-              <Text style={styles.emptyText}>No canon assigned yet.</Text>
+            <View style={styles.statStrip}>
+              <View style={styles.statItem}>
+                <Text style={[styles.statVal, { color: sinceColor }]}>{sinceTxt}</Text>
+                <Text style={styles.statLabel}>SINCE CONF.</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={[styles.statVal, { color: colors.cream }]}>{canons.length}</Text>
+                <Text style={styles.statLabel}>CANONS</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={[styles.statVal, { color: colors.cream }]}>{prayerRequests.length}</Text>
+                <Text style={styles.statLabel}>REQUESTS</Text>
+              </View>
+            </View>
+
+            <View style={styles.actionRow}>
+              <TouchableOpacity style={styles.btnGold} onPress={() => router.push({ pathname: '/(priest)/log-encounter', params: { memberId: memberId ?? '', memberName: memberName ?? memberInfo?.name ?? '' } })}>
+                <Text style={styles.btnGoldText}>LOG ENCOUNTER</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btnGhost} onPress={() => router.push({ pathname: '/(priest)/assign-canon', params: { memberId: memberId ?? '', memberName: memberName ?? memberInfo?.name ?? '' } })}>
+                <Text style={styles.btnGhostText}>ASSIGN CANON</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.tabBar}>
+              {TABS.map(t => (
+                <TouchableOpacity key={t.value} style={[styles.tabItem, tab === t.value && styles.tabItemActive]} onPress={() => setTab(t.value)}>
+                  <Text style={[styles.tabText, tab === t.value && styles.tabTextActive]}>{t.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Overview */}
+            {tab === 'overview' && (
+              <>
+                <Card title="Spiritual Vitals (Shared Only)" titleIcon="✦">
+                  {vitals.length === 0 ? (
+                    <Text style={styles.emptyText}>Member hasn't shared any vitals yet.</Text>
+                  ) : vitals.map((v, i) => (
+                    <View key={i} style={[styles.vitalRow, i < vitals.length - 1 && { marginBottom: 10 }]}>
+                      <Text style={[styles.vitalLabel, !v.shared && styles.vitalLabelDim]}>
+                        {v.label}{!v.shared ? ' (not shared)' : ''}
+                      </Text>
+                      <View style={styles.vitalTrack}>
+                        {v.shared && <View style={[styles.vitalFill, { width: `${v.pct}%` as any }]} />}
+                      </View>
+                      <Text style={[styles.vitalVal, !v.shared && { color: colors.muted, opacity: 0.4 }]}>
+                        {v.shared ? `${v.pct}%` : '—'}
+                      </Text>
+                    </View>
+                  ))}
+                </Card>
+
+                <Card title="Confession History" titleIcon="✝">
+                  <View style={styles.privacyNote}>
+                    <Text style={styles.privacyNoteText}>✦ Dates and type only. Content is never stored.</Text>
+                  </View>
+                  {confessions.length === 0 ? (
+                    <Text style={styles.emptyText}>No confession history recorded yet.</Text>
+                  ) : confessions.map((c, i) => (
+                    <View key={i} style={[styles.histRow, i < confessions.length - 1 && styles.histBorder]}>
+                      <Text style={styles.histDate}>{c.date}</Text>
+                      <Text style={styles.histType}>{c.type}</Text>
+                      {c.note ? <Text style={styles.histNote}>{c.note}</Text> : null}
+                    </View>
+                  ))}
+                </Card>
+              </>
             )}
-            {CANON_ASSIGNED.map((c, i) => (
-              <View key={i} style={[styles.canonRow, i < CANON_ASSIGNED.length - 1 && styles.histBorder]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.canonComponent}>{c.component}</Text>
-                  <Text style={styles.canonMeta}>{c.frequency} · since {c.startDate}</Text>
-                </View>
-                <View style={styles.canonPill}>
-                  <Text style={[styles.canonPillText, { color: c.status < 40 ? colors.red : colors.yellow }]}>
-                    {c.status}%
-                  </Text>
-                </View>
-              </View>
-            ))}
-            <TouchableOpacity style={[styles.btnGold, { alignSelf: 'flex-start', marginTop: 12 }]} onPress={() => router.push('/(priest)/assign-canon')}>
-              <Text style={styles.btnGoldText}>+ ASSIGN COMPONENT</Text>
-            </TouchableOpacity>
-          </Card>
-        )}
 
-        {/* Prayer tab */}
-        {tab === 'prayer' && (
-          <Card title="Prayer Requests (FOC Only)" titleIcon="◇">
-            <View style={styles.privacyNote}>
-              <Text style={styles.privacyNoteText}>✦ Requests shared with Father of Confession only.</Text>
-            </View>
-            {PRAYER_REQUESTS.map((p, i) => (
-              <View key={i} style={[styles.histRow, i < PRAYER_REQUESTS.length - 1 && styles.histBorder]}>
-                <Text style={styles.histDate}>{p.date}</Text>
-                <Text style={styles.histType}>{p.topic}</Text>
-              </View>
-            ))}
-          </Card>
-        )}
+            {/* Canon */}
+            {tab === 'canon' && (
+              <Card title="Assigned Canon" titleIcon="📜">
+                {canons.length === 0 ? (
+                  <Text style={styles.emptyText}>No canon assigned yet.</Text>
+                ) : canons.map((c, i) => (
+                  <View key={c.id} style={[styles.canonRow, i < canons.length - 1 && styles.histBorder]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.canonComponent}>{c.component}</Text>
+                      <Text style={styles.canonMeta}>{c.frequency} · since {c.startDate}</Text>
+                    </View>
+                    {c.pct > 0 && (
+                      <View style={styles.canonPill}>
+                        <Text style={[styles.canonPillText, { color: c.pct < 40 ? colors.red : colors.yellow }]}>{c.pct}%</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+                <TouchableOpacity
+                  style={[styles.btnGold, { alignSelf: 'flex-start', marginTop: 12 }]}
+                  onPress={() => router.push({ pathname: '/(priest)/assign-canon', params: { memberId: memberId ?? '', memberName: memberName ?? memberInfo?.name ?? '' } })}
+                >
+                  <Text style={styles.btnGoldText}>+ ASSIGN COMPONENT</Text>
+                </TouchableOpacity>
+              </Card>
+            )}
 
-        {/* Notes tab */}
-        {tab === 'notes' && (
-          <Card title="Pastoral Notes (Private)" titleIcon="✎">
-            <View style={styles.privacyNote}>
-              <Text style={styles.privacyNoteText}>✦ Your private FOC notes. Never visible to the member.</Text>
-            </View>
-            {savedNote ? (
-              <Text style={styles.savedNoteText}>{savedNote}</Text>
-            ) : null}
-            <TextInput
-              style={styles.noteInput}
-              placeholder="Add a new note..."
-              placeholderTextColor="rgba(245,240,232,0.22)"
-              multiline
-              numberOfLines={4}
-              value={note}
-              onChangeText={setNote}
-            />
-            <TouchableOpacity
-              style={[styles.btnGold, { alignSelf: 'flex-start', marginTop: 12 }]}
-              onPress={() => { setSavedNote(note ? savedNote + '\n\n' + note : savedNote); setNote(''); }}
-            >
-              <Text style={styles.btnGoldText}>SAVE NOTE</Text>
-            </TouchableOpacity>
-          </Card>
+            {/* Prayer */}
+            {tab === 'prayer' && (
+              <Card title="Prayer Requests (FOC Only)" titleIcon="◇">
+                <View style={styles.privacyNote}>
+                  <Text style={styles.privacyNoteText}>✦ Only requests explicitly shared with Father of Confession.</Text>
+                </View>
+                {prayerRequests.length === 0 ? (
+                  <Text style={styles.emptyText}>No FOC-shared prayer requests.</Text>
+                ) : prayerRequests.map((p, i) => (
+                  <View key={i} style={[styles.histRow, i < prayerRequests.length - 1 && styles.histBorder]}>
+                    <Text style={styles.histDate}>{p.date}</Text>
+                    <Text style={styles.histType}>{p.topic}</Text>
+                  </View>
+                ))}
+              </Card>
+            )}
+
+            {/* Notes */}
+            {tab === 'notes' && (
+              <Card title="Pastoral Notes (Private)" titleIcon="✎">
+                <View style={styles.privacyNote}>
+                  <Text style={styles.privacyNoteText}>✦ Your private FOC notes. Never visible to the member.</Text>
+                </View>
+                {savedNote ? (
+                  <Text style={styles.savedNoteText}>{savedNote}</Text>
+                ) : null}
+                <TextInput
+                  style={styles.noteInput}
+                  placeholder="Add a pastoral note..."
+                  placeholderTextColor="rgba(245,240,232,0.22)"
+                  multiline
+                  numberOfLines={4}
+                  value={noteInput}
+                  onChangeText={setNoteInput}
+                />
+                <TouchableOpacity
+                  style={[styles.btnGold, { alignSelf: 'flex-start', marginTop: 12, opacity: (!noteInput.trim() || savingNote) ? 0.4 : 1 }]}
+                  onPress={handleSaveNote}
+                  disabled={!noteInput.trim() || savingNote}
+                >
+                  <Text style={styles.btnGoldText}>{savingNote ? 'SAVING…' : 'SAVE NOTE'}</Text>
+                </TouchableOpacity>
+              </Card>
+            )}
+          </>
         )}
 
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function initials(name: string | null | undefined): string {
+  if (!name) return '?';
+  const parts = name.split(' ');
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
 }
 
 const styles = StyleSheet.create({
@@ -257,7 +362,7 @@ const styles = StyleSheet.create({
   statDivider: { width: 1, backgroundColor: colors.border },
 
   actionRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  btnGold: { backgroundColor: colors.gold, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 9, alignSelf: 'flex-start' },
+  btnGold: { backgroundColor: colors.gold, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 9 },
   btnGoldText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.navy, letterSpacing: 0.8 },
   btnGhost: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 9 },
   btnGhostText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.muted, letterSpacing: 0.8 },
@@ -293,9 +398,5 @@ const styles = StyleSheet.create({
   emptyText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textAlign: 'center', paddingVertical: 16 },
 
   savedNoteText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20, marginBottom: 12, padding: 12, backgroundColor: 'rgba(10,16,30,0.4)', borderRadius: 8 },
-  noteInput: {
-    backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border,
-    borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight,
-    fontSize: 13, padding: 12, textAlignVertical: 'top', minHeight: 100,
-  },
+  noteInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', minHeight: 100 },
 });

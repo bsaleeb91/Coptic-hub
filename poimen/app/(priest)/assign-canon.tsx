@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { useSession } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
+import { DEMO_MODE } from '@/lib/config';
 
 type FrequencyType = 'Daily' | '3x/week' | 'Weekly' | 'Custom';
 
@@ -19,22 +22,65 @@ const FREQ_OPTS: FrequencyType[] = ['Daily', '3x/week', 'Weekly', 'Custom'];
 
 export default function AssignCanonScreen() {
   const router = useRouter();
+  const { memberId, memberName } = useLocalSearchParams<{ memberId: string; memberName: string }>();
+  const { user } = useSession();
+
   const [selectedComponent, setSelectedComponent] = useState('');
   const [customComponent, setCustomComponent] = useState('');
   const [frequency, setFrequency] = useState<FrequencyType>('Daily');
   const [customFreq, setCustomFreq] = useState('');
-  const [startDate, setStartDate] = useState('Jun 8, 2026');
-  const [linkedEncounter, setLinkedEncounter] = useState('');
+  const [startDate, setStartDate] = useState(tomorrow());
   const [reflectionPrompt, setReflectionPrompt] = useState('');
   const [expandedGroup, setExpandedGroup] = useState<string | null>('Prayer');
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const component = customComponent.trim() || selectedComponent;
+  // Existing canons for context
+  const [existingCanons, setExistingCanons] = useState<any[]>([]);
 
-  function handleSave() {
-    if (!component) return;
+  useEffect(() => {
+    if (!DEMO_MODE && memberId) loadExistingCanons();
+    if (DEMO_MODE) {
+      setExistingCanons([
+        { component: 'Morning Agpeya', frequency: 'Daily', pct: 20 },
+        { component: 'Gospel Reading (1 chapter)', frequency: 'Daily', pct: 30 },
+      ]);
+    }
+  }, [memberId]);
+
+  async function loadExistingCanons() {
+    if (!memberId) return;
+    const { data } = await supabase
+      .from('spiritual_canons')
+      .select('component, frequency')
+      .eq('user_id', memberId)
+      .eq('active', true);
+    if (data) setExistingCanons(data.map(c => ({ component: c.component, frequency: c.frequency, pct: null })));
+  }
+
+  const component = customComponent.trim() || selectedComponent;
+  const displayName = memberName ?? 'Member';
+
+  async function handleSave() {
+    if (!component || saving) return;
+    if (DEMO_MODE) {
+      setSaved(true);
+      setTimeout(() => router.back(), 1300);
+      return;
+    }
+    setSaving(true);
+    await supabase.from('spiritual_canons').insert({
+      user_id: memberId,
+      priest_id: user!.id,
+      component,
+      frequency: frequency === 'Custom' ? customFreq || frequency : frequency,
+      start_date: startDate,
+      reflection_prompt: reflectionPrompt.trim() || null,
+      active: true,
+    });
     setSaved(true);
-    setTimeout(() => { setSaved(false); router.push('/(priest)/member'); }, 1200);
+    setSaving(false);
+    setTimeout(() => router.back(), 1300);
   }
 
   return (
@@ -43,20 +89,23 @@ export default function AssignCanonScreen() {
 
         <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
           <Text style={styles.backArrow}>‹</Text>
-          <Text style={styles.backText}>Member</Text>
+          <Text style={styles.backText}>{displayName}</Text>
         </TouchableOpacity>
 
         <Text style={styles.pageTitle}>Assign Spiritual Canon</Text>
-        <Text style={styles.pageSub}>Peter Botros · New stage</Text>
+        <Text style={styles.pageSub}>{displayName}</Text>
 
-        {/* Member + encounter context */}
-        <Card title="Context" titleIcon="◈">
-          <Text style={styles.contextNote}>
-            Peter's current canon: Morning Agpeya (20%), Gospel Reading (30%). He is in the Apostles' Fast — this is a good time to add or deepen prayer.
-          </Text>
-        </Card>
+        {existingCanons.length > 0 && (
+          <Card title="Current Canon" titleIcon="◈">
+            {existingCanons.map((c, i) => (
+              <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 }}>
+                <Text style={styles.contextNote}>{c.component}</Text>
+                <Text style={styles.contextNote}>{c.frequency}{c.pct !== null ? ` · ${c.pct}%` : ''}</Text>
+              </View>
+            ))}
+          </Card>
+        )}
 
-        {/* Choose a preset */}
         <Card title="Choose Component" titleIcon="📜">
           {PRESET_COMPONENTS.map(group => (
             <View key={group.group}>
@@ -76,16 +125,13 @@ export default function AssignCanonScreen() {
                       onPress={() => { setSelectedComponent(item); setCustomComponent(''); }}
                     >
                       <View style={[styles.presetDot, selectedComponent === item && styles.presetDotActive]} />
-                      <Text style={[styles.presetText, selectedComponent === item && styles.presetTextActive]}>
-                        {item}
-                      </Text>
+                      <Text style={[styles.presetText, selectedComponent === item && styles.presetTextActive]}>{item}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               )}
             </View>
           ))}
-
           <View style={styles.divider} />
           <Text style={styles.orLabel}>— or enter a custom component —</Text>
           <TextInput
@@ -97,7 +143,6 @@ export default function AssignCanonScreen() {
           />
         </Card>
 
-        {/* Frequency */}
         <Card title="Frequency" titleIcon="◇">
           <View style={styles.freqRow}>
             {FREQ_OPTS.map(opt => (
@@ -121,7 +166,6 @@ export default function AssignCanonScreen() {
           )}
         </Card>
 
-        {/* Start date */}
         <Card title="Start Date" titleIcon="⊕">
           <TextInput
             style={styles.textInput}
@@ -130,63 +174,51 @@ export default function AssignCanonScreen() {
             placeholder="E.g., Jun 8, 2026"
             placeholderTextColor="rgba(245,240,232,0.22)"
           />
-          <Text style={styles.fieldHint}>Defaults to tomorrow. Can be a liturgical anchor (e.g., first Sunday of the Apostles' Fast).</Text>
+          <Text style={styles.fieldHint}>Can be a liturgical anchor (e.g., first Sunday of the Apostles' Fast).</Text>
         </Card>
 
-        {/* Reflection prompt (optional) */}
         <Card title="Reflection Prompt (Optional)" titleIcon="✎">
           <TextInput
             style={[styles.textInput, { minHeight: 80, textAlignVertical: 'top' }]}
-            placeholder="Give the member a focus for their reflection, e.g., 'Notice where your mind wanders during prayer...'"
+            placeholder="Give the member a focus for their reflection..."
             placeholderTextColor="rgba(245,240,232,0.22)"
             multiline
             value={reflectionPrompt}
             onChangeText={setReflectionPrompt}
           />
-          <Text style={styles.fieldHint}>This prompt is shared with the member inside the Canon panel of Poimen.</Text>
+          <Text style={styles.fieldHint}>This prompt is visible to the member in their Canon panel.</Text>
         </Card>
 
-        {/* Link to encounter */}
-        <Card title="Link to Encounter (Optional)" titleIcon="✝">
-          <TextInput
-            style={styles.textInput}
-            placeholder="E.g., Confession Jun 7 — assigned at end of meeting"
-            placeholderTextColor="rgba(245,240,232,0.22)"
-            value={linkedEncounter}
-            onChangeText={setLinkedEncounter}
-          />
-        </Card>
-
-        {/* Preview */}
         {component ? (
           <View style={styles.previewCard}>
             <Text style={styles.previewTitle}>Canon Preview</Text>
-            <View style={styles.previewRow}>
-              <Text style={styles.previewLabel}>Component</Text>
-              <Text style={styles.previewValue}>{component}</Text>
-            </View>
-            <View style={styles.previewRow}>
-              <Text style={styles.previewLabel}>Frequency</Text>
-              <Text style={styles.previewValue}>{frequency === 'Custom' ? customFreq || '—' : frequency}</Text>
-            </View>
-            <View style={styles.previewRow}>
-              <Text style={styles.previewLabel}>Starts</Text>
-              <Text style={styles.previewValue}>{startDate}</Text>
-            </View>
+            <View style={styles.previewRow}><Text style={styles.previewLabel}>Member</Text><Text style={styles.previewValue}>{displayName}</Text></View>
+            <View style={styles.previewRow}><Text style={styles.previewLabel}>Component</Text><Text style={styles.previewValue}>{component}</Text></View>
+            <View style={styles.previewRow}><Text style={styles.previewLabel}>Frequency</Text><Text style={styles.previewValue}>{frequency === 'Custom' ? customFreq || '—' : frequency}</Text></View>
+            <View style={styles.previewRow}><Text style={styles.previewLabel}>Starts</Text><Text style={styles.previewValue}>{startDate}</Text></View>
           </View>
         ) : null}
 
         <TouchableOpacity
-          style={[styles.saveBtn, !component && styles.saveBtnDisabled]}
+          style={[styles.saveBtn, (!component || saving) && styles.saveBtnDisabled]}
           onPress={handleSave}
-          disabled={!component}
+          disabled={!component || saving}
         >
-          <Text style={styles.saveBtnText}>{saved ? '✓ ASSIGNED' : 'ASSIGN TO PETER'}</Text>
+          {saving
+            ? <ActivityIndicator color={colors.navy} />
+            : <Text style={styles.saveBtnText}>{saved ? `✓ ASSIGNED TO ${displayName.split(' ')[0].toUpperCase()}` : `ASSIGN TO ${displayName.split(' ')[0].toUpperCase()}`}</Text>
+          }
         </TouchableOpacity>
 
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function tomorrow(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 const styles = StyleSheet.create({
@@ -216,11 +248,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.border, marginVertical: 14 },
   orLabel: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.5, color: colors.muted, textAlign: 'center', textTransform: 'uppercase', marginBottom: 10 },
 
-  textInput: {
-    backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border,
-    borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight,
-    fontSize: 13, padding: 12,
-  },
+  textInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12 },
   fieldHint: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, marginTop: 6, lineHeight: 15 },
 
   freqRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
