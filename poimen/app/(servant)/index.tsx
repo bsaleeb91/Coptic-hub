@@ -6,7 +6,7 @@ import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { DEMO_MODE } from '@/lib/config';
+import { useDemoMode } from '@/lib/demo';
 
 interface Student {
   id: string;
@@ -26,15 +26,16 @@ const DEMO_STUDENTS: Student[] = [
 export default function ServantFlockScreen() {
   const router = useRouter();
   const { user, profile } = useSession();
+  const { demoMode } = useDemoMode();
   const [students, setStudents] = useState<Student[]>([]);
-  const [loading, setLoading] = useState(!DEMO_MODE);
+  const [loading, setLoading] = useState(!demoMode);
   const [search, setSearch] = useState('');
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const greeting = profile?.full_name?.split(' ')[0] ?? 'Servant';
 
   useEffect(() => {
-    if (DEMO_MODE) {
+    if (demoMode) {
       setStudents(DEMO_STUDENTS);
     } else {
       loadStudents();

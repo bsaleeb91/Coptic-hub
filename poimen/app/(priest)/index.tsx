@@ -6,7 +6,7 @@ import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { DEMO_MODE } from '@/lib/config';
+import { useDemoMode } from '@/lib/demo';
 
 type FilterType = 'all' | 'due' | 'overdue' | 'flagged';
 type StatusType = 'recent' | 'due' | 'overdue';
@@ -54,16 +54,17 @@ const FILTER_OPTS: { value: FilterType; label: string }[] = [
 export default function FlockScreen() {
   const router = useRouter();
   const { user, profile } = useSession();
+  const { demoMode } = useDemoMode();
   const [filter, setFilter] = useState<FilterType>('all');
   const [search, setSearch] = useState('');
   const [members, setMembers] = useState<FlockMember[]>([]);
-  const [loading, setLoading] = useState(!DEMO_MODE);
+  const [loading, setLoading] = useState(!demoMode);
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const greeting = profile?.full_name ? `Fr. ${profile.full_name.split(' ').slice(-1)[0]}` : 'Father';
 
   useEffect(() => {
-    if (DEMO_MODE) {
+    if (demoMode) {
       setMembers(FLOCK_DEMO);
     } else {
       loadFlock();

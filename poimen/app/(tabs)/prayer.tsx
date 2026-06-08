@@ -8,7 +8,7 @@ import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { DEMO_MODE } from '@/lib/config';
+import { useDemoMode } from '@/lib/demo';
 
 type Visibility = 'private' | 'foc_only' | 'care_team';
 
@@ -102,9 +102,10 @@ function SwipeableRequest({ item, onDelete, onMarkAnswered }: {
 // ── Screen ───────────────────────────────────────────────────
 export default function PrayerScreen() {
   const { user } = useSession();
+  const { demoMode } = useDemoMode();
   const [active, setActive] = useState<any[]>([]);
   const [answered, setAnswered] = useState<any[]>([]);
-  const [loading, setLoading] = useState(!DEMO_MODE);
+  const [loading, setLoading] = useState(!demoMode);
   const [submitting, setSubmitting] = useState(false);
 
   const [title, setTitle] = useState('');
@@ -112,7 +113,7 @@ export default function PrayerScreen() {
   const [visibility, setVisibility] = useState<Visibility>('private');
 
   useEffect(() => {
-    if (DEMO_MODE) {
+    if (demoMode) {
       setActive(DEMO_ACTIVE);
       setAnswered(DEMO_ANSWERED);
     } else {
@@ -137,7 +138,7 @@ export default function PrayerScreen() {
 
   async function handleSubmit() {
     if (!title.trim()) return;
-    if (DEMO_MODE) {
+    if (demoMode) {
       const newReq = { id: Date.now().toString(), topic: title.trim(), created_at: new Date().toISOString(), body: body.trim(), visibility, answered: false };
       setActive(prev => [newReq, ...prev]);
       setTitle(''); setBody(''); setVisibility('private');
@@ -160,7 +161,7 @@ export default function PrayerScreen() {
       {
         text: 'Delete', style: 'destructive', onPress: async () => {
           setActive(prev => prev.filter(r => r.id !== id));
-          if (!DEMO_MODE) await supabase.from('prayer_requests').delete().eq('id', id);
+          if (!demoMode) await supabase.from('prayer_requests').delete().eq('id', id);
         },
       },
     ]);
@@ -172,7 +173,7 @@ export default function PrayerScreen() {
     const updated = { ...req, answered: true };
     setActive(prev => prev.filter(r => r.id !== id));
     setAnswered(prev => [updated, ...prev]);
-    if (!DEMO_MODE) {
+    if (!demoMode) {
       await supabase.from('prayer_requests').update({ answered: true }).eq('id', id);
     }
   }
@@ -183,7 +184,7 @@ export default function PrayerScreen() {
       {
         text: 'Delete', style: 'destructive', onPress: async () => {
           setAnswered(prev => prev.filter(r => r.id !== id));
-          if (!DEMO_MODE) await supabase.from('prayer_requests').delete().eq('id', id);
+          if (!demoMode) await supabase.from('prayer_requests').delete().eq('id', id);
         },
       },
     ]);

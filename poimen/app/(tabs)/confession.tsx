@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { DEMO_MODE } from '@/lib/config';
+import { useDemoMode } from '@/lib/demo';
 
 // ── Theological content — same in both modes, never stored ───
 const TABS = ['Toward God', 'Toward Others', 'Toward Self', 'Family'] as const;
@@ -58,6 +58,7 @@ const DEMO_HISTORY = [
 // ── Screen ───────────────────────────────────────────────────
 export default function ConfessionScreen() {
   const { user } = useSession();
+  const { demoMode } = useDemoMode();
   const [activeTab, setActiveTab] = useState<typeof TABS[number]>('Toward God');
 
   // Session-only state — cleared when user leaves screen, never stored
@@ -69,7 +70,7 @@ export default function ConfessionScreen() {
 
   // History from Supabase (real mode)
   const [history, setHistory] = useState<any[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(!DEMO_MODE);
+  const [loadingHistory, setLoadingHistory] = useState(!demoMode);
   const [requesting, setRequesting] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
 
@@ -78,7 +79,7 @@ export default function ConfessionScreen() {
   const pct = Math.round((checkedCount / totalItems) * 100);
 
   useEffect(() => {
-    if (DEMO_MODE) {
+    if (demoMode) {
       setHistory(DEMO_HISTORY);
     } else {
       loadHistory();
@@ -130,7 +131,7 @@ export default function ConfessionScreen() {
   }
 
   async function handleRequestAppointment() {
-    if (DEMO_MODE) { setRequestSent(true); return; }
+    if (demoMode) { setRequestSent(true); return; }
     setRequesting(true);
     // In real mode, log a pending note to the priest via a prayer request flagged for FOC
     await supabase.from('prayer_requests').insert({
@@ -268,7 +269,7 @@ export default function ConfessionScreen() {
               <Text style={styles.requestSentIcon}>✝</Text>
               <Text style={styles.requestSentTitle}>Request Sent</Text>
               <Text style={styles.requestSentBody}>
-                {DEMO_MODE
+                {demoMode
                   ? 'Fr. Bishoy will confirm a time for your next confession.'
                   : 'Your Father of Confession has been notified. They will reach out to confirm a time.'}
               </Text>

@@ -6,7 +6,7 @@ import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { DEMO_MODE } from '@/lib/config';
+import { useDemoMode } from '@/lib/demo';
 
 type EncounterType = 'confession' | 'counseling' | 'advice' | 'visit' | 'phone' | 'group';
 
@@ -37,11 +37,12 @@ export default function LogEncounterScreen() {
   const router = useRouter();
   const { memberId: preselectedId, memberName: preselectedName } = useLocalSearchParams<{ memberId: string; memberName: string }>();
   const { user } = useSession();
+  const { demoMode } = useDemoMode();
 
   const [encounterType, setEncounterType] = useState<EncounterType>('confession');
   const [encounterDate, setEncounterDate] = useState(today());
-  const [selectedMemberId, setSelectedMemberId] = useState(preselectedId ?? (DEMO_MODE ? 'demo-pb' : ''));
-  const [memberSearch, setMemberSearch] = useState(preselectedName ?? (DEMO_MODE ? 'Peter Botros' : ''));
+  const [selectedMemberId, setSelectedMemberId] = useState(preselectedId ?? (demoMode ? 'demo-pb' : ''));
+  const [memberSearch, setMemberSearch] = useState(preselectedName ?? (demoMode ? 'Peter Botros' : ''));
   const [showMemberList, setShowMemberList] = useState(false);
   const [memberNote, setMemberNote] = useState('');
   const [privateNote, setPrivateNote] = useState('');
@@ -51,10 +52,10 @@ export default function LogEncounterScreen() {
   const [saved, setSaved] = useState(false);
 
   // Member list (real mode: loaded from Supabase)
-  const [memberList, setMemberList] = useState<{ id: string; name: string }[]>(DEMO_MODE ? DEMO_MEMBERS : []);
+  const [memberList, setMemberList] = useState<{ id: string; name: string }[]>(demoMode ? DEMO_MEMBERS : []);
 
   useEffect(() => {
-    if (!DEMO_MODE) loadMembers();
+    if (!demoMode) loadMembers();
   }, [user]);
 
   async function loadMembers() {
@@ -85,7 +86,7 @@ export default function LogEncounterScreen() {
 
   async function handleSave() {
     if (!selectedMemberId || saving) return;
-    if (DEMO_MODE) {
+    if (demoMode) {
       setSaved(true);
       setTimeout(() => router.push('/(priest)'), 1300);
       return;

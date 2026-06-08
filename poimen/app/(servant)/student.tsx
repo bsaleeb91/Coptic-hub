@@ -6,7 +6,7 @@ import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { DEMO_MODE } from '@/lib/config';
+import { useDemoMode } from '@/lib/demo';
 
 const DEMO_CANONS = [
   { id: 'ds1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Jun 1, 2026', completions: 5, totalDays: 7 },
@@ -17,14 +17,15 @@ export default function StudentScreen() {
   const router = useRouter();
   const { id: studentId, name: studentName } = useLocalSearchParams<{ id: string; name: string }>();
   const { user } = useSession();
-  const [loading, setLoading] = useState(!DEMO_MODE);
+  const { demoMode } = useDemoMode();
+  const [loading, setLoading] = useState(!demoMode);
   const [canons, setCanons] = useState<any[]>([]);
 
   const displayName = studentName ?? 'Student';
   const initials = displayName.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
 
   useEffect(() => {
-    if (DEMO_MODE) {
+    if (demoMode) {
       setCanons(DEMO_CANONS);
     } else if (studentId) {
       loadStudentData();
@@ -61,7 +62,7 @@ export default function StudentScreen() {
   }
 
   async function handleDeactivateCanon(canonId: string) {
-    if (DEMO_MODE) {
+    if (demoMode) {
       setCanons(prev => prev.filter(c => c.id !== canonId));
       return;
     }

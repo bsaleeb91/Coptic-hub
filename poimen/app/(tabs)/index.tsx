@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/Badge';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { DEMO_MODE } from '@/lib/config';
+import { useDemoMode } from '@/lib/demo';
 
 // ── Demo data ────────────────────────────────────────────────
 const DEMO_VITALS_BARS = [
@@ -49,6 +49,7 @@ const PCT_STEPS = [0, 25, 50, 75, 100];
 export default function DashboardScreen() {
   const router = useRouter();
   const { profile, user } = useSession();
+  const { demoMode } = useDemoMode();
   const firstName = profile?.full_name?.split(' ')[0] ?? 'friend';
 
   const [vitals, setVitals] = useState<number[]>(VITAL_LABELS.map(() => 0));
@@ -58,7 +59,7 @@ export default function DashboardScreen() {
   const [savingVitals, setSavingVitals] = useState(false);
 
   useEffect(() => {
-    if (DEMO_MODE) return;
+    if (demoMode) return;
     loadVitals();
     loadTimeline();
     loadFoc();
@@ -118,8 +119,8 @@ export default function DashboardScreen() {
     });
   }
 
-  const displayVitals = DEMO_MODE ? DEMO_VITALS_BARS : VITAL_LABELS.map((label, i) => ({ label, pct: vitals[i] }));
-  const displayTimeline = DEMO_MODE ? DEMO_TIMELINE : timeline;
+  const displayVitals = demoMode ? DEMO_VITALS_BARS : VITAL_LABELS.map((label, i) => ({ label, pct: vitals[i] }));
+  const displayTimeline = demoMode ? DEMO_TIMELINE : timeline;
 
   const encounterTagMap: Record<string, { tag: string; tagBg: string; tagColor: string }> = {
     confession: { tag: '✝ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
@@ -162,7 +163,7 @@ export default function DashboardScreen() {
           <View style={styles.vitalCard}>
             <View style={styles.vitalGoldLine} />
             <Text style={styles.vitalLabel}>Last Confession</Text>
-            {DEMO_MODE ? (
+            {demoMode ? (
               <>
                 <Text style={styles.vitalValue}>47</Text>
                 <Text style={styles.vitalMeta}>days ago · May 21st</Text>
@@ -178,7 +179,7 @@ export default function DashboardScreen() {
           <View style={styles.vitalCard}>
             <View style={styles.vitalGoldLine} />
             <Text style={styles.vitalLabel}>Church Attendance</Text>
-            {DEMO_MODE ? (
+            {demoMode ? (
               <>
                 <Text style={styles.vitalValue}>8 / 10</Text>
                 <Text style={styles.vitalMeta}>Sundays this quarter</Text>
@@ -199,7 +200,7 @@ export default function DashboardScreen() {
           <Text style={styles.bannerLabel}>UPCOMING</Text>
           <Text style={styles.bannerTitle}>Prepare for Holy Confession</Text>
           <Text style={styles.bannerBody}>
-            {DEMO_MODE
+            {demoMode
               ? 'Fr. Bishoy has confession hours this Sunday after the Divine Liturgy. You last confessed 47 days ago. The Apostles\' Fast is a blessed time to receive the sacrament.'
               : 'Use the Confession tab to examine your conscience before meeting with your Father of Confession.'}
           </Text>
@@ -212,7 +213,7 @@ export default function DashboardScreen() {
 
         {/* Pastoral Journey Timeline */}
         <Card title="Pastoral Journey" titleIcon="◎" action={<Text style={styles.cardAction}>View all</Text>}>
-          {DEMO_MODE ? (
+          {demoMode ? (
             DEMO_TIMELINE.map((item, i) => (
               <TimelineRow key={i} item={item} last={i === DEMO_TIMELINE.length - 1} />
             ))
@@ -241,7 +242,7 @@ export default function DashboardScreen() {
           title="Spiritual Vitals"
           titleIcon="✦"
           action={
-            !DEMO_MODE ? (
+            !demoMode ? (
               <TouchableOpacity onPress={() => setEditingVitals(true)}>
                 <Text style={styles.cardAction}>Edit</Text>
               </TouchableOpacity>
@@ -278,7 +279,7 @@ export default function DashboardScreen() {
 
         {/* Father of Confession */}
         <Card title="My Father of Confession" titleIcon="◉">
-          {DEMO_MODE ? (
+          {demoMode ? (
             <>
               <View style={styles.focRow}>
                 <View style={styles.focAvatar}><Text style={styles.focAvatarText}>BM</Text></View>

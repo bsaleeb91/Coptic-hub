@@ -6,7 +6,7 @@ import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { DEMO_MODE } from '@/lib/config';
+import { useDemoMode } from '@/lib/demo';
 
 type FrequencyType = 'Daily' | '3x/week' | 'Weekly' | 'Custom';
 
@@ -24,6 +24,7 @@ export default function AssignCanonScreen() {
   const router = useRouter();
   const { memberId, memberName } = useLocalSearchParams<{ memberId: string; memberName: string }>();
   const { user } = useSession();
+  const { demoMode } = useDemoMode();
 
   const [selectedComponent, setSelectedComponent] = useState('');
   const [customComponent, setCustomComponent] = useState('');
@@ -39,8 +40,8 @@ export default function AssignCanonScreen() {
   const [existingCanons, setExistingCanons] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!DEMO_MODE && memberId) loadExistingCanons();
-    if (DEMO_MODE) {
+    if (!demoMode && memberId) loadExistingCanons();
+    if (demoMode) {
       setExistingCanons([
         { component: 'Morning Agpeya', frequency: 'Daily', pct: 20 },
         { component: 'Gospel Reading (1 chapter)', frequency: 'Daily', pct: 30 },
@@ -63,7 +64,7 @@ export default function AssignCanonScreen() {
 
   async function handleSave() {
     if (!component || saving) return;
-    if (DEMO_MODE) {
+    if (demoMode) {
       setSaved(true);
       setTimeout(() => router.back(), 1300);
       return;

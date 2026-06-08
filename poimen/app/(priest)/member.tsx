@@ -6,7 +6,7 @@ import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { DEMO_MODE } from '@/lib/config';
+import { useDemoMode } from '@/lib/demo';
 
 // ── Demo data ─────────────────────────────────────────────────
 const DEMO_MEMBER = { initials: 'PB', name: 'Peter Botros', stage: 'New', phone: '(614) 555-0182', joined: 'February 2026', daysSince: 74, flagged: true, flagNote: 'Missed two follow-up appointments.' };
@@ -43,8 +43,9 @@ export default function MemberScreen() {
   const router = useRouter();
   const { id: memberId, name: memberName } = useLocalSearchParams<{ id: string; name: string }>();
   const { user } = useSession();
+  const { demoMode } = useDemoMode();
   const [tab, setTab] = useState<TabType>('overview');
-  const [loading, setLoading] = useState(!DEMO_MODE);
+  const [loading, setLoading] = useState(!demoMode);
 
   // Display data
   const [memberInfo, setMemberInfo] = useState<any>(DEMO_MEMBER);
@@ -59,7 +60,7 @@ export default function MemberScreen() {
   const [savingNote, setSavingNote] = useState(false);
 
   useEffect(() => {
-    if (!DEMO_MODE && memberId) {
+    if (!demoMode && memberId) {
       loadMemberData();
     }
   }, [memberId, user]);
@@ -94,7 +95,7 @@ export default function MemberScreen() {
         { label: 'Fasting', pct: v.fasting ?? 0, shared: true },
         { label: 'Service', pct: v.service ?? 0, shared: true },
       ]);
-    } else if (!DEMO_MODE) {
+    } else if (!demoMode) {
       setVitals([]);
     }
 
@@ -119,7 +120,7 @@ export default function MemberScreen() {
 
     if (noteRes.data?.payload) {
       setSavedNote((noteRes.data.payload as any).text ?? '');
-    } else if (!DEMO_MODE) {
+    } else if (!demoMode) {
       setSavedNote('');
     }
 
@@ -129,7 +130,7 @@ export default function MemberScreen() {
   async function handleSaveNote() {
     if (!noteInput.trim()) return;
     const newNote = savedNote ? `${savedNote}\n\n${noteInput.trim()}` : noteInput.trim();
-    if (DEMO_MODE) {
+    if (demoMode) {
       setSavedNote(newNote);
       setNoteInput('');
       return;

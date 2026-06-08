@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { DEMO_MODE } from '@/lib/config';
+import { useDemoMode } from '@/lib/demo';
 
 type Frequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
@@ -143,11 +143,12 @@ function SwipeableEntry({ entry, onDelete }: { entry: any; onDelete: () => void 
 // ── Screen ───────────────────────────────────────────────────
 export default function JournalScreen() {
   const { user } = useSession();
+  const { demoMode } = useDemoMode();
 
   const [disciplines, setDisciplines] = useState<any[]>([]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [entries, setEntries] = useState<any[]>([]);
-  const [loading, setLoading] = useState(!DEMO_MODE);
+  const [loading, setLoading] = useState(!demoMode);
   const [savingEntry, setSavingEntry] = useState(false);
 
   // New entry form
@@ -164,7 +165,7 @@ export default function JournalScreen() {
   const [newDiscShared, setNewDiscShared] = useState(false);
 
   useEffect(() => {
-    if (DEMO_MODE) {
+    if (demoMode) {
       setDisciplines(DEMO_DISCIPLINES);
       setChecked(new Set(DEMO_DISCIPLINES.filter(d => d.done).map(d => d.id)));
       setEntries(DEMO_ENTRIES);
@@ -192,7 +193,7 @@ export default function JournalScreen() {
   }
 
   async function saveDisciplines(discs: any[], checkedIds?: Set<string>) {
-    if (!user || DEMO_MODE) return;
+    if (!user || demoMode) return;
     const ids = checkedIds ?? checked;
     await supabase.from('agent_progress').upsert({
       user_id: user.id, agent_slug: 'journal-disciplines',
@@ -202,7 +203,7 @@ export default function JournalScreen() {
   }
 
   async function saveEntries(newEntries: any[]) {
-    if (!user || DEMO_MODE) return;
+    if (!user || demoMode) return;
     await supabase.from('agent_progress').upsert({
       user_id: user.id, agent_slug: 'journal-entries',
       payload: { entries: newEntries },
@@ -345,7 +346,7 @@ export default function JournalScreen() {
         </Card>
 
         {/* FOC Assignment */}
-        {DEMO_MODE && (
+        {demoMode && (
           <Card title="Fr. Bishoy's Assignment" titleIcon="◌">
             <Text style={styles.assignSub}>Assigned after your last confession on May 21:</Text>
             <Text style={styles.assignTitle}>40-Day Psalm Reading Plan</Text>

@@ -6,7 +6,7 @@ import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { DEMO_MODE } from '@/lib/config';
+import { useDemoMode } from '@/lib/demo';
 
 type FrequencyType = 'Daily' | '3x/week' | 'Weekly' | 'Custom';
 
@@ -40,6 +40,7 @@ export default function ServantAssignCanonScreen() {
   const router = useRouter();
   const { studentId, studentName } = useLocalSearchParams<{ studentId: string; studentName: string }>();
   const { user } = useSession();
+  const { demoMode } = useDemoMode();
 
   const [selectedComponent, setSelectedComponent] = useState('');
   const [customComponent, setCustomComponent] = useState('');
@@ -57,7 +58,7 @@ export default function ServantAssignCanonScreen() {
 
   async function handleSave() {
     if (!component || saving) return;
-    if (DEMO_MODE) {
+    if (demoMode) {
       setSaved(true);
       setTimeout(() => router.back(), 1300);
       return;

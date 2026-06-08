@@ -4,13 +4,17 @@ import {
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useSession } from '@/lib/auth';
+import { useDemoMode } from '@/lib/demo';
 import { colors, fonts } from '@/lib/theme';
 
 type Mode = 'signin' | 'signup' | 'magic';
 
 export default function SignInScreen() {
   const { signInWithEmail, signUpWithEmail, signInWithMagicLink } = useSession();
+  const { setDemoMode } = useDemoMode();
+  const router = useRouter();
 
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
@@ -41,19 +45,22 @@ export default function SignInScreen() {
     setLoading(false);
   }
 
+  function handleDemo() {
+    setDemoMode(true);
+    router.replace('/(tabs)');
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
-          {/* Logo / brand */}
           <View style={styles.brand}>
             <Text style={styles.brandCross}>✝</Text>
             <Text style={styles.brandTitle}>Poimen</Text>
             <Text style={styles.brandSub}>Pastoral care, rooted in Tradition</Text>
           </View>
 
-          {/* Mode tabs */}
           <View style={styles.modeTabs}>
             {(['signin', 'signup', 'magic'] as Mode[]).map(m => (
               <TouchableOpacity
@@ -68,7 +75,6 @@ export default function SignInScreen() {
             ))}
           </View>
 
-          {/* Form */}
           <View style={styles.form}>
             {mode === 'signup' && (
               <View style={styles.field}>
@@ -135,6 +141,18 @@ export default function SignInScreen() {
             )}
           </View>
 
+          {/* Demo divider */}
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity style={styles.demoBtn} onPress={handleDemo}>
+            <Text style={styles.demoBtnText}>EXPLORE DEMO  →</Text>
+          </TouchableOpacity>
+          <Text style={styles.demoHint}>See the app with sample data — no account needed</Text>
+
           <Text style={styles.footer}>
             A ministry of the Coptic Orthodox Church.{'\n'}All spiritual data is private and protected.
           </Text>
@@ -179,5 +197,13 @@ const styles = StyleSheet.create({
   forgotLink: { alignItems: 'center', paddingVertical: 4 },
   forgotLinkText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
 
-  footer: { fontFamily: fonts.latoLight, fontSize: 10, color: 'rgba(245,240,232,0.2)', textAlign: 'center', lineHeight: 16, marginTop: 48 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 28, marginBottom: 20 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
+
+  demoBtn: { borderWidth: 1, borderColor: 'rgba(201,168,76,0.4)', borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
+  demoBtnText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.goldLight, letterSpacing: 1 },
+  demoHint: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, textAlign: 'center', marginTop: 8 },
+
+  footer: { fontFamily: fonts.latoLight, fontSize: 10, color: 'rgba(245,240,232,0.2)', textAlign: 'center', lineHeight: 16, marginTop: 36 },
 });

@@ -16,25 +16,25 @@ import {
   useFonts as useLato,
 } from '@expo-google-fonts/lato';
 import { AuthProvider, useSession } from '@/lib/auth';
+import { DemoProvider, useDemoMode } from '@/lib/demo';
 
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
   const { session, loading } = useSession();
+  const { demoMode } = useDemoMode();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     if (loading) return;
+    if (demoMode) return; // demo mode bypasses auth entirely
     const onSignIn = segments[0] === 'sign-in';
-    if (!session && !onSignIn) {
-      router.replace('/sign-in');
-    } else if (session && onSignIn) {
-      router.replace('/(tabs)');
-    }
-  }, [session, loading, segments]);
+    if (!session && !onSignIn) router.replace('/sign-in');
+    else if (session && onSignIn) router.replace('/(tabs)');
+  }, [session, loading, segments, demoMode]);
 
-  if (loading) return null;
+  if (loading && !demoMode) return null;
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -70,9 +70,11 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-      <StatusBar style="light" />
-    </AuthProvider>
+    <DemoProvider>
+      <AuthProvider>
+        <RootLayoutNav />
+        <StatusBar style="light" />
+      </AuthProvider>
+    </DemoProvider>
   );
 }

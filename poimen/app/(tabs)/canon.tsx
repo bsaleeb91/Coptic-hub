@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/Card';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { DEMO_MODE } from '@/lib/config';
+import { useDemoMode } from '@/lib/demo';
 
 // ── Progress ring ────────────────────────────────────────────
 const RING_RADIUS = 22;
@@ -155,14 +155,15 @@ function SwipeableHistoryRow({ item, onDelete }: { item: any; onDelete: () => vo
 // ── Screen ───────────────────────────────────────────────────
 export default function CanonScreen() {
   const { user } = useSession();
+  const { demoMode } = useDemoMode();
   const [components, setComponents] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(!DEMO_MODE);
+  const [loading, setLoading] = useState(!demoMode);
 
   useEffect(() => {
-    if (DEMO_MODE) {
+    if (demoMode) {
       setComponents(DEMO_COMPONENTS);
       setChecked(new Set(DEMO_COMPONENTS.filter(c => c.done).map(c => c.id)));
       setHistory(DEMO_HISTORY);
@@ -208,7 +209,7 @@ export default function CanonScreen() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-    if (!DEMO_MODE && user) {
+    if (!demoMode && user) {
       const today = new Date().toISOString().split('T')[0];
       await supabase.from('canon_completions').upsert(
         { canon_id: id, user_id: user.id, completed_on: today },
@@ -236,7 +237,7 @@ export default function CanonScreen() {
   const total = components.length || 1;
   const pct = Math.round((completedCount / total) * 100);
 
-  const activeCanon = DEMO_MODE
+  const activeCanon = demoMode
     ? { label: 'ACTIVE CANON · ASSIGNED MAY 21', title: '40-Day Psalm & Prostration Plan', meta: 'Assigned after Holy Confession · Fr. Bishoy Marcos · Day 18 of 40' }
     : components.length > 0
     ? { label: `ACTIVE CANON · ${components.length} COMPONENT${components.length !== 1 ? 'S' : ''}`, title: 'Spiritual Canon', meta: 'Assigned by your Father of Confession' }
@@ -261,7 +262,7 @@ export default function CanonScreen() {
             </View>
             <ProgressRing pct={pct} />
           </View>
-        ) : !DEMO_MODE ? (
+        ) : !demoMode ? (
           <View style={styles.emptyBanner}>
             <Text style={styles.emptyBannerTitle}>No active canon yet</Text>
             <Text style={styles.emptyBannerBody}>Your Father of Confession will assign a spiritual canon after your next confession. It will appear here.</Text>
@@ -295,7 +296,7 @@ export default function CanonScreen() {
 
         {/* Communion Readiness */}
         <Card title="Communion Readiness" titleIcon="✝">
-          {DEMO_MODE ? (
+          {demoMode ? (
             <>
               <View style={styles.readinessCard}>
                 <Text style={styles.readinessLabel}>CURRENT STATUS</Text>
