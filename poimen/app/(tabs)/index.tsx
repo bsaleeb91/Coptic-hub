@@ -30,9 +30,9 @@ const DEMO_TIMELINE = [
 ];
 
 const FEASTS = [
-  { month: 'JUN', day: '12', title: 'Feast of the Apostles', desc: 'End of Apostles\' Fast. Breaking of fast after Divine Liturgy.' },
-  { month: 'JUN', day: '29', title: 'Sts. Peter & Paul', desc: 'Feast of the chief apostles. Divine Liturgy at 7:00 AM.' },
+  { month: 'JUL', day: '12', title: 'Feast of the Apostles', desc: 'End of Apostles\' Fast. Breaking of fast after Divine Liturgy.' },
   { month: 'JUL', day: '19', title: 'Feast of Archangel Michael', desc: 'Monthly feast. Tasbeha at 11:00 PM the prior evening.' },
+  { month: 'AUG', day: '7', title: 'Feast of the Transfiguration', desc: 'Feast of the Transfiguration of our Lord Jesus Christ.' },
 ];
 
 const VITAL_LABELS = [

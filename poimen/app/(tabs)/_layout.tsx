@@ -6,7 +6,7 @@ function TabIcon({ symbol, label, focused }: { symbol: string; label: string; fo
   return (
     <View style={styles.tabItem}>
       <Text style={[styles.symbol, focused && styles.symbolActive]}>{symbol}</Text>
-      <Text style={[styles.label, focused && styles.labelActive]}>{label}</Text>
+      <Text style={[styles.label, focused && styles.labelActive]} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
@@ -32,7 +32,7 @@ export default function TabLayout() {
         name="confession"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon symbol="✝" label="Confession" focused={focused} />
+            <TabIcon symbol="✝" label="Confess" focused={focused} />
           ),
         }}
       />
@@ -69,16 +69,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.navyDark,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    height: 72,
-    paddingBottom: 8,
+    height: 64,
+    paddingBottom: 6,
     paddingTop: 6,
   },
   tabItem: {
     alignItems: 'center',
-    gap: 3,
+    gap: 2,
+    width: 56,
   },
   symbol: {
-    fontSize: 18,
+    fontSize: 17,
     color: colors.muted,
   },
   symbolActive: {
