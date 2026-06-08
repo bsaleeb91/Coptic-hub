@@ -40,6 +40,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="(priest)" />
+      <Stack.Screen name="(servant)" />
       <Stack.Screen name="profile" />
       <Stack.Screen name="sign-in" />
     </Stack>

@@ -141,9 +141,16 @@ export default function DashboardScreen() {
             <Text style={styles.subtitle}>Sunday, June 7 · Apostles' Fast · Day 12</Text>
           </View>
           <View style={styles.topbarButtons}>
-            <TouchableOpacity style={styles.btnPriestToggle} onPress={() => router.push('/(priest)')}>
-              <Text style={styles.btnPriestToggleText}>FOC VIEW</Text>
-            </TouchableOpacity>
+            {profile?.role === 'priest' && (
+              <TouchableOpacity style={styles.btnPriestToggle} onPress={() => router.push('/(priest)')}>
+                <Text style={styles.btnPriestToggleText}>FOC VIEW</Text>
+              </TouchableOpacity>
+            )}
+            {profile?.role === 'servant' && (
+              <TouchableOpacity style={styles.btnPriestToggle} onPress={() => router.push('/(servant)')}>
+                <Text style={styles.btnPriestToggleText}>STUDENTS</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.avatarBtn} onPress={() => router.push('/profile')}>
               <Text style={styles.avatarBtnText}>{firstName.charAt(0).toUpperCase()}</Text>
             </TouchableOpacity>
