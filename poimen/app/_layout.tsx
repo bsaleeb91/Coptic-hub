@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Stack, Redirect } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import {
@@ -21,14 +21,26 @@ SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
   const { session, loading } = useSession();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+    const onSignIn = segments[0] === 'sign-in';
+    if (!session && !onSignIn) {
+      router.replace('/sign-in');
+    } else if (session && onSignIn) {
+      router.replace('/(tabs)');
+    }
+  }, [session, loading, segments]);
 
   if (loading) return null;
-  if (!session) return <Redirect href="/sign-in" />;
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="(priest)" />
+      <Stack.Screen name="profile" />
       <Stack.Screen name="sign-in" />
     </Stack>
   );

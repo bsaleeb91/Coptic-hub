@@ -4,14 +4,12 @@ import {
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { useSession } from '@/lib/auth';
 import { colors, fonts } from '@/lib/theme';
 
 type Mode = 'signin' | 'signup' | 'magic';
 
 export default function SignInScreen() {
-  const router = useRouter();
   const { signInWithEmail, signUpWithEmail, signInWithMagicLink } = useSession();
 
   const [mode, setMode] = useState<Mode>('signin');
@@ -30,7 +28,6 @@ export default function SignInScreen() {
     if (mode === 'signin') {
       const { error } = await signInWithEmail(email.trim(), password);
       if (error) setError(error);
-      else router.replace('/(tabs)');
     } else if (mode === 'signup') {
       const { error } = await signUpWithEmail(email.trim(), password, fullName.trim());
       if (error) setError(error);
