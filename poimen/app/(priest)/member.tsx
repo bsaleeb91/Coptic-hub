@@ -73,7 +73,7 @@ export default function MemberScreen() {
       supabase.from('agent_progress').select('payload').eq('user_id', memberId).eq('agent_slug', 'vitals').single(),
       supabase.from('pastoral_encounters').select('encountered_at, member_note').eq('congregant_id', memberId).eq('encounter_type', 'confession').order('encountered_at', { ascending: false }),
       supabase.from('prayer_requests').select('created_at, topic').eq('user_id', memberId).eq('visibility', 'foc_only').eq('answered', false).order('created_at', { ascending: false }),
-      supabase.from('spiritual_canons').select('id, component, frequency, start_date').eq('user_id', memberId).eq('active', true),
+      supabase.from('spiritual_canons').select('id, component, frequency, start_date').eq('congregant_id', memberId).eq('active', true),
       supabase.from('agent_progress').select('payload').eq('user_id', user.id).eq('agent_slug', `pastoral-notes-${memberId}`).single(),
     ]);
 

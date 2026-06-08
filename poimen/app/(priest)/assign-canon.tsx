@@ -53,7 +53,7 @@ export default function AssignCanonScreen() {
     const { data } = await supabase
       .from('spiritual_canons')
       .select('component, frequency')
-      .eq('user_id', memberId)
+      .eq('congregant_id', memberId)
       .eq('active', true);
     if (data) setExistingCanons(data.map(c => ({ component: c.component, frequency: c.frequency, pct: null })));
   }
@@ -70,7 +70,7 @@ export default function AssignCanonScreen() {
     }
     setSaving(true);
     await supabase.from('spiritual_canons').insert({
-      user_id: memberId,
+      congregant_id: memberId,
       priest_id: user!.id,
       component,
       frequency: frequency === 'Custom' ? customFreq || frequency : frequency,

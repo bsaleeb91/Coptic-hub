@@ -64,7 +64,7 @@ export default function ServantAssignCanonScreen() {
     }
     setSaving(true);
     await supabase.from('spiritual_canons').insert({
-      user_id: studentId,
+      congregant_id: studentId,
       priest_id: user!.id,
       component,
       frequency: frequency === 'Custom' ? customFreq || frequency : frequency,

@@ -39,7 +39,7 @@ export default function StudentScreen() {
     const { data: canonData } = await supabase
       .from('spiritual_canons')
       .select('id, component, frequency, start_date')
-      .eq('user_id', studentId)
+      .eq('congregant_id', studentId)
       .eq('priest_id', user.id)
       .eq('active', true);
 

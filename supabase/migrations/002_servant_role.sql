@@ -19,26 +19,25 @@ ALTER TABLE profiles
 CREATE INDEX IF NOT EXISTS idx_profiles_servant_id ON profiles(servant_id);
 
 -- 4. RLS: servants can read profiles of their students
-CREATE POLICY IF NOT EXISTS "Servants can read their students"
+DROP POLICY IF EXISTS "Servants can read their students" ON profiles;
+CREATE POLICY "Servants can read their students"
   ON profiles FOR SELECT
   USING (servant_id = auth.uid());
 
--- 5. Servants can read spiritual_canons they assigned (priest_id = their id)
---    This already works if canons use priest_id — servants use the same column.
---    No new policy needed if the existing priest policy uses priest_id.
-
--- 6. Servants can insert/update spiritual_canons for their students
---    Check if existing canon policy covers this; if not, add:
-CREATE POLICY IF NOT EXISTS "Servants can assign canons to their students"
+-- 5. Servants can insert spiritual_canons for their students
+DROP POLICY IF EXISTS "Servants can assign canons to their students" ON spiritual_canons;
+CREATE POLICY "Servants can assign canons to their students"
   ON spiritual_canons FOR INSERT
   WITH CHECK (
     priest_id = auth.uid() AND
     EXISTS (
       SELECT 1 FROM profiles
-      WHERE id = spiritual_canons.user_id AND servant_id = auth.uid()
+      WHERE id = spiritual_canons.congregant_id AND servant_id = auth.uid()
     )
   );
 
-CREATE POLICY IF NOT EXISTS "Servants can read canons they assigned"
+-- 6. Servants can read canons they assigned
+DROP POLICY IF EXISTS "Servants can read canons they assigned" ON spiritual_canons;
+CREATE POLICY "Servants can read canons they assigned"
   ON spiritual_canons FOR SELECT
   USING (priest_id = auth.uid());
