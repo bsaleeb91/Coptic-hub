@@ -46,3 +46,15 @@ This file grows automatically. KYRIE proposes entries at the end of each session
 (2026-06-07) [Setup] Hooks in .claude/settings.json must use absolute paths, not relative ones. Relative paths break when Claude Code is opened from a subdirectory (e.g. poimen/). Fixed all three hooks (SessionStart, Stop, PostToolUse) to C:\Users\17165\Coptic-hub\scripts\hooks\*.
 
 (2026-06-07) [Design] Poimen design system: navy (#0f1f3d) + gold (#c9a84c), Cormorant Garamond (display) + Lato (body). Distinct from Coptic Hub's incense/parchment palette. Source of truth: poimen/lib/theme.ts.
+
+(2026-06-07) [Schema] spiritual_canons uses congregant_id (not user_id) to reference the member. user_id does not exist on that table. Fixed in 4 places: priest member query, both assign-canon inserts (priest + servant), servant student query, and the migration RLS policy CHECK clause.
+
+(2026-06-07) [PostgreSQL] CREATE POLICY does not support IF NOT EXISTS syntax — throws ERROR 42601. Correct pattern: DROP POLICY IF EXISTS "name" ON table; then CREATE POLICY "name" with no IF NOT EXISTS guard.
+
+(2026-06-07) [Architecture] Servant role confirmed: Sunday School servants get their own portal (/(servant)) with 3 screens — student roster, student detail, assign-canon. Servants can only assign Prayer + Scripture canons (not fasting/service/sacramental). Students self-report completions on the same Canon tab as any congregant. No confession or counseling access for servants.
+
+(2026-06-07) [Architecture] Role-aware dashboard toggle: profile.role === 'priest' shows FOC VIEW → /(priest); profile.role === 'servant' shows STUDENTS → /(servant); congregant sees no toggle. Implemented in poimen/app/(tabs)/index.tsx header.
+
+(2026-06-07) [Architecture] Pastoral notes (priest-private) stored in agent_progress with user_id = priest.id and agent_slug = 'pastoral-notes-{memberId}'. No dedicated table needed. Payload: { text: string, updated_at: string }. Upserted on conflict.
+
+(2026-06-07) [Poimen] To go live with real data: flip DEMO_MODE = false in poimen/lib/config.ts, and manually set role = 'priest' on the priest's profiles row in Supabase Table Editor. No role-assignment UI exists yet — admin sets it directly.

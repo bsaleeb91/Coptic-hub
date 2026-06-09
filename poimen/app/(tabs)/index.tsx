@@ -49,7 +49,7 @@ const PCT_STEPS = [0, 25, 50, 75, 100];
 export default function DashboardScreen() {
   const router = useRouter();
   const { profile, user } = useSession();
-  const { demoMode } = useDemoMode();
+  const { demoMode, demoRole } = useDemoMode();
   const firstName = profile?.full_name?.split(' ')[0] ?? 'friend';
 
   const [vitals, setVitals] = useState<number[]>(VITAL_LABELS.map(() => 0));
@@ -142,12 +142,12 @@ export default function DashboardScreen() {
             <Text style={styles.subtitle}>Sunday, June 7 · Apostles' Fast · Day 12</Text>
           </View>
           <View style={styles.topbarButtons}>
-            {profile?.role === 'priest' && (
+            {(demoMode ? demoRole : profile?.role) === 'priest' && (
               <TouchableOpacity style={styles.btnPriestToggle} onPress={() => router.push('/(priest)')}>
                 <Text style={styles.btnPriestToggleText}>FOC VIEW</Text>
               </TouchableOpacity>
             )}
-            {profile?.role === 'servant' && (
+            {(demoMode ? demoRole : profile?.role) === 'servant' && (
               <TouchableOpacity style={styles.btnPriestToggle} onPress={() => router.push('/(servant)')}>
                 <Text style={styles.btnPriestToggleText}>STUDENTS</Text>
               </TouchableOpacity>

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -61,10 +62,11 @@ export default function RootLayout() {
     Lato_700Bold,
   });
 
-  const fontsLoaded = cormorantLoaded && latoLoaded;
+  // On web, don't block render waiting for fonts — system fonts are fine as fallback
+  const fontsLoaded = Platform.OS === 'web' || (cormorantLoaded && latoLoaded);
 
   useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync();
+    if (fontsLoaded && Platform.OS !== 'web') SplashScreen.hideAsync();
   }, [fontsLoaded]);
 
   if (!fontsLoaded) return null;

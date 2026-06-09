@@ -12,43 +12,81 @@ import { supabase } from '@/lib/supabase';
 import { useDemoMode } from '@/lib/demo';
 
 // ── Demo data ─────────────────────────────────────────────────
-const DEMO_MEMBER = {
-  initials: 'PB', name: 'Peter Botros', stage: 'New',
-  joined: 'February 2026', daysSince: 74, flagged: true,
-  flagNote: 'Missed two follow-up appointments.',
+const DEMO_DB: Record<string, {
+  member: any; contact: any; life: any; children: any[];
+  vitals: any[]; confessions: any[]; prayer: any[]; canons: any[]; note: string;
+}> = {
+  'demo-mh': {
+    member: { initials: 'MH', name: 'Michael Hanna', stage: 'Growing', joined: 'September 2024', daysSince: 47, flagged: false, flagNote: '' },
+    contact: { phone: '(614) 555-0214', email: 'mhanna@example.com', address_line1: '1190 Oak Hill Rd', address_line2: null, city: 'Columbus', state: 'OH', zip: '43235', country: 'US' },
+    life: { life_stage: 'married', spouse_name: 'Nadia Hanna' },
+    children: [{ id: 'dc1', name: 'Kyrillos', birth_year: 2024 }],
+    vitals: [{ label: 'Daily Prayer', pct: 75, shared: true }, { label: 'Scripture Reading', pct: 50, shared: true }, { label: 'Divine Liturgy', pct: 80, shared: true }, { label: 'Small Group', pct: 100, shared: true }, { label: 'Service', pct: 25, shared: false }],
+    confessions: [{ date: 'APR 20, 2026', type: 'Holy Confession', note: 'Discussed new-father anxieties. Encouraged daily Agpeya.' }, { date: 'FEB 5, 2026', type: 'Holy Confession', note: 'Pre-birth spiritual preparation.' }],
+    prayer: [{ date: 'MAY 4, 2026', topic: 'Gratitude for new baby — prayers of thanksgiving' }, { date: 'MAR 10, 2026', topic: 'Wisdom as a new father' }],
+    canons: [{ id: 'c1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Apr 21, 2026', pct: 75 }, { id: 'c2', component: 'Psalm reading (1 chapter)', frequency: 'Daily', startDate: 'Apr 21, 2026', pct: 50 }],
+    note: 'Growing well since the birth of Kyrillos. Pastoral visit May 4 was fruitful. Follow up on consistent Agpeya practice — suggested praying together as a couple after the baby sleeps.',
+  },
+  'demo-sg': {
+    member: { initials: 'SG', name: 'Sara Girgis', stage: 'Mature', joined: 'March 2021', daysSince: 18, flagged: false, flagNote: '' },
+    contact: { phone: '(614) 555-0339', email: 'sgirgis@example.com', address_line1: '408 Granville St', address_line2: null, city: 'Columbus', state: 'OH', zip: '43215', country: 'US' },
+    life: { life_stage: 'single', spouse_name: '' },
+    children: [],
+    vitals: [{ label: 'Daily Prayer', pct: 90, shared: true }, { label: 'Scripture Reading', pct: 85, shared: true }, { label: 'Divine Liturgy', pct: 100, shared: true }, { label: 'Small Group', pct: 75, shared: true }, { label: 'Service', pct: 100, shared: true }],
+    confessions: [{ date: 'MAY 21, 2026', type: 'Holy Confession', note: 'Discussed vocation discernment. Encouraged continued prayer and patience.' }, { date: 'MAR 3, 2026', type: 'Holy Confession', note: 'Lenten preparation.' }, { date: 'JAN 8, 2026', type: 'Holy Confession', note: 'Start-of-year spiritual plan.' }],
+    prayer: [{ date: 'MAY 20, 2026', topic: 'Discernment of vocation — monastery vs. marriage' }],
+    canons: [{ id: 'c1', component: 'Complete Agpeya (all 7 hours)', frequency: 'Daily', startDate: 'Jan 9, 2026', pct: 88 }, { id: 'c2', component: 'Bible reading (2 chapters)', frequency: 'Daily', startDate: 'Jan 9, 2026', pct: 85 }],
+    note: 'Spiritually mature and consistent. Currently in a season of vocational discernment. Needs gentle guidance, not pressure. Recommend reading Fr. Matta El-Meskeen on the monastic call.',
+  },
+  'demo-pb': {
+    member: { initials: 'PB', name: 'Peter Botros', stage: 'New', joined: 'February 2026', daysSince: 74, flagged: true, flagNote: 'Missed two follow-up appointments.' },
+    contact: { phone: '(614) 555-0182', email: 'pbotros@example.com', address_line1: '2847 Riverside Dr', address_line2: null, city: 'Columbus', state: 'OH', zip: '43221', country: 'US' },
+    life: { life_stage: 'married', spouse_name: 'Maria Botros' },
+    children: [{ id: 'dc1', name: 'Anthony', birth_year: 2018 }, { id: 'dc2', name: 'Mary', birth_year: 2021 }],
+    vitals: [{ label: 'Daily Prayer', pct: 20, shared: true }, { label: 'Scripture Reading', pct: 30, shared: true }, { label: 'Divine Liturgy', pct: 45, shared: true }, { label: 'Small Group', pct: 0, shared: false }, { label: 'Service', pct: 0, shared: false }],
+    confessions: [{ date: 'FEB 25, 2026', type: 'Holy Confession', note: 'Set spiritual goals.' }, { date: 'FEB 11, 2026', type: 'Introductory Meeting', note: 'Getting to know one another.' }],
+    prayer: [{ date: 'MAY 28, 2026', topic: 'Job transition — feeling lost' }, { date: 'MAY 5, 2026', topic: 'Family reconciliation with brother' }],
+    canons: [{ id: 'c1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 20 }, { id: 'c2', component: 'Gospel Reading (1 chapter)', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 30 }],
+    note: 'Needs consistent follow-up. Has expressed interest in deepening faith but struggles with consistency. Suggested accountability partner from the young adult group.',
+  },
+  'demo-mm': {
+    member: { initials: 'MM', name: 'Mary Mikhail', stage: 'Growing', joined: 'June 2023', daysSince: 29, flagged: false, flagNote: '' },
+    contact: { phone: '(614) 555-0471', email: 'mmkhail@example.com', address_line1: '93 Olentangy Blvd', address_line2: 'Apt 4B', city: 'Columbus', state: 'OH', zip: '43202', country: 'US' },
+    life: { life_stage: 'married', spouse_name: 'Fady Mikhail' },
+    children: [{ id: 'dc1', name: 'Bishoy', birth_year: 2020 }, { id: 'dc2', name: 'Irene', birth_year: 2023 }],
+    vitals: [{ label: 'Daily Prayer', pct: 65, shared: true }, { label: 'Scripture Reading', pct: 60, shared: true }, { label: 'Divine Liturgy', pct: 75, shared: true }, { label: 'Small Group', pct: 50, shared: true }, { label: 'Service', pct: 50, shared: true }],
+    confessions: [{ date: 'MAY 10, 2026', type: 'Holy Confession', note: 'Marriage enrichment focus. Prayed together with Fady.' }, { date: 'FEB 28, 2026', type: 'Holy Confession', note: 'Lenten preparation. Addressed anxiety about second child.' }],
+    prayer: [{ date: 'APR 30, 2026', topic: 'Peace in marriage — communication difficulties' }, { date: 'MAR 15, 2026', topic: 'Healing for mother-in-law' }],
+    canons: [{ id: 'c1', component: 'Evening Prayer (Compline)', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 65 }, { id: 'c2', component: 'Bible reading (1 chapter)', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 60 }],
+    note: 'Consistent growth. Fady and Mary attend together which is encouraging. Consider inviting them to lead a young couples\' small group — they have the maturity for it.',
+  },
+  'demo-ag': {
+    member: { initials: 'AG', name: 'Andrew George', stage: 'Seeking', joined: 'January 2026', daysSince: 92, flagged: true, flagNote: 'New to the church — needs initial meeting.' },
+    contact: { phone: '(614) 555-0598', email: 'ageorge@example.com', address_line1: '5120 Kenny Rd', address_line2: null, city: 'Columbus', state: 'OH', zip: '43220', country: 'US' },
+    life: { life_stage: 'single', spouse_name: '' },
+    children: [],
+    vitals: [{ label: 'Daily Prayer', pct: 0, shared: false }, { label: 'Scripture Reading', pct: 0, shared: false }, { label: 'Divine Liturgy', pct: 25, shared: true }, { label: 'Small Group', pct: 0, shared: false }, { label: 'Service', pct: 0, shared: false }],
+    confessions: [],
+    prayer: [{ date: 'MAY 1, 2026', topic: 'Searching for meaning — career feels empty' }],
+    canons: [],
+    note: 'Has not had a first confession yet. Moved from Chicago in January. Attends Sunday Liturgy irregularly. Needs a warm personal invitation — try a phone call this week before Sunday.',
+  },
+  'demo-cn': {
+    member: { initials: 'CN', name: 'Christine Naguib', stage: 'Multiplying', joined: 'April 2019', daysSince: 35, flagged: false, flagNote: '' },
+    contact: { phone: '(614) 555-0623', email: 'cnaguib@example.com', address_line1: '711 Worthington Ave', address_line2: null, city: 'Columbus', state: 'OH', zip: '43085', country: 'US' },
+    life: { life_stage: 'married', spouse_name: 'Mina Naguib' },
+    children: [{ id: 'dc1', name: 'Verena', birth_year: 2017 }, { id: 'dc2', name: 'Mark', birth_year: 2019 }, { id: 'dc3', name: 'Irini', birth_year: 2022 }],
+    vitals: [{ label: 'Daily Prayer', pct: 95, shared: true }, { label: 'Scripture Reading', pct: 90, shared: true }, { label: 'Divine Liturgy', pct: 100, shared: true }, { label: 'Small Group', pct: 75, shared: true }, { label: 'Service', pct: 100, shared: true }],
+    confessions: [{ date: 'MAY 5, 2026', type: 'Holy Confession', note: 'Strong spiritually. Discussed leading the women\'s Bible study.' }, { date: 'FEB 20, 2026', type: 'Holy Confession', note: 'Lenten reflection — themes of gratitude and service.' }, { date: 'NOV 10, 2025', type: 'Holy Confession', note: 'Pre-Advent preparation.' }],
+    prayer: [{ date: 'APR 25, 2026', topic: 'Guidance for Verena\'s school transition' }],
+    canons: [{ id: 'c1', component: 'Midnight Praise (Tasbeha)', frequency: 'Weekly', startDate: 'Jan 1, 2026', pct: 92 }, { id: 'c2', component: 'Bible reading (3 chapters)', frequency: 'Daily', startDate: 'Jan 1, 2026', pct: 90 }],
+    note: 'One of the strongest members of the flock. Mentoring two younger women. Consider formally appointing her to lead the women\'s spiritual development group.',
+  },
 };
-const DEMO_CONTACT = {
-  phone: '(614) 555-0182',
-  email: 'pbotros@example.com',
-  address_line1: '2847 Riverside Dr',
-  address_line2: null as string | null,
-  city: 'Columbus', state: 'OH', zip: '43221', country: 'US',
-};
-const DEMO_LIFE = { life_stage: 'married', spouse_name: 'Maria Botros' };
-const DEMO_CHILDREN_DATA = [
-  { id: 'dc1', name: 'Anthony', birth_year: 2018 },
-  { id: 'dc2', name: 'Mary', birth_year: 2021 },
-];
-const DEMO_VITALS = [
-  { label: 'Daily Prayer', pct: 20, shared: true },
-  { label: 'Scripture Reading', pct: 30, shared: true },
-  { label: 'Divine Liturgy', pct: 45, shared: true },
-  { label: 'Small Group', pct: 0, shared: false },
-  { label: 'Service', pct: 0, shared: false },
-];
-const DEMO_CONFESSIONS = [
-  { date: 'FEB 25, 2026', type: 'Holy Confession', note: 'Set spiritual goals.' },
-  { date: 'FEB 11, 2026', type: 'Introductory Meeting', note: 'Getting to know one another.' },
-];
-const DEMO_PRAYER = [
-  { date: 'MAY 28, 2026', topic: 'Job transition — feeling lost' },
-  { date: 'MAY 5, 2026', topic: 'Family reconciliation with brother' },
-];
-const DEMO_CANONS = [
-  { id: 'dc1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 20 },
-  { id: 'dc2', component: 'Gospel Reading (1 chapter)', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 30 },
-];
-const DEMO_NOTE = 'Needs consistent follow-up. Has expressed interest in deepening faith but struggles with consistency. Suggested accountability partner from the young adult group.';
+
+function getDemoData(id: string) {
+  return DEMO_DB[id] ?? DEMO_DB['demo-pb'];
+}
 
 type TabType = 'overview' | 'canon' | 'prayer' | 'notes';
 const TABS: { value: TabType; label: string }[] = [
@@ -85,29 +123,42 @@ export default function MemberScreen() {
   const [tab, setTab] = useState<TabType>('overview');
   const [loading, setLoading] = useState(!demoMode);
 
+  const demo = getDemoData(memberId ?? '');
+
   // Display data
-  const [memberInfo, setMemberInfo] = useState<any>(DEMO_MEMBER);
-  const [contact, setContact] = useState<any>(demoMode ? DEMO_CONTACT : null);
-  const [lifeStageData, setLifeStageData] = useState<any>(demoMode ? DEMO_LIFE : null);
-  const [memberChildren, setMemberChildren] = useState<any[]>(demoMode ? DEMO_CHILDREN_DATA : []);
-  const [vitals, setVitals] = useState<any[]>(DEMO_VITALS);
-  const [confessions, setConfessions] = useState<any[]>(DEMO_CONFESSIONS);
-  const [prayerRequests, setPrayerRequests] = useState<any[]>(DEMO_PRAYER);
-  const [canons, setCanons] = useState<any[]>(DEMO_CANONS);
+  const [memberInfo, setMemberInfo] = useState<any>(demo.member);
+  const [contact, setContact] = useState<any>(demoMode ? demo.contact : null);
+  const [lifeStageData, setLifeStageData] = useState<any>(demoMode ? demo.life : null);
+  const [memberChildren, setMemberChildren] = useState<any[]>(demoMode ? demo.children : []);
+  const [vitals, setVitals] = useState<any[]>(demo.vitals);
+  const [confessions, setConfessions] = useState<any[]>(demo.confessions);
+  const [prayerRequests, setPrayerRequests] = useState<any[]>(demo.prayer);
+  const [canons, setCanons] = useState<any[]>(demo.canons);
 
   // Notes state
   const [noteInput, setNoteInput] = useState('');
-  const [savedNote, setSavedNote] = useState(DEMO_NOTE);
+  const [savedNote, setSavedNote] = useState(demo.note);
   const [savingNote, setSavingNote] = useState(false);
 
   // Contact sheet
   const [showContactSheet, setShowContactSheet] = useState(false);
 
   useEffect(() => {
-    if (!demoMode && memberId) {
+    if (demoMode) {
+      const d = getDemoData(memberId ?? '');
+      setMemberInfo(d.member);
+      setContact(d.contact);
+      setLifeStageData(d.life);
+      setMemberChildren(d.children);
+      setVitals(d.vitals);
+      setConfessions(d.confessions);
+      setPrayerRequests(d.prayer);
+      setCanons(d.canons);
+      setSavedNote(d.note);
+    } else if (memberId) {
       loadMemberData();
     }
-  }, [memberId, user]);
+  }, [memberId, demoMode]);
 
   async function loadMemberData() {
     if (!user || !memberId) return;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
@@ -8,67 +8,119 @@ import { useSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { useDemoMode } from '@/lib/demo';
 
-const DEMO_CANONS = [
-  { id: 'ds1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Jun 1, 2026', completions: 5, totalDays: 7 },
-  { id: 'ds2', component: 'Gospel Reading (1 chapter)', frequency: 'Daily', startDate: 'Jun 1, 2026', completions: 4, totalDays: 7 },
-];
+// ── Demo data ─────────────────────────────────────────────────
+const DEMO_DB: Record<string, { canons: any[]; note: string; prayer: string[] }> = {
+  'demo-s1': {
+    canons: [
+      { id: 'ds1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Jun 1, 2026', completions: 5, totalDays: 7 },
+      { id: 'ds2', component: 'Gospel Reading (1 chapter)', frequency: 'Daily', startDate: 'Jun 1, 2026', completions: 4, totalDays: 7 },
+    ],
+    note: "Good attendance at Sunday School. Misses service occasionally due to soccer practice. Spoke about feeling disconnected from faith — suggested starting with the morning Agpeya as a simple anchor. Follow up next Sunday on how it's going.",
+    prayer: [
+      'Passing his math exams this week',
+      'His grandmother who has been ill',
+    ],
+  },
+  'demo-s2': {
+    canons: [
+      { id: 'ds3', component: 'Evening Compline', frequency: 'Daily', startDate: 'May 20, 2026', completions: 6, totalDays: 7 },
+    ],
+    note: 'Thoughtful and engaged — asks deep questions about fasting and prayer. Parents are very supportive of her spiritual growth. Mentioned feeling nervous about transitioning to the youth group next year. Worth checking in with her parents.',
+    prayer: [
+      'Peace for her parents who are going through a difficult season',
+      'That she would understand the faith more deeply',
+    ],
+  },
+};
+
+function getDemoData(id: string) {
+  return DEMO_DB[id] ?? DEMO_DB['demo-s1'];
+}
+
+type TabType = 'canons' | 'notes' | 'prayer';
 
 export default function StudentScreen() {
   const router = useRouter();
   const { id: studentId, name: studentName } = useLocalSearchParams<{ id: string; name: string }>();
   const { user } = useSession();
   const { demoMode } = useDemoMode();
+  const [tab, setTab] = useState<TabType>('canons');
   const [loading, setLoading] = useState(!demoMode);
-  const [canons, setCanons] = useState<any[]>([]);
+
+  const demo = getDemoData(studentId ?? '');
+  const [canons, setCanons] = useState<any[]>(demo.canons);
+  const [savedNote, setSavedNote] = useState(demo.note);
+  const [noteInput, setNoteInput] = useState('');
+  const [prayer, setPrayer] = useState<string[]>(demo.prayer);
+  const [prayerInput, setPrayerInput] = useState('');
 
   const displayName = studentName ?? 'Student';
   const initials = displayName.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
 
   useEffect(() => {
     if (demoMode) {
-      setCanons(DEMO_CANONS);
+      const d = getDemoData(studentId ?? '');
+      setCanons(d.canons);
+      setSavedNote(d.note);
+      setPrayer(d.prayer);
+      setNoteInput('');
+      setPrayerInput('');
     } else if (studentId) {
       loadStudentData();
     }
-  }, [studentId]);
+  }, [studentId, demoMode]);
 
   async function loadStudentData() {
     if (!user || !studentId) return;
     setLoading(true);
 
-    // Load canons this servant assigned to the student
-    const { data: canonData } = await supabase
-      .from('spiritual_canons')
-      .select('id, component, frequency, start_date')
-      .eq('congregant_id', studentId)
-      .eq('priest_id', user.id)
-      .eq('active', true);
+    const [canonRes, noteRes, prayerRes] = await Promise.all([
+      supabase.from('spiritual_canons').select('id, component, frequency, start_date').eq('congregant_id', studentId).eq('priest_id', user.id).eq('active', true),
+      supabase.from('agent_progress').select('payload').eq('user_id', user.id).eq('agent_slug', `servant-notes-${studentId}`).single(),
+      supabase.from('prayer_requests').select('body').eq('user_id', studentId).eq('shared_with_servant', true).order('created_at', { ascending: false }).limit(10),
+    ]);
 
-    if (canonData) {
-      // For each canon, count completions in the last 7 days
-      const enriched = await Promise.all(canonData.map(async c => {
+    if (canonRes.data) {
+      const enriched = await Promise.all(canonRes.data.map(async c => {
         const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
-        const { count } = await supabase
-          .from('canon_completions')
-          .select('id', { count: 'exact', head: true })
-          .eq('canon_id', c.id)
-          .gte('completed_on', sevenDaysAgo);
+        const { count } = await supabase.from('canon_completions').select('id', { count: 'exact', head: true }).eq('canon_id', c.id).gte('completed_on', sevenDaysAgo);
         return { id: c.id, component: c.component, frequency: c.frequency, startDate: c.start_date, completions: count ?? 0, totalDays: 7 };
       }));
       setCanons(enriched);
     }
+    if (noteRes.data?.payload?.text) setSavedNote(noteRes.data.payload.text);
+    if (prayerRes.data) setPrayer(prayerRes.data.map((r: any) => r.body));
 
     setLoading(false);
   }
 
   async function handleDeactivateCanon(canonId: string) {
-    if (demoMode) {
-      setCanons(prev => prev.filter(c => c.id !== canonId));
-      return;
-    }
+    if (demoMode) { setCanons(prev => prev.filter(c => c.id !== canonId)); return; }
     await supabase.from('spiritual_canons').update({ active: false }).eq('id', canonId);
     setCanons(prev => prev.filter(c => c.id !== canonId));
   }
+
+  async function handleSaveNote() {
+    if (!noteInput.trim()) return;
+    const newNote = savedNote ? `${savedNote}\n\n${noteInput.trim()}` : noteInput.trim();
+    setSavedNote(newNote);
+    setNoteInput('');
+    if (!demoMode && user) {
+      await supabase.from('agent_progress').upsert({ user_id: user.id, agent_slug: `servant-notes-${studentId}`, payload: { text: newNote }, updated_at: new Date().toISOString() }, { onConflict: 'user_id,agent_slug' });
+    }
+  }
+
+  async function handleAddPrayer() {
+    if (!prayerInput.trim()) return;
+    setPrayer(prev => [prayerInput.trim(), ...prev]);
+    setPrayerInput('');
+  }
+
+  const TABS: { value: TabType; label: string }[] = [
+    { value: 'canons', label: 'Canons' },
+    { value: 'notes', label: 'My Notes' },
+    { value: 'prayer', label: 'Prayer' },
+  ];
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -89,54 +141,128 @@ export default function StudentScreen() {
           </View>
         </View>
 
-        <View style={styles.actionRow}>
-          <TouchableOpacity
-            style={styles.btnGold}
-            onPress={() => router.push({ pathname: '/(servant)/assign-canon', params: { studentId: studentId ?? '', studentName: displayName } })}
-          >
-            <Text style={styles.btnGoldText}>+ ASSIGN CANON</Text>
-          </TouchableOpacity>
+        {/* Tabs */}
+        <View style={styles.tabs}>
+          {TABS.map(t => (
+            <TouchableOpacity key={t.value} style={[styles.tab, tab === t.value && styles.tabActive]} onPress={() => setTab(t.value)}>
+              <Text style={[styles.tabText, tab === t.value && styles.tabTextActive]}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         {loading ? (
           <ActivityIndicator color={colors.gold} style={{ paddingTop: 20 }} />
         ) : (
-          <Card title={`Assigned Canons (${canons.length})`} titleIcon="📜">
-            {canons.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No canons assigned yet</Text>
-                <Text style={styles.emptyBody}>Assign a Bible reading or prayer practice to get started.</Text>
-              </View>
-            ) : (
-              canons.map((c, i) => {
-                const pct = Math.round((c.completions / c.totalDays) * 100);
-                return (
-                  <View key={c.id} style={[styles.canonRow, i < canons.length - 1 && styles.canonBorder]}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.canonComponent}>{c.component}</Text>
-                      <Text style={styles.canonMeta}>{c.frequency} · since {c.startDate}</Text>
-                      <View style={styles.progressRow}>
-                        <View style={styles.progressTrack}>
-                          <View style={[styles.progressFill, { width: `${Math.min(pct, 100)}%` as any }]} />
-                        </View>
-                        <Text style={[styles.progressPct, { color: pct < 50 ? colors.yellow : colors.green }]}>
-                          {c.completions}/{c.totalDays} this week
-                        </Text>
-                      </View>
+          <>
+            {/* ── Canons ── */}
+            {tab === 'canons' && (
+              <>
+                <View style={styles.actionRow}>
+                  <TouchableOpacity style={styles.btnGold} onPress={() => router.push({ pathname: '/(servant)/assign-canon', params: { studentId: studentId ?? '', studentName: displayName } })}>
+                    <Text style={styles.btnGoldText}>+ ASSIGN CANON</Text>
+                  </TouchableOpacity>
+                </View>
+                <Card title={`Assigned Canons (${canons.length})`} titleIcon="📜">
+                  {canons.length === 0 ? (
+                    <View style={styles.emptyState}>
+                      <Text style={styles.emptyTitle}>No canons assigned yet</Text>
+                      <Text style={styles.emptyBody}>Assign a Bible reading or prayer practice to get started.</Text>
                     </View>
-                    <TouchableOpacity style={styles.removeBtn} onPress={() => handleDeactivateCanon(c.id)}>
-                      <Text style={styles.removeBtnText}>Remove</Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              })
+                  ) : (
+                    canons.map((c, i) => {
+                      const pct = Math.round((c.completions / c.totalDays) * 100);
+                      return (
+                        <View key={c.id} style={[styles.canonRow, i < canons.length - 1 && styles.canonBorder]}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.canonComponent}>{c.component}</Text>
+                            <Text style={styles.canonMeta}>{c.frequency} · since {c.startDate}</Text>
+                            <View style={styles.progressRow}>
+                              <View style={styles.progressTrack}>
+                                <View style={[styles.progressFill, { width: `${Math.min(pct, 100)}%` as any }]} />
+                              </View>
+                              <Text style={[styles.progressPct, { color: pct < 50 ? colors.yellow : colors.green }]}>
+                                {c.completions}/{c.totalDays} this week
+                              </Text>
+                            </View>
+                          </View>
+                          <TouchableOpacity style={styles.removeBtn} onPress={() => handleDeactivateCanon(c.id)}>
+                            <Text style={styles.removeBtnText}>Remove</Text>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })
+                  )}
+                </Card>
+              </>
             )}
-          </Card>
+
+            {/* ── My Notes ── */}
+            {tab === 'notes' && (
+              <Card title="My Visitation Notes" titleIcon="✎">
+                <Text style={styles.privacyNote}>✦ Private to you — not visible to the student or their FOC.</Text>
+                {savedNote ? (
+                  <Text style={styles.savedNoteText}>{savedNote}</Text>
+                ) : null}
+                <TextInput
+                  style={styles.noteInput}
+                  placeholder="Add a note from today's meeting or call…"
+                  placeholderTextColor="rgba(245,240,232,0.22)"
+                  multiline
+                  numberOfLines={4}
+                  value={noteInput}
+                  onChangeText={setNoteInput}
+                />
+                <TouchableOpacity
+                  style={[styles.btnGold, { alignSelf: 'flex-start', marginTop: 12, opacity: noteInput.trim() ? 1 : 0.4 }]}
+                  onPress={handleSaveNote}
+                  disabled={!noteInput.trim()}
+                >
+                  <Text style={styles.btnGoldText}>SAVE NOTE</Text>
+                </TouchableOpacity>
+              </Card>
+            )}
+
+            {/* ── Prayer Requests ── */}
+            {tab === 'prayer' && (
+              <Card title="Prayer Requests" titleIcon="◇">
+                <Text style={styles.privacyNote}>✦ Requests {displayName.split(' ')[0]} has shared with you.</Text>
+                <TextInput
+                  style={styles.noteInput}
+                  placeholder={`Add a prayer request from ${displayName.split(' ')[0]}…`}
+                  placeholderTextColor="rgba(245,240,232,0.22)"
+                  multiline
+                  numberOfLines={3}
+                  value={prayerInput}
+                  onChangeText={setPrayerInput}
+                />
+                <TouchableOpacity
+                  style={[styles.btnGold, { alignSelf: 'flex-start', marginTop: 10, marginBottom: 16, opacity: prayerInput.trim() ? 1 : 0.4 }]}
+                  onPress={handleAddPrayer}
+                  disabled={!prayerInput.trim()}
+                >
+                  <Text style={styles.btnGoldText}>ADD REQUEST</Text>
+                </TouchableOpacity>
+                {prayer.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyTitle}>No requests yet</Text>
+                    <Text style={styles.emptyBody}>Add prayer requests {displayName.split(' ')[0]} shares with you.</Text>
+                  </View>
+                ) : (
+                  prayer.map((req, i) => (
+                    <View key={i} style={[styles.prayerRow, i < prayer.length - 1 && styles.prayerBorder]}>
+                      <Text style={styles.prayerBullet}>◇</Text>
+                      <Text style={styles.prayerText}>{req}</Text>
+                    </View>
+                  ))
+                )}
+              </Card>
+            )}
+          </>
         )}
 
         <View style={styles.scopeNote}>
           <Text style={styles.scopeNoteText}>
-            ✦ You can see canon progress your students self-report. Confession history and pastoral notes are accessible only to their Father of Confession.
+            ✦ You can see canon progress your students self-report. Confession history and pastoral counseling are accessible only to their Father of Confession.
           </Text>
         </View>
 
@@ -160,6 +286,12 @@ const styles = StyleSheet.create({
   heroName: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 2 },
   heroMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
 
+  tabs: { flexDirection: 'row', backgroundColor: 'rgba(10,16,30,0.6)', borderRadius: 10, padding: 4, marginBottom: 16, gap: 2 },
+  tab: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  tabActive: { backgroundColor: colors.navyMid, borderWidth: 1, borderColor: colors.border },
+  tabText: { fontFamily: fonts.latoBold, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.muted },
+  tabTextActive: { color: colors.goldLight },
+
   actionRow: { marginBottom: 16 },
   btnGold: { backgroundColor: colors.gold, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10, alignSelf: 'flex-start' },
   btnGoldText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.navy, letterSpacing: 0.8 },
@@ -178,6 +310,15 @@ const styles = StyleSheet.create({
   progressPct: { fontFamily: fonts.latoBold, fontSize: 11, flexShrink: 0 },
   removeBtn: { borderWidth: 1, borderColor: 'rgba(192,57,43,0.3)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   removeBtnText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.red, letterSpacing: 0.5 },
+
+  privacyNote: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 12, opacity: 0.7 },
+  savedNoteText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20, marginBottom: 12, padding: 12, backgroundColor: 'rgba(10,16,30,0.4)', borderRadius: 8 },
+  noteInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', minHeight: 90 },
+
+  prayerRow: { flexDirection: 'row', gap: 10, paddingVertical: 12, alignItems: 'flex-start' },
+  prayerBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  prayerBullet: { fontFamily: fonts.lato, fontSize: 11, color: colors.gold, marginTop: 2 },
+  prayerText: { flex: 1, fontFamily: fonts.latoLight, fontSize: 13, color: colors.cream, lineHeight: 19 },
 
   scopeNote: { backgroundColor: 'rgba(201,168,76,0.05)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)', borderRadius: 10, padding: 14, marginTop: 8 },
   scopeNoteText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 17, letterSpacing: 0.2 },

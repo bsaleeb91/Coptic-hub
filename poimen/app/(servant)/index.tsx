@@ -19,8 +19,6 @@ interface Student {
 const DEMO_STUDENTS: Student[] = [
   { id: 'demo-s1', initials: 'JM', name: 'John Mark', canonCount: 2, lastActivity: '2 days ago' },
   { id: 'demo-s2', initials: 'EM', name: 'Esther Mikhail', canonCount: 1, lastActivity: '5 days ago' },
-  { id: 'demo-s3', initials: 'TG', name: 'Timothy George', canonCount: 0, lastActivity: null },
-  { id: 'demo-s4', initials: 'RH', name: 'Ruth Hanna', canonCount: 3, lastActivity: 'Today' },
 ];
 
 export default function ServantFlockScreen() {
@@ -61,7 +59,7 @@ export default function ServantFlockScreen() {
 
     const canonCountByStudent: Record<string, number> = {};
     for (const c of canons ?? []) {
-      canonCountByStudent[c.user_id] = (canonCountByStudent[c.user_id] ?? 0) + 1;
+      canonCountByStudent[c.congregant_id] = (canonCountByStudent[c.congregant_id] ?? 0) + 1;
     }
 
     const mapped: Student[] = profiles.map(p => {

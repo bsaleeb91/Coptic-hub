@@ -13,7 +13,7 @@ type Mode = 'signin' | 'signup' | 'magic';
 
 export default function SignInScreen() {
   const { signInWithEmail, signUpWithEmail, signInWithMagicLink } = useSession();
-  const { setDemoMode } = useDemoMode();
+  const { setDemoMode, setDemoRole } = useDemoMode();
   const router = useRouter();
 
   const [mode, setMode] = useState<Mode>('signin');
@@ -46,8 +46,21 @@ export default function SignInScreen() {
   }
 
   function handleDemo() {
+    setDemoRole('congregant');
     setDemoMode(true);
     router.replace('/(tabs)');
+  }
+
+  function handleDemoPriest() {
+    setDemoRole('priest');
+    setDemoMode(true);
+    router.replace('/(priest)');
+  }
+
+  function handleDemoServant() {
+    setDemoRole('servant');
+    setDemoMode(true);
+    router.replace('/(servant)');
   }
 
   return (
@@ -148,10 +161,21 @@ export default function SignInScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity style={styles.demoBtn} onPress={handleDemo}>
-            <Text style={styles.demoBtnText}>EXPLORE DEMO  →</Text>
+          <View style={styles.demoBtnRow}>
+            <TouchableOpacity style={[styles.demoBtn, { flex: 1 }]} onPress={handleDemo}>
+              <Text style={styles.demoBtnLabel}>CONGREGANT</Text>
+              <Text style={styles.demoBtnText}>My spiritual life  →</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.demoBtn, styles.demoBtnPriest, { flex: 1 }]} onPress={handleDemoPriest}>
+              <Text style={styles.demoBtnLabel}>PRIEST</Text>
+              <Text style={styles.demoBtnText}>FOC pastoral view  →</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity style={[styles.demoBtn, styles.demoBtnServant]} onPress={handleDemoServant}>
+            <Text style={styles.demoBtnLabel}>SUNDAY SCHOOL SERVANT</Text>
+            <Text style={styles.demoBtnText}>My students + my own spiritual life  →</Text>
           </TouchableOpacity>
-          <Text style={styles.demoHint}>See the app with sample data — no account needed</Text>
+          <Text style={styles.demoHint}>Sample data — no account needed</Text>
 
           <Text style={styles.footer}>
             A ministry of the Coptic Orthodox Church.{'\n'}All spiritual data is private and protected.
@@ -201,8 +225,12 @@ const styles = StyleSheet.create({
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
   dividerText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
 
-  demoBtn: { borderWidth: 1, borderColor: 'rgba(201,168,76,0.4)', borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
-  demoBtnText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.goldLight, letterSpacing: 1 },
+  demoBtnRow: { flexDirection: 'row', gap: 10 },
+  demoBtn: { borderWidth: 1, borderColor: 'rgba(201,168,76,0.4)', borderRadius: 10, paddingVertical: 13, alignItems: 'center', gap: 2 },
+  demoBtnPriest: { borderColor: 'rgba(201,168,76,0.7)', backgroundColor: 'rgba(201,168,76,0.07)' },
+  demoBtnServant: { borderColor: 'rgba(93,202,135,0.4)', marginTop: 0 },
+  demoBtnLabel: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.muted, letterSpacing: 1.5, textTransform: 'uppercase' },
+  demoBtnText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.goldLight, letterSpacing: 0.5 },
   demoHint: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, textAlign: 'center', marginTop: 8 },
 
   footer: { fontFamily: fonts.latoLight, fontSize: 10, color: 'rgba(245,240,232,0.2)', textAlign: 'center', lineHeight: 16, marginTop: 36 },
