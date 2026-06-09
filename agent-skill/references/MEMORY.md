@@ -58,3 +58,9 @@ This file grows automatically. KYRIE proposes entries at the end of each session
 (2026-06-07) [Architecture] Pastoral notes (priest-private) stored in agent_progress with user_id = priest.id and agent_slug = 'pastoral-notes-{memberId}'. No dedicated table needed. Payload: { text: string, updated_at: string }. Upserted on conflict.
 
 (2026-06-07) [Poimen] To go live with real data: flip DEMO_MODE = false in poimen/lib/config.ts, and manually set role = 'priest' on the priest's profiles row in Supabase Table Editor. No role-assignment UI exists yet — admin sets it directly.
+
+(2026-06-09) [Deployment] Poimen is live at https://poimen-app.vercel.app (permanent Vercel static deploy). `poimen.vercel.app` is taken by an unrelated Korean church app. To redeploy after a code change: `npx expo export --platform web` in `poimen/`, then `vercel "C:\Users\17165\Coptic-hub\poimen\dist" --yes --scope bishoy-saleeb-s-projects --prod`.
+
+(2026-06-09) [Web/Expo] Three changes are required for a clean Expo web build: (1) `supabase.ts` needs a `localStorage` adapter on `Platform.OS === 'web'` since `expo-secure-store` is native-only; (2) `_layout.tsx` must skip the font-load gate and `SplashScreen.hideAsync()` on web or the page hangs; (3) Expo's `app.json` needs `"web": { "bundler": "metro", "output": "static" }`. All three are already in place.
+
+(2026-06-09) [PowerShell] Git commit messages with multi-line bodies must use PowerShell here-strings: `git commit -m @'...'@` with the closing `'@` at column 0. The bash `$(cat <<'EOF'...)` pattern fails in PowerShell with parse errors.
