@@ -59,8 +59,14 @@ This file grows automatically. KYRIE proposes entries at the end of each session
 
 (2026-06-07) [Poimen] To go live with real data: flip DEMO_MODE = false in poimen/lib/config.ts, and manually set role = 'priest' on the priest's profiles row in Supabase Table Editor. No role-assignment UI exists yet — admin sets it directly.
 
-(2026-06-09) [Deployment] Poimen is live at https://poimen-app.vercel.app (permanent Vercel static deploy). `poimen.vercel.app` is taken by an unrelated Korean church app. To redeploy after a code change: `npx expo export --platform web` in `poimen/`, then `vercel "C:\Users\17165\Coptic-hub\poimen\dist" --yes --scope bishoy-saleeb-s-projects --prod`.
+(2026-06-09) [Deployment] Poimen is live at https://poimen-app.vercel.app (permanent Vercel static deploy). `poimen.vercel.app` is taken by an unrelated Korean church app. To redeploy after a code change: `npx expo export --platform web` in `poimen/`, then `vercel . --yes --scope bishoy-saleeb-s-projects --prod` from the `poimen/` directory. The vercel.json in poimen/ sets outputDirectory to dist and handles SPA routing.
 
 (2026-06-09) [Web/Expo] Three changes are required for a clean Expo web build: (1) `supabase.ts` needs a `localStorage` adapter on `Platform.OS === 'web'` since `expo-secure-store` is native-only; (2) `_layout.tsx` must skip the font-load gate and `SplashScreen.hideAsync()` on web or the page hangs; (3) Expo's `app.json` needs `"web": { "bundler": "metro", "output": "static" }`. All three are already in place.
 
 (2026-06-09) [PowerShell] Git commit messages with multi-line bodies must use PowerShell here-strings: `git commit -m @'...'@` with the closing `'@` at column 0. The bash `$(cat <<'EOF'...)` pattern fails in PowerShell with parse errors.
+
+(2026-06-09) [Deployment] Vercel + Expo Router static export requires a vercel.json with a SPA rewrite rule: { "source": "/(.*)", "destination": "/index.html" }. Without it, direct URL access to any route other than "/" returns 404, even though Expo generates per-route HTML files. Place vercel.json in the project root with "outputDirectory": "dist" and deploy with `vercel . --prod`.
+
+(2026-06-09) [Deployment] When running `vercel <path>` pointing at a subdirectory (e.g. "poimen/dist"), Vercel creates a new project named after that directory ("dist"), not the parent. Fix: always deploy from the project root with outputDirectory in vercel.json. Use `vercel alias set <deployment-url> <alias>` to move a .vercel.app alias between projects without redeploying.
+
+(2026-06-09) [Architecture] DEMO_MODE in lib/config.ts was exported but never imported into DemoProvider — the provider always booted at false regardless of the constant. Fixed by importing DEMO_MODE into demo.tsx and passing it as useState's initial value. This is the gate that prevents the auth guard from redirecting web visitors to /sign-in.
