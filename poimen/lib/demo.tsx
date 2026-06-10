@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import { DEMO_MODE } from '@/lib/config';
 
 type DemoRole = 'congregant' | 'priest' | 'servant';
 
@@ -10,14 +11,14 @@ interface DemoContextType {
 }
 
 const DemoContext = createContext<DemoContextType>({
-  demoMode: false,
+  demoMode: DEMO_MODE,
   setDemoMode: () => {},
   demoRole: 'congregant',
   setDemoRole: () => {},
 });
 
 export function DemoProvider({ children }: { children: React.ReactNode }) {
-  const [demoMode, setDemoMode] = useState(false);
+  const [demoMode, setDemoMode] = useState(DEMO_MODE);
   const [demoRole, setDemoRole] = useState<DemoRole>('congregant');
   return (
     <DemoContext.Provider value={{ demoMode, setDemoMode, demoRole, setDemoRole }}>
