@@ -10,18 +10,20 @@ import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
-type Visibility = 'private' | 'foc_only' | 'care_team';
+type Visibility = 'private' | 'foc_only' | 'foc_and_servant' | 'servant_only';
 
 const VISIBILITY_OPTS: { value: Visibility; label: string; icon: string }[] = [
   { value: 'private', label: 'Private — only me', icon: '🔒' },
   { value: 'foc_only', label: 'Father of Confession only', icon: '✝' },
-  { value: 'care_team', label: 'Care team', icon: '◎' },
+  { value: 'foc_and_servant', label: 'FOC + Sunday school servant', icon: '◉' },
+  { value: 'servant_only', label: 'Sunday school servant only', icon: '◎' },
 ];
 
 const VIS_DISPLAY: Record<Visibility, { icon: string; label: string }> = {
   private: { icon: '🔒', label: 'Private — only me' },
   foc_only: { icon: '✝', label: 'Visible to FOC only' },
-  care_team: { icon: '◎', label: 'Shared with care team' },
+  foc_and_servant: { icon: '◉', label: 'FOC + Sunday school servant' },
+  servant_only: { icon: '◎', label: 'Sunday school servant only' },
 };
 
 const DEMO_ACTIVE = [

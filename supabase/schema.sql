@@ -17,6 +17,7 @@ create table if not exists public.profiles (
   school_role   text check (school_role in ('teacher', 'student', null)),
   class_id      uuid,
   foc_id        uuid references public.profiles(id) on delete set null, -- Father of Confession
+  servant_id    uuid references public.profiles(id) on delete set null, -- Sunday school servant
   avatar_url    text,
   church_name   text,
   created_at    timestamptz not null default now(),
@@ -180,7 +181,7 @@ create table if not exists public.prayer_requests (
   id            uuid primary key default gen_random_uuid(),
   user_id       uuid not null references public.profiles(id) on delete cascade,
   topic         text not null,
-  visibility    text not null default 'private' check (visibility in ('private','foc_only','care_team')),
+  visibility    text not null default 'private' check (visibility in ('private','foc_only','foc_and_servant','servant_only')),
   answered      boolean not null default false,
   answered_note text,
   created_at    timestamptz not null default now()
@@ -261,13 +262,13 @@ create policy "canons: congregant reads own" on public.spiritual_canons
 create policy "canon_completions: own" on public.canon_completions
   for all using (auth.uid() = user_id);
 
--- prayer_requests: own rows + FOC reads foc_only
+-- prayer_requests: own rows + FOC reads foc_only/foc_and_servant + servant reads servant_only/foc_and_servant
 create policy "prayer: own" on public.prayer_requests
   for all using (auth.uid() = user_id);
 
-create policy "prayer: foc reads foc_only" on public.prayer_requests
+create policy "prayer: foc reads shared" on public.prayer_requests
   for select using (
-    visibility = 'foc_only'
+    visibility in ('foc_only', 'foc_and_servant')
     and exists (
       select 1 from public.profiles p
       where p.id = auth.uid()
@@ -276,5 +277,14 @@ create policy "prayer: foc reads foc_only" on public.prayer_requests
           select 1 from public.profiles c
           where c.id = prayer_requests.user_id and c.foc_id = auth.uid()
         )
+    )
+  );
+
+create policy "prayer: servant reads shared" on public.prayer_requests
+  for select using (
+    visibility in ('servant_only', 'foc_and_servant')
+    and exists (
+      select 1 from public.profiles c
+      where c.id = prayer_requests.user_id and c.servant_id = auth.uid()
     )
   );
