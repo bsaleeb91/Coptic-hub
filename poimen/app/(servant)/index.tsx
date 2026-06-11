@@ -45,13 +45,11 @@ export default function ServantFlockScreen() {
     setLoading(true);
     const profiles = await db.getServantStudents(user.id);
 
-    if (!profiles) { setLoading(false); return; }
-
     // Count active canons per student
     const canons = await db.getActiveCanonsByPriest(user.id);
 
     const canonCountByStudent: Record<string, number> = {};
-    for (const c of canons ?? []) {
+    for (const c of canons) {
       canonCountByStudent[c.congregant_id] = (canonCountByStudent[c.congregant_id] ?? 0) + 1;
     }
 

@@ -76,8 +76,6 @@ export default function FlockScreen() {
     setLoading(true);
     const profiles = await db.getFlock(user.id);
 
-    if (!profiles) { setLoading(false); return; }
-
     // latest confession per member
     const confessions = await db.getConfessionsForPriest(user.id);
 
