@@ -5,7 +5,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
 type EncounterType = 'confession' | 'counseling' | 'advice' | 'visit' | 'phone' | 'group';
@@ -60,11 +60,7 @@ export default function LogEncounterScreen() {
 
   async function loadMembers() {
     if (!user) return;
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .eq('foc_id', user.id)
-      .order('full_name');
+    const data = await db.getFlock(user.id, { ordered: true });
     if (data) {
       const list = data.map(p => ({ id: p.id, name: p.full_name ?? 'Unknown' }));
       setMemberList(list);
@@ -92,7 +88,7 @@ export default function LogEncounterScreen() {
       return;
     }
     setSaving(true);
-    await supabase.from('pastoral_encounters').insert({
+    await db.insertEncounter({
       priest_id: user!.id,
       congregant_id: selectedMemberId,
       encounter_type: encounterType,

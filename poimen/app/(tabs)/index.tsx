@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
 // ── Demo data ────────────────────────────────────────────────
@@ -67,45 +67,31 @@ export default function DashboardScreen() {
 
   async function loadVitals() {
     if (!user) return;
-    const { data } = await supabase
-      .from('agent_progress')
-      .select('payload')
-      .eq('user_id', user.id)
-      .eq('agent_slug', 'vitals')
-      .single();
-    if (data?.payload?.vitals) setVitals(data.payload.vitals);
+    const payload = await db.getAgentProgress(user.id, 'vitals');
+    if (payload?.vitals) setVitals(payload.vitals);
   }
 
   async function loadTimeline() {
     if (!user) return;
-    const { data } = await supabase
-      .from('pastoral_encounters')
-      .select('encounter_type, encountered_at, member_note')
-      .eq('congregant_id', user.id)
-      .order('encountered_at', { ascending: false })
-      .limit(4);
+    const data = await db.getRecentEncounters(user.id, 4);
     if (data) setTimeline(data);
   }
 
   async function loadFoc() {
     if (!profile?.foc_id) return;
-    const { data } = await supabase
-      .from('profiles')
-      .select('full_name, church_name')
-      .eq('id', profile.foc_id)
-      .single();
+    const data = await db.getFocProfile(profile.foc_id);
     if (data) setFocProfile(data);
   }
 
   async function saveVitals() {
     if (!user) return;
     setSavingVitals(true);
-    await supabase.from('agent_progress').upsert({
+    await db.upsertAgentProgress({
       user_id: user.id,
       agent_slug: 'vitals',
       payload: { vitals },
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,agent_slug' });
+    });
     setSavingVitals(false);
     setEditingVitals(false);
   }

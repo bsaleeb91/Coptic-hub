@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useSession } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import * as db from '@/lib/db';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 
@@ -54,13 +54,13 @@ export default function ProfileScreen() {
   }, [user]);
 
   async function loadMyInfo() {
-    const [contactRes, profileRes, childrenRes] = await Promise.all([
-      supabase.from('pastoral_contacts').select('*').eq('user_id', user!.id).maybeSingle(),
-      supabase.from('pastoral_profile').select('*').eq('user_id', user!.id).maybeSingle(),
-      supabase.from('pastoral_children').select('*').eq('parent_id', user!.id).order('birth_year', { ascending: true }),
+    const [contact, lifeProfile, childrenData] = await Promise.all([
+      db.getContact(user!.id),
+      db.getLifeProfile(user!.id),
+      db.getChildren(user!.id),
     ]);
-    if (contactRes.data) {
-      const c = contactRes.data;
+    if (contact) {
+      const c = contact;
       setPhone(c.phone ?? '');
       setContactEmail(c.email ?? '');
       setAddressLine1(c.address_line1 ?? '');
@@ -69,22 +69,19 @@ export default function ProfileScreen() {
       setStateVal(c.state ?? '');
       setZip(c.zip ?? '');
     }
-    if (profileRes.data) {
-      setLifeStage((profileRes.data.life_stage as LifeStageType) ?? null);
-      setSpouseName(profileRes.data.spouse_name ?? '');
+    if (lifeProfile) {
+      setLifeStage((lifeProfile.life_stage as LifeStageType) ?? null);
+      setSpouseName(lifeProfile.spouse_name ?? '');
     }
-    if (childrenRes.data) {
-      setChildren(childrenRes.data.map(c => ({ id: c.id, name: c.name, birth_year: c.birth_year })));
+    if (childrenData) {
+      setChildren(childrenData.map(c => ({ id: c.id, name: c.name, birth_year: c.birth_year })));
     }
   }
 
   async function handleSave() {
     if (!user) return;
     setSaving(true);
-    await supabase
-      .from('profiles')
-      .update({ full_name: fullName.trim(), church_name: churchName.trim(), updated_at: new Date().toISOString() })
-      .eq('id', user.id);
+    await db.updateAccount(user.id, { full_name: fullName.trim(), church_name: churchName.trim() });
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -93,7 +90,7 @@ export default function ProfileScreen() {
   async function handleSaveContact() {
     if (!user) return;
     setSavingContact(true);
-    await supabase.from('pastoral_contacts').upsert({
+    await db.upsertContact({
       user_id: user.id,
       phone:         phone.trim()         || null,
       email:         contactEmail.trim()  || null,
@@ -103,7 +100,7 @@ export default function ProfileScreen() {
       state:         stateVal.trim()      || null,
       zip:           zip.trim()           || null,
       updated_at:    new Date().toISOString(),
-    }, { onConflict: 'user_id' });
+    });
     setSavingContact(false);
     setSavedContact(true);
     setTimeout(() => setSavedContact(false), 2000);
@@ -113,16 +110,16 @@ export default function ProfileScreen() {
     if (!user) return;
     setSavingFamily(true);
     const showSpouse = lifeStage === 'married' || lifeStage === 'engaged';
-    await supabase.from('pastoral_profile').upsert({
+    await db.upsertLifeProfile({
       user_id:     user.id,
       life_stage:  lifeStage ?? null,
       spouse_name: showSpouse ? (spouseName.trim() || null) : null,
       updated_at:  new Date().toISOString(),
-    }, { onConflict: 'user_id' });
+    });
     // Replace children: delete all then re-insert current list
-    await supabase.from('pastoral_children').delete().eq('parent_id', user.id);
+    await db.deleteChildren(user.id);
     if (children.length > 0) {
-      await supabase.from('pastoral_children').insert(
+      await db.insertChildren(
         children.map(c => ({
           parent_id:  user!.id,
           name:       c.name,

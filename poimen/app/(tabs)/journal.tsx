@@ -8,7 +8,7 @@ import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
 type Frequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
@@ -177,38 +177,38 @@ export default function JournalScreen() {
   async function load() {
     if (!user) return;
     setLoading(true);
-    const [{ data: progData }, { data: entryData }] = await Promise.all([
-      supabase.from('agent_progress').select('payload').eq('user_id', user.id).eq('agent_slug', 'journal-disciplines').single(),
-      supabase.from('agent_progress').select('payload').eq('user_id', user.id).eq('agent_slug', 'journal-entries').single(),
+    const [progData, entryData] = await Promise.all([
+      db.getAgentProgress(user.id, 'journal-disciplines'),
+      db.getAgentProgress(user.id, 'journal-entries'),
     ]);
-    if (progData?.payload?.disciplines) {
-      setDisciplines(progData.payload.disciplines);
+    if (progData?.disciplines) {
+      setDisciplines(progData.disciplines);
       const today = new Date().toDateString();
-      const todayChecked: string[] = progData.payload.checkedToday?.date === today
-        ? progData.payload.checkedToday.ids : [];
+      const todayChecked: string[] = progData.checkedToday?.date === today
+        ? progData.checkedToday.ids : [];
       setChecked(new Set(todayChecked));
     }
-    if (entryData?.payload?.entries) setEntries(entryData.payload.entries);
+    if (entryData?.entries) setEntries(entryData.entries);
     setLoading(false);
   }
 
   async function saveDisciplines(discs: any[], checkedIds?: Set<string>) {
     if (!user || demoMode) return;
     const ids = checkedIds ?? checked;
-    await supabase.from('agent_progress').upsert({
+    await db.upsertAgentProgress({
       user_id: user.id, agent_slug: 'journal-disciplines',
       payload: { disciplines: discs, checkedToday: { date: new Date().toDateString(), ids: [...ids] } },
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,agent_slug' });
+    });
   }
 
   async function saveEntries(newEntries: any[]) {
     if (!user || demoMode) return;
-    await supabase.from('agent_progress').upsert({
+    await db.upsertAgentProgress({
       user_id: user.id, agent_slug: 'journal-entries',
       payload: { entries: newEntries },
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,agent_slug' });
+    });
   }
 
   function toggleDisc(id: string) {

@@ -8,7 +8,7 @@ import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
 // ── Theological content — same in both modes, never stored ───
@@ -89,12 +89,7 @@ export default function ConfessionScreen() {
   async function loadHistory() {
     if (!user) return;
     setLoadingHistory(true);
-    const { data } = await supabase
-      .from('pastoral_encounters')
-      .select('id, encountered_at, member_note')
-      .eq('congregant_id', user.id)
-      .eq('encounter_type', 'confession')
-      .order('encountered_at', { ascending: false });
+    const data = await db.getConfessionsForCongregant(user.id);
     if (data) {
       setHistory(data.map(enc => ({
         id: enc.id,
@@ -134,7 +129,7 @@ export default function ConfessionScreen() {
     if (demoMode) { setRequestSent(true); return; }
     setRequesting(true);
     // In real mode, log a pending note to the priest via a prayer request flagged for FOC
-    await supabase.from('prayer_requests').insert({
+    await db.insertPrayerRequest({
       user_id: user!.id,
       topic: 'Confession appointment request',
       visibility: 'foc_only',

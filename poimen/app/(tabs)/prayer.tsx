@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
 type Visibility = 'private' | 'foc_only' | 'care_team';
@@ -124,11 +124,7 @@ export default function PrayerScreen() {
   async function load() {
     if (!user) return;
     setLoading(true);
-    const { data } = await supabase
-      .from('prayer_requests')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    const data = await db.getPrayerRequests(user.id);
     if (data) {
       setActive(data.filter(r => !r.answered));
       setAnswered(data.filter(r => r.answered));
@@ -145,11 +141,11 @@ export default function PrayerScreen() {
       return;
     }
     setSubmitting(true);
-    const { data, error } = await supabase.from('prayer_requests').insert({
+    const { data, error } = await db.insertPrayerRequest({
       user_id: user!.id,
       topic: title.trim(),
       visibility,
-    }).select().single();
+    });
     if (!error && data) setActive(prev => [data, ...prev]);
     setTitle(''); setBody(''); setVisibility('private');
     setSubmitting(false);
@@ -161,7 +157,7 @@ export default function PrayerScreen() {
       {
         text: 'Delete', style: 'destructive', onPress: async () => {
           setActive(prev => prev.filter(r => r.id !== id));
-          if (!demoMode) await supabase.from('prayer_requests').delete().eq('id', id);
+          if (!demoMode) await db.deletePrayerRequest(id);
         },
       },
     ]);
@@ -174,7 +170,7 @@ export default function PrayerScreen() {
     setActive(prev => prev.filter(r => r.id !== id));
     setAnswered(prev => [updated, ...prev]);
     if (!demoMode) {
-      await supabase.from('prayer_requests').update({ answered: true }).eq('id', id);
+      await db.markPrayerAnswered(id);
     }
   }
 
@@ -184,7 +180,7 @@ export default function PrayerScreen() {
       {
         text: 'Delete', style: 'destructive', onPress: async () => {
           setAnswered(prev => prev.filter(r => r.id !== id));
-          if (!demoMode) await supabase.from('prayer_requests').delete().eq('id', id);
+          if (!demoMode) await db.deletePrayerRequest(id);
         },
       },
     ]);

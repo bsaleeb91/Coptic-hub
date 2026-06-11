@@ -9,7 +9,7 @@ import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
 // ── Progress ring ────────────────────────────────────────────
@@ -175,28 +175,14 @@ export default function CanonScreen() {
   async function load() {
     if (!user) return;
     setLoading(true);
-    const { data: active } = await supabase
-      .from('spiritual_canons')
-      .select('*')
-      .eq('congregant_id', user.id)
-      .eq('active', true)
-      .order('created_at', { ascending: false });
-
-    const { data: past } = await supabase
-      .from('spiritual_canons')
-      .select('id, component, start_date, frequency')
-      .eq('congregant_id', user.id)
-      .eq('active', false)
-      .order('created_at', { ascending: false });
+    const active = await db.getActiveCanons(user.id);
+    const past = await db.getInactiveCanons(user.id);
 
     if (active) setComponents(active);
     if (past) {
       const withPct = await Promise.all(past.map(async (c) => {
-        const { count } = await supabase
-          .from('canon_completions')
-          .select('*', { count: 'exact', head: true })
-          .eq('canon_id', c.id);
-        return { ...c, pct: Math.min(Math.round(((count ?? 0) / 30) * 100), 100) };
+        const count = await db.countCanonCompletions(c.id);
+        return { ...c, pct: Math.min(Math.round((count / 30) * 100), 100) };
       }));
       setHistory(withPct);
     }
@@ -211,10 +197,7 @@ export default function CanonScreen() {
     });
     if (!demoMode && user) {
       const today = new Date().toISOString().split('T')[0];
-      await supabase.from('canon_completions').upsert(
-        { canon_id: id, user_id: user.id, completed_on: today },
-        { onConflict: 'canon_id,completed_on' }
-      );
+      await db.upsertCanonCompletion(id, user.id, today);
     }
   }
 

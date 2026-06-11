@@ -5,7 +5,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
 type FrequencyType = 'Daily' | '3x/week' | 'Weekly' | 'Custom';
@@ -64,7 +64,7 @@ export default function ServantAssignCanonScreen() {
       return;
     }
     setSaving(true);
-    await supabase.from('spiritual_canons').insert({
+    await db.insertCanon({
       congregant_id: studentId,
       priest_id: user!.id,
       component,

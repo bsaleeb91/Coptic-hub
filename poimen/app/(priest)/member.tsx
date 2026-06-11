@@ -8,7 +8,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
 // ── Demo data ─────────────────────────────────────────────────
@@ -164,29 +164,29 @@ export default function MemberScreen() {
     if (!user || !memberId) return;
     setLoading(true);
 
-    const [profileRes, vitalsRes, confRes, prayerRes, canonRes, noteRes, contactRes, lifeRes, kidsRes] =
+    const [profileData, vitalsPayload, confData, prayerData, canonData, notePayload, contactData, lifeData, kidsData] =
       await Promise.all([
-        supabase.from('profiles').select('full_name, created_at, role').eq('id', memberId).single(),
-        supabase.from('agent_progress').select('payload').eq('user_id', memberId).eq('agent_slug', 'vitals').single(),
-        supabase.from('pastoral_encounters').select('encountered_at, member_note').eq('congregant_id', memberId).eq('encounter_type', 'confession').order('encountered_at', { ascending: false }),
-        supabase.from('prayer_requests').select('created_at, topic').eq('user_id', memberId).eq('visibility', 'foc_only').eq('answered', false).order('created_at', { ascending: false }),
-        supabase.from('spiritual_canons').select('id, component, frequency, start_date').eq('congregant_id', memberId).eq('active', true),
-        supabase.from('agent_progress').select('payload').eq('user_id', user.id).eq('agent_slug', `pastoral-notes-${memberId}`).single(),
-        supabase.from('pastoral_contacts').select('*').eq('user_id', memberId).maybeSingle(),
-        supabase.from('pastoral_profile').select('*').eq('user_id', memberId).maybeSingle(),
-        supabase.from('pastoral_children').select('*').eq('parent_id', memberId).order('birth_year', { ascending: true }),
+        db.getMemberProfile(memberId),
+        db.getAgentProgress(memberId, 'vitals'),
+        db.getConfessionsForCongregant(memberId),
+        db.getFocPrayerRequests(memberId),
+        db.getMemberActiveCanons(memberId),
+        db.getAgentProgress(user.id, `pastoral-notes-${memberId}`),
+        db.getContact(memberId),
+        db.getLifeProfile(memberId),
+        db.getChildren(memberId),
       ]);
 
-    if (profileRes.data) {
-      const p = profileRes.data;
+    if (profileData) {
+      const p = profileData;
       const joined = new Date(p.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-      const lastConf = confRes.data?.[0];
+      const lastConf = confData?.[0];
       const daysSince = lastConf ? Math.floor((Date.now() - new Date(lastConf.encountered_at).getTime()) / 86400000) : null;
       setMemberInfo({ initials: initials(memberName ?? p.full_name), name: memberName ?? p.full_name, stage: '', joined, daysSince, flagged: false, flagNote: '' });
     }
 
-    if (vitalsRes.data?.payload) {
-      const v = vitalsRes.data.payload as any;
+    if (vitalsPayload) {
+      const v = vitalsPayload as any;
       setVitals([
         { label: 'Daily Prayer', pct: v.prayer ?? 0, shared: true },
         { label: 'Scripture Reading', pct: v.scripture ?? 0, shared: true },
@@ -198,34 +198,34 @@ export default function MemberScreen() {
       setVitals([]);
     }
 
-    if (confRes.data) {
-      setConfessions(confRes.data.map(c => ({
+    if (confData) {
+      setConfessions(confData.map(c => ({
         date: new Date(c.encountered_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
         type: 'Holy Confession',
         note: c.member_note ?? '',
       })));
     }
 
-    if (prayerRes.data) {
-      setPrayerRequests(prayerRes.data.map(p => ({
+    if (prayerData) {
+      setPrayerRequests(prayerData.map(p => ({
         date: new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
         topic: p.topic,
       })));
     }
 
-    if (canonRes.data) {
-      setCanons(canonRes.data.map(c => ({ id: c.id, component: c.component, frequency: c.frequency, startDate: c.start_date, pct: 0 })));
+    if (canonData) {
+      setCanons(canonData.map(c => ({ id: c.id, component: c.component, frequency: c.frequency, startDate: c.start_date, pct: 0 })));
     }
 
-    if (noteRes.data?.payload) {
-      setSavedNote((noteRes.data.payload as any).text ?? '');
+    if (notePayload) {
+      setSavedNote((notePayload as any).text ?? '');
     } else if (!demoMode) {
       setSavedNote('');
     }
 
-    if (contactRes.data) setContact(contactRes.data);
-    if (lifeRes.data) setLifeStageData(lifeRes.data);
-    if (kidsRes.data) setMemberChildren(kidsRes.data);
+    if (contactData) setContact(contactData);
+    if (lifeData) setLifeStageData(lifeData);
+    if (kidsData) setMemberChildren(kidsData);
 
     setLoading(false);
   }
@@ -239,11 +239,11 @@ export default function MemberScreen() {
       return;
     }
     setSavingNote(true);
-    await supabase.from('agent_progress').upsert({
+    await db.upsertAgentProgress({
       user_id: user!.id,
       agent_slug: `pastoral-notes-${memberId}`,
       payload: { text: newNote, updated_at: new Date().toISOString() },
-    }, { onConflict: 'user_id,agent_slug' });
+    });
     setSavedNote(newNote);
     setNoteInput('');
     setSavingNote(false);
