@@ -168,6 +168,7 @@ create table if not exists public.spiritual_canons (
   component       text not null,
   frequency       text not null,
   start_date      date not null,
+  end_date        date,
   reflection_prompt text,
   encounter_id    uuid references public.pastoral_encounters(id) on delete set null,
   active          boolean not null default true,
@@ -273,8 +274,25 @@ create policy "encounter_private_notes: priest owns" on public.pastoral_encounte
   for all using (auth.uid() = priest_id);
 
 -- spiritual_canons: priest owns + congregant reads own
+-- Servants (school_role = 'teacher') may only insert Prayer/Scripture canons.
 create policy "canons: priest owns" on public.spiritual_canons
   for all using (auth.uid() = priest_id);
+
+-- Restrictive: servants may only assign Prayer/Scripture components.
+-- Non-servants (priests/admins) pass unconditionally.
+create policy "canons: servant insert restricted" on public.spiritual_canons
+  as restrictive
+  for insert with check (
+    not exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.school_role = 'teacher'
+    )
+    or component ilike any(array[
+      '%agpeya%','%prayer%','%psalm%','%scripture%',
+      '%gospel%','%epistle%','%bible%','%reading%',
+      '%compline%','%vespers%','%tasbeha%','%praises%'
+    ])
+  );
 
 create policy "canons: congregant reads own" on public.spiritual_canons
   for select using (auth.uid() = congregant_id);

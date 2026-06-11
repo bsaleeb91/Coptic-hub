@@ -182,7 +182,10 @@ export default function CanonScreen() {
     if (past) {
       const withPct = await Promise.all(past.map(async (c) => {
         const count = await db.countCanonCompletions(c.id);
-        return { ...c, pct: Math.min(Math.round((count / 30) * 100), 100) };
+        const start = new Date(c.start_date).getTime();
+        const end = c.end_date ? new Date(c.end_date).getTime() : Date.now();
+        const durationDays = Math.max(Math.round((end - start) / 86400000), 1);
+        return { ...c, pct: Math.min(Math.round((count / durationDays) * 100), 100) };
       }));
       setHistory(withPct);
     }

@@ -16,7 +16,7 @@ export async function getActiveCanons(congregantId: string): Promise<any[]> {
 export async function getInactiveCanons(congregantId: string): Promise<any[]> {
   const { data } = await supabase
     .from('spiritual_canons')
-    .select('id, component, start_date, frequency')
+    .select('id, component, start_date, end_date, frequency')
     .eq('congregant_id', congregantId)
     .eq('active', false)
     .order('created_at', { ascending: false });
