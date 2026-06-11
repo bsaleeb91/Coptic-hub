@@ -70,3 +70,13 @@ This file grows automatically. KYRIE proposes entries at the end of each session
 (2026-06-09) [Deployment] When running `vercel <path>` pointing at a subdirectory (e.g. "poimen/dist"), Vercel creates a new project named after that directory ("dist"), not the parent. Fix: always deploy from the project root with outputDirectory in vercel.json. Use `vercel alias set <deployment-url> <alias>` to move a .vercel.app alias between projects without redeploying.
 
 (2026-06-09) [Architecture] DEMO_MODE in lib/config.ts was exported but never imported into DemoProvider — the provider always booted at false regardless of the constant. Fixed by importing DEMO_MODE into demo.tsx and passing it as useState's initial value. This is the gate that prevents the auth guard from redirecting web visitors to /sign-in.
+
+(2026-06-11) [Architecture] Poimen now has a backend-agnostic data-access layer at poimen/lib/db/ (domain modules: auth, profiles, pastoral, canons, prayer, progress + an index barrel). Screens and lib/auth.tsx import `* as db from '@/lib/db'` and never touch Supabase. @supabase/supabase-js is imported in exactly ONE file: lib/supabase.ts. To swap backends or add an offline SQLite cache (for the eventual native iOS/Android build), reimplement lib/db/* + lib/supabase.ts — the 13 screens stay untouched.
+
+(2026-06-11) [Architecture] lib/db convention: list/query functions return [] (never null), key-value reads (getAgentProgress) return the payload object or null, and callers build their own upsert rows so exact Supabase row shapes (incl. onConflict and whether top-level updated_at is set) are preserved. Auth is backend-agnostic via AuthUser/AuthSession types defined in lib/db/auth.ts — do not reintroduce Supabase's Session/User into screens.
+
+(2026-06-11) [Git] Poimen's default/base branch on GitHub is `poimen-main`, NOT `main`. PRs must target poimen-main. The repo currently has no CI configured — a "pending" status with 0 checks is GitHub's empty state, not a stuck check.
+
+(2026-06-11) [Tooling] Fresh remote containers clone without node_modules — run `npm install` in poimen/ before `npm run typecheck`. CRITICAL: run typecheck FROM the poimen/ directory; running tsc from the repo root resolves the wrong tsconfig and floods hundreds of false react-native/DOM lib errors.
+
+(2026-06-11) [Bug/Confirmed] Two latent bugs fixed this session, both confirming known schema facts: (1) servant student canon counts always showed 0 because a query selected `user_id` (nonexistent on spiritual_canons) while keying by `congregant_id` — reconfirms spiritual_canons uses congregant_id; (2) profile.church_name was read but absent from the Profile type and getProfile's select — Profile now includes church_name.
