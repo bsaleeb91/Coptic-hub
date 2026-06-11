@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
 type FilterType = 'all' | 'due' | 'overdue' | 'flagged';
@@ -74,20 +74,10 @@ export default function FlockScreen() {
   async function loadFlock() {
     if (!user) return;
     setLoading(true);
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .eq('foc_id', user.id);
-
-    if (!profiles) { setLoading(false); return; }
+    const profiles = await db.getFlock(user.id);
 
     // latest confession per member
-    const { data: confessions } = await supabase
-      .from('pastoral_encounters')
-      .select('congregant_id, encountered_at')
-      .eq('priest_id', user.id)
-      .eq('encounter_type', 'confession')
-      .order('encountered_at', { ascending: false });
+    const confessions = await db.getConfessionsForPriest(user.id);
 
     const now = new Date();
     const latestByMember: Record<string, string> = {};

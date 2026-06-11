@@ -5,7 +5,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
 // ── Demo data ─────────────────────────────────────────────────
@@ -74,29 +74,29 @@ export default function StudentScreen() {
     if (!user || !studentId) return;
     setLoading(true);
 
-    const [canonRes, noteRes, prayerRes] = await Promise.all([
-      supabase.from('spiritual_canons').select('id, component, frequency, start_date').eq('congregant_id', studentId).eq('priest_id', user.id).eq('active', true),
-      supabase.from('agent_progress').select('payload').eq('user_id', user.id).eq('agent_slug', `servant-notes-${studentId}`).single(),
-      supabase.from('prayer_requests').select('body').eq('user_id', studentId).eq('shared_with_servant', true).order('created_at', { ascending: false }).limit(10),
+    const [canonData, notePayload, prayerData] = await Promise.all([
+      db.getStudentActiveCanons(studentId, user.id),
+      db.getAgentProgress(user.id, `servant-notes-${studentId}`),
+      db.getServantSharedPrayer(studentId),
     ]);
 
-    if (canonRes.data) {
-      const enriched = await Promise.all(canonRes.data.map(async c => {
+    if (canonData) {
+      const enriched = await Promise.all(canonData.map(async c => {
         const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
-        const { count } = await supabase.from('canon_completions').select('id', { count: 'exact', head: true }).eq('canon_id', c.id).gte('completed_on', sevenDaysAgo);
-        return { id: c.id, component: c.component, frequency: c.frequency, startDate: c.start_date, completions: count ?? 0, totalDays: 7 };
+        const count = await db.countCanonCompletionsSince(c.id, sevenDaysAgo);
+        return { id: c.id, component: c.component, frequency: c.frequency, startDate: c.start_date, completions: count, totalDays: 7 };
       }));
       setCanons(enriched);
     }
-    if (noteRes.data?.payload?.text) setSavedNote(noteRes.data.payload.text);
-    if (prayerRes.data) setPrayer(prayerRes.data.map((r: any) => r.body));
+    if (notePayload?.text) setSavedNote(notePayload.text);
+    if (prayerData) setPrayer(prayerData.map((r: any) => r.body));
 
     setLoading(false);
   }
 
   async function handleDeactivateCanon(canonId: string) {
     if (demoMode) { setCanons(prev => prev.filter(c => c.id !== canonId)); return; }
-    await supabase.from('spiritual_canons').update({ active: false }).eq('id', canonId);
+    await db.deactivateCanon(canonId);
     setCanons(prev => prev.filter(c => c.id !== canonId));
   }
 
@@ -106,7 +106,7 @@ export default function StudentScreen() {
     setSavedNote(newNote);
     setNoteInput('');
     if (!demoMode && user) {
-      await supabase.from('agent_progress').upsert({ user_id: user.id, agent_slug: `servant-notes-${studentId}`, payload: { text: newNote }, updated_at: new Date().toISOString() }, { onConflict: 'user_id,agent_slug' });
+      await db.upsertAgentProgress({ user_id: user.id, agent_slug: `servant-notes-${studentId}`, payload: { text: newNote }, updated_at: new Date().toISOString() });
     }
   }
 

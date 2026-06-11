@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
 interface Student {
@@ -43,22 +43,13 @@ export default function ServantFlockScreen() {
   async function loadStudents() {
     if (!user) return;
     setLoading(true);
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .eq('servant_id', user.id);
-
-    if (!profiles) { setLoading(false); return; }
+    const profiles = await db.getServantStudents(user.id);
 
     // Count active canons per student
-    const { data: canons } = await supabase
-      .from('spiritual_canons')
-      .select('user_id')
-      .eq('priest_id', user.id)
-      .eq('active', true);
+    const canons = await db.getActiveCanonsByPriest(user.id);
 
     const canonCountByStudent: Record<string, number> = {};
-    for (const c of canons ?? []) {
+    for (const c of canons) {
       canonCountByStudent[c.congregant_id] = (canonCountByStudent[c.congregant_id] ?? 0) + 1;
     }
 

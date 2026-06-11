@@ -5,7 +5,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
 type FrequencyType = 'Daily' | '3x/week' | 'Weekly' | 'Custom';
@@ -51,11 +51,7 @@ export default function AssignCanonScreen() {
 
   async function loadExistingCanons() {
     if (!memberId) return;
-    const { data } = await supabase
-      .from('spiritual_canons')
-      .select('component, frequency')
-      .eq('congregant_id', memberId)
-      .eq('active', true);
+    const data = await db.getActiveCanonContext(memberId);
     if (data) setExistingCanons(data.map(c => ({ component: c.component, frequency: c.frequency, pct: null })));
   }
 
@@ -70,7 +66,7 @@ export default function AssignCanonScreen() {
       return;
     }
     setSaving(true);
-    await supabase.from('spiritual_canons').insert({
+    await db.insertCanon({
       congregant_id: memberId,
       priest_id: user!.id,
       component,

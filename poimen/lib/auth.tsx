@@ -1,18 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Session, User } from '@supabase/supabase-js';
-import { supabase } from './supabase';
-
-type Profile = {
-  id: string;
-  full_name: string | null;
-  role: 'congregant' | 'priest' | 'admin';
-  avatar_url: string | null;
-  foc_id: string | null;
-};
+import * as db from './db';
+import type { AuthSession, AuthUser, Profile } from './db';
 
 type AuthContextType = {
-  session: Session | null;
-  user: User | null;
+  session: AuthSession | null;
+  user: AuthUser | null;
   profile: Profile | null;
   loading: boolean;
   isPriest: boolean;
@@ -25,18 +17,18 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    db.getSession().then((session) => {
       setSession(session);
       if (session) fetchProfile(session.user.id);
       else setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const subscription = db.onAuthChange((session) => {
       setSession(session);
       if (session) fetchProfile(session.user.id);
       else { setProfile(null); setLoading(false); }
@@ -46,36 +38,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function fetchProfile(userId: string) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, full_name, role, avatar_url, foc_id')
-      .eq('id', userId)
-      .single();
+    const data = await db.getProfile(userId);
     setProfile(data ?? null);
     setLoading(false);
   }
 
   async function signInWithEmail(email: string, password: string) {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
+    return db.signInWithPassword(email, password);
   }
 
   async function signUpWithEmail(email: string, password: string, fullName: string) {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName } },
-    });
-    return { error: error?.message ?? null };
+    return db.signUp(email, password, fullName);
   }
 
   async function signInWithMagicLink(email: string) {
-    const { error } = await supabase.auth.signInWithOtp({ email });
-    return { error: error?.message ?? null };
+    return db.signInWithOtp(email);
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
+    await db.signOut();
   }
 
   return (
