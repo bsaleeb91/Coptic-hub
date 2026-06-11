@@ -59,6 +59,15 @@ export const AGENTS: Agent[] = [
 - During live phase: data comes from Supabase or local SQLite
 - Do not mix stub data with live API calls in the same screen
 
+### Poimen data access (as of 2026-06-11)
+- All Supabase access in Poimen goes through the data-access layer at
+  `poimen/lib/db/`. Screens import `* as db from '@/lib/db'`.
+- **Never** import `@supabase/supabase-js` or `@/lib/supabase` into a screen or
+  any file other than `lib/supabase.ts`. New queries go in the relevant
+  `lib/db/*` module, not inline in a screen.
+- Use the backend-agnostic `AuthUser` / `AuthSession` types from `lib/db/auth.ts`
+  — do not reintroduce Supabase's `Session` / `User` into app code.
+
 ## QC Checklist — Before Any Output
 - [ ] NativeWind only (no StyleSheet or inline styles)
 - [ ] No `any` TypeScript types
@@ -78,3 +87,5 @@ export const AGENTS: Agent[] = [
 | pgvector distance threshold | Use cosine distance < 0.35 for Coptic commentary; tighten to < 0.30 for rites/traditions |
 | Supabase magic link in Expo Go | Requires `scheme` in `app.json` for deep link handling |
 | TypeScript `AgentUIKind` union | If adding 'guide' for confession, update the union type in `lib/agents.ts` |
+| Poimen typecheck floods with react-native/DOM lib errors | Run `npm run typecheck` FROM `poimen/`, not the repo root (root resolves the wrong tsconfig). Run `npm install` first — fresh containers have no node_modules |
+| New Supabase query needed in Poimen | Add a function to the relevant `poimen/lib/db/*` module; never call `supabase.from(...)` inside a screen |

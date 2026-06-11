@@ -16,6 +16,35 @@
 
 ---
 
+## Poimen — Data Access Layer (`poimen/lib/db/`)
+
+Poimen is a separate app in this repo (`poimen/`) that shares the Coptic Hub
+Supabase backend. As of 2026-06-11 **all** Supabase access in Poimen goes
+through a backend-agnostic data-access layer. This is the seam to swap backends
+or add an offline SQLite cache for the native iOS/Android build.
+
+| Path | Purpose |
+|------|---------|
+| `poimen/lib/supabase.ts` | The **only** file that constructs the Supabase client / imports `@supabase/supabase-js` |
+| `poimen/lib/db/auth.ts` | Auth adapter + backend-agnostic `AuthUser` / `AuthSession` types |
+| `poimen/lib/db/profiles.ts` | Profile, account update, flock/student rosters |
+| `poimen/lib/db/pastoral.ts` | Contacts, life-stage profile, children, encounters |
+| `poimen/lib/db/canons.ts` | Spiritual canons + completions |
+| `poimen/lib/db/prayer.ts` | Prayer requests |
+| `poimen/lib/db/progress.ts` | `agent_progress` key/value store (vitals, journal, notes) |
+| `poimen/lib/db/index.ts` | Barrel — screens import `* as db from '@/lib/db'` |
+
+Conventions: list/query fns return `[]` (never null); `getAgentProgress`
+returns the payload object or `null`; callers build their own upsert rows so
+exact Supabase shapes (`onConflict`, top-level `updated_at`) are preserved.
+Swapping backends or adding offline caching = reimplement `lib/db/*` +
+`lib/supabase.ts`; the screens never change.
+
+> Not to be confused with Coptic Hub's planned `lib/db/sqlite.ts` migration
+> runner (commit 1.5) — different app, same `lib/db` naming.
+
+---
+
 ## Supabase Schema (Commit 1.5)
 
 ### `profiles`
