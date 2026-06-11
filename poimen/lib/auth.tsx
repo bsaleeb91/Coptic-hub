@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       if (session) fetchProfile(session.user.id);
       else setLoading(false);
-    });
+    }).catch(() => setLoading(false));
 
     const subscription = db.onAuthChange((session) => {
       setSession(session);

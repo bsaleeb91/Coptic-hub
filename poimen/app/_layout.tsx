@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Redirect, Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import {
@@ -25,17 +25,14 @@ function RootLayoutNav() {
   const { session, loading } = useSession();
   const { demoMode } = useDemoMode();
   const segments = useSegments();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (loading) return;
-    if (demoMode) return; // demo mode bypasses auth entirely
-    const onSignIn = segments[0] === 'sign-in';
-    if (!session && !onSignIn) router.replace('/sign-in');
-    else if (session && onSignIn) router.replace('/(tabs)');
-  }, [session, loading, segments, demoMode]);
 
   if (loading && !demoMode) return null;
+
+  if (!demoMode && !loading) {
+    const onSignIn = segments[0] === 'sign-in';
+    if (!session && !onSignIn) return <Redirect href="/sign-in" />;
+    if (session && onSignIn) return <Redirect href="/(tabs)" />;
+  }
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
