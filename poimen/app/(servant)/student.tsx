@@ -51,8 +51,9 @@ export default function StudentScreen() {
   const [canons, setCanons] = useState<any[]>(demo.canons);
   const [savedNote, setSavedNote] = useState(demo.note);
   const [noteInput, setNoteInput] = useState('');
-  const [prayer, setPrayer] = useState<string[]>(demo.prayer);
-  const [prayerInput, setPrayerInput] = useState('');
+  const [prayer, setPrayer] = useState<{ topic: string; date: string }[]>(
+    demo.prayer.map(p => ({ topic: p, date: '' }))
+  );
 
   const displayName = studentName ?? 'Student';
   const initials = displayName.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
@@ -62,9 +63,8 @@ export default function StudentScreen() {
       const d = getDemoData(studentId ?? '');
       setCanons(d.canons);
       setSavedNote(d.note);
-      setPrayer(d.prayer);
+      setPrayer(d.prayer.map(p => ({ topic: p, date: '' })));
       setNoteInput('');
-      setPrayerInput('');
     } else if (studentId) {
       loadStudentData();
     }
@@ -89,7 +89,10 @@ export default function StudentScreen() {
       setCanons(enriched);
     }
     if (notePayload?.text) setSavedNote(notePayload.text);
-    if (prayerData) setPrayer(prayerData.map((r: any) => r.body));
+    if (prayerData) setPrayer(prayerData.map((r: any) => ({
+      topic: r.topic,
+      date: new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    })));
 
     setLoading(false);
   }
@@ -108,12 +111,6 @@ export default function StudentScreen() {
     if (!demoMode && user) {
       await db.upsertAgentProgress({ user_id: user.id, agent_slug: `servant-notes-${studentId}`, payload: { text: newNote }, updated_at: new Date().toISOString() });
     }
-  }
-
-  async function handleAddPrayer() {
-    if (!prayerInput.trim()) return;
-    setPrayer(prev => [prayerInput.trim(), ...prev]);
-    setPrayerInput('');
   }
 
   const TABS: { value: TabType; label: string }[] = [
@@ -225,33 +222,20 @@ export default function StudentScreen() {
             {/* ── Prayer Requests ── */}
             {tab === 'prayer' && (
               <Card title="Prayer Requests" titleIcon="◇">
-                <Text style={styles.privacyNote}>✦ Requests {displayName.split(' ')[0]} has shared with you.</Text>
-                <TextInput
-                  style={styles.noteInput}
-                  placeholder={`Add a prayer request from ${displayName.split(' ')[0]}…`}
-                  placeholderTextColor="rgba(245,240,232,0.22)"
-                  multiline
-                  numberOfLines={3}
-                  value={prayerInput}
-                  onChangeText={setPrayerInput}
-                />
-                <TouchableOpacity
-                  style={[styles.btnGold, { alignSelf: 'flex-start', marginTop: 10, marginBottom: 16, opacity: prayerInput.trim() ? 1 : 0.4 }]}
-                  onPress={handleAddPrayer}
-                  disabled={!prayerInput.trim()}
-                >
-                  <Text style={styles.btnGoldText}>ADD REQUEST</Text>
-                </TouchableOpacity>
+                <Text style={styles.privacyNote}>✦ Requests {displayName.split(' ')[0]} has explicitly shared with their Sunday school servant.</Text>
                 {prayer.length === 0 ? (
                   <View style={styles.emptyState}>
-                    <Text style={styles.emptyTitle}>No requests yet</Text>
-                    <Text style={styles.emptyBody}>Add prayer requests {displayName.split(' ')[0]} shares with you.</Text>
+                    <Text style={styles.emptyTitle}>No shared requests</Text>
+                    <Text style={styles.emptyBody}>{displayName.split(' ')[0]} hasn't shared any prayer requests with you yet.</Text>
                   </View>
                 ) : (
                   prayer.map((req, i) => (
                     <View key={i} style={[styles.prayerRow, i < prayer.length - 1 && styles.prayerBorder]}>
                       <Text style={styles.prayerBullet}>◇</Text>
-                      <Text style={styles.prayerText}>{req}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.prayerText}>{req.topic}</Text>
+                        {req.date ? <Text style={styles.prayerDate}>{req.date}</Text> : null}
+                      </View>
                     </View>
                   ))
                 )}
@@ -318,7 +302,8 @@ const styles = StyleSheet.create({
   prayerRow: { flexDirection: 'row', gap: 10, paddingVertical: 12, alignItems: 'flex-start' },
   prayerBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
   prayerBullet: { fontFamily: fonts.lato, fontSize: 11, color: colors.gold, marginTop: 2 },
-  prayerText: { flex: 1, fontFamily: fonts.latoLight, fontSize: 13, color: colors.cream, lineHeight: 19 },
+  prayerText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.cream, lineHeight: 19 },
+  prayerDate: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, marginTop: 2 },
 
   scopeNote: { backgroundColor: 'rgba(201,168,76,0.05)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)', borderRadius: 10, padding: 14, marginTop: 8 },
   scopeNoteText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 17, letterSpacing: 0.2 },

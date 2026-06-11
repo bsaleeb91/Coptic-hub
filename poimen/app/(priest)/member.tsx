@@ -232,7 +232,9 @@ export default function MemberScreen() {
 
   async function handleSaveNote() {
     if (!noteInput.trim()) return;
-    const newNote = savedNote ? `${savedNote}\n\n${noteInput.trim()}` : noteInput.trim();
+    const stamp = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const entry = `[${stamp}] ${noteInput.trim()}`;
+    const newNote = savedNote ? `${savedNote}\n\n${entry}` : entry;
     if (demoMode) {
       setSavedNote(newNote);
       setNoteInput('');

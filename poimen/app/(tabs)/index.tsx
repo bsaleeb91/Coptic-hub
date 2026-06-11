@@ -18,7 +18,7 @@ const DEMO_VITALS_BARS = [
   { label: 'Daily Prayer (Agpeya)', pct: 65 },
   { label: 'Scripture Reading', pct: 80 },
   { label: 'Divine Liturgy', pct: 80 },
-  { label: 'Small Group', pct: 90 },
+  { label: 'Fasting', pct: 90 },
   { label: 'Service / Diakonia', pct: 50 },
 ];
 
@@ -39,11 +39,44 @@ const VITAL_LABELS = [
   'Daily Prayer (Agpeya)',
   'Scripture Reading',
   'Divine Liturgy',
-  'Small Group',
+  'Fasting',
   'Service / Diakonia',
 ];
 
+const VITAL_KEYS = ['prayer', 'scripture', 'liturgy', 'fasting', 'service'] as const;
+
 const PCT_STEPS = [0, 25, 50, 75, 100];
+
+function getDashboardSubtitle(): string {
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  // Apostles' Fast 2026: Pentecost May 24 → fast May 25 → feast July 12
+  const apostlesStart2026 = new Date(2026, 4, 25);
+  const apostlesEnd2026 = new Date(2026, 6, 11);
+  if (today >= apostlesStart2026 && today <= apostlesEnd2026) {
+    const day = Math.round((today.getTime() - apostlesStart2026.getTime()) / 86400000) + 1;
+    return `${dateStr} · Apostles' Fast · Day ${day}`;
+  }
+
+  // St. Mary's Fast: Aug 1–14 (fixed)
+  const m = today.getMonth() + 1;
+  const d = today.getDate();
+  if (m === 8 && d >= 1 && d <= 14) {
+    const day = d;
+    return `${dateStr} · St. Mary's Fast · Day ${day}`;
+  }
+
+  // Advent (Kiahk): Nov 25 – Jan 6
+  if ((m === 11 && d >= 25) || m === 12 || (m === 1 && d <= 6)) {
+    const y = m === 1 ? today.getFullYear() - 1 : today.getFullYear();
+    const start = new Date(y, 10, 25);
+    const day = Math.round((today.getTime() - start.getTime()) / 86400000) + 1;
+    return `${dateStr} · Advent Fast · Day ${day}`;
+  }
+
+  return dateStr;
+}
 
 // ── Component ────────────────────────────────────────────────
 export default function DashboardScreen() {
@@ -68,7 +101,7 @@ export default function DashboardScreen() {
   async function loadVitals() {
     if (!user) return;
     const payload = await db.getAgentProgress(user.id, 'vitals');
-    if (payload?.vitals) setVitals(payload.vitals);
+    if (payload) setVitals(VITAL_KEYS.map(k => (payload as any)[k] ?? 0));
   }
 
   async function loadTimeline() {
@@ -86,10 +119,11 @@ export default function DashboardScreen() {
   async function saveVitals() {
     if (!user) return;
     setSavingVitals(true);
+    const namedPayload = Object.fromEntries(VITAL_KEYS.map((k, i) => [k, vitals[i]]));
     await db.upsertAgentProgress({
       user_id: user.id,
       agent_slug: 'vitals',
-      payload: { vitals },
+      payload: namedPayload,
       updated_at: new Date().toISOString(),
     });
     setSavingVitals(false);
@@ -125,7 +159,7 @@ export default function DashboardScreen() {
         <View style={styles.topbar}>
           <View style={{ flex: 1, marginRight: 12 }}>
             <Text style={styles.greeting}>Peace be with you, {firstName}</Text>
-            <Text style={styles.subtitle}>Sunday, June 7 · Apostles' Fast · Day 12</Text>
+            <Text style={styles.subtitle}>{getDashboardSubtitle()}</Text>
           </View>
           <View style={styles.topbarButtons}>
             {(demoMode ? demoRole : profile?.role) === 'priest' && (

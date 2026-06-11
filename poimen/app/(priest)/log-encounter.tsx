@@ -94,7 +94,7 @@ export default function LogEncounterScreen() {
       encounter_type: encounterType,
       encountered_at: new Date(encounterDate).toISOString(),
       member_note: memberNote.trim() || null,
-      foc_note: privateNote.trim() || null,
+      private_note: privateNote.trim() || null,
       outcomes: selectedOutcomes.length > 0 ? selectedOutcomes : null,
       follow_up_date: followUpDate.trim() || null,
     });
