@@ -54,13 +54,12 @@ export async function getActiveCanonContext(memberId: string): Promise<{ compone
   return data ?? [];
 }
 
-// NOTE (preserved as-is): selects `user_id` while the caller keys results by
-// `congregant_id`. This is a pre-existing bug carried over verbatim — see the
-// commit message / handoff notes. Do not "fix" without checking the schema.
-export async function getActiveCanonsByPriest(priestId: string): Promise<any[]> {
+// Active canons assigned by a priest/servant, used to count canons per member.
+// Keyed by congregant_id (spiritual_canons has no user_id column).
+export async function getActiveCanonsByPriest(priestId: string): Promise<{ congregant_id: string }[]> {
   const { data } = await supabase
     .from('spiritual_canons')
-    .select('user_id')
+    .select('congregant_id')
     .eq('priest_id', priestId)
     .eq('active', true);
   return data ?? [];

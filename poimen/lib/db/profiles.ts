@@ -4,6 +4,7 @@ import { supabase } from '../supabase';
 export interface Profile {
   id: string;
   full_name: string | null;
+  church_name: string | null;
   role: 'congregant' | 'priest' | 'admin';
   avatar_url: string | null;
   foc_id: string | null;
@@ -12,7 +13,7 @@ export interface Profile {
 export async function getProfile(userId: string): Promise<Profile | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, role, avatar_url, foc_id')
+    .select('id, full_name, church_name, role, avatar_url, foc_id')
     .eq('id', userId)
     .single();
   return data ?? null;
