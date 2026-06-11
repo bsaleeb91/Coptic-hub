@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  TextInput, Animated, PanResponder, Alert, ActivityIndicator,
+  Animated, PanResponder, Alert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts } from '@/lib/theme';
@@ -11,6 +11,17 @@ import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
 type Visibility = 'private' | 'foc_only' | 'foc_and_servant' | 'servant_only';
+type Category = 'health' | 'family' | 'relationships' | 'work' | 'faith' | 'gratitude' | 'other';
+
+const CATEGORY_OPTS: { value: Category; label: string; icon: string }[] = [
+  { value: 'health', label: 'Health', icon: '✦' },
+  { value: 'family', label: 'Family', icon: '◉' },
+  { value: 'relationships', label: 'Relationships', icon: '◎' },
+  { value: 'work', label: 'Work / School', icon: '◇' },
+  { value: 'faith', label: 'Faith Journey', icon: '✝' },
+  { value: 'gratitude', label: 'Gratitude', icon: '◈' },
+  { value: 'other', label: 'Other', icon: '⊕' },
+];
 
 const VISIBILITY_OPTS: { value: Visibility; label: string; icon: string }[] = [
   { value: 'private', label: 'Private — only me', icon: '🔒' },
@@ -85,12 +96,14 @@ function SwipeableRequest({ item, onDelete, onMarkAnswered }: {
       <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
         <View style={styles.reqItem}>
           <View style={styles.reqTop}>
-            <Text style={styles.reqTitle}>{item.topic}</Text>
+            <Text style={styles.reqTitle}>
+              {CATEGORY_OPTS.find(c => c.value === item.category)?.icon ?? '⊕'}{' '}
+              {CATEGORY_OPTS.find(c => c.value === item.category)?.label ?? item.category}
+            </Text>
             <Text style={styles.reqDate}>
               {new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </Text>
           </View>
-          {item.body ? <Text style={styles.reqBody}>{item.body}</Text> : null}
           <View style={styles.reqVis}>
             <Text style={styles.reqVisText}>{VIS_DISPLAY[item.visibility as Visibility].icon} {VIS_DISPLAY[item.visibility as Visibility].label}</Text>
           </View>
@@ -110,8 +123,7 @@ export default function PrayerScreen() {
   const [loading, setLoading] = useState(!demoMode);
   const [submitting, setSubmitting] = useState(false);
 
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
+  const [category, setCategory] = useState<Category>('other');
   const [visibility, setVisibility] = useState<Visibility>('private');
 
   useEffect(() => {
@@ -135,21 +147,20 @@ export default function PrayerScreen() {
   }
 
   async function handleSubmit() {
-    if (!title.trim()) return;
     if (demoMode) {
-      const newReq = { id: Date.now().toString(), topic: title.trim(), created_at: new Date().toISOString(), body: body.trim(), visibility, answered: false };
+      const newReq = { id: Date.now().toString(), category, created_at: new Date().toISOString(), visibility, answered: false };
       setActive(prev => [newReq, ...prev]);
-      setTitle(''); setBody(''); setVisibility('private');
+      setCategory('other'); setVisibility('private');
       return;
     }
     setSubmitting(true);
     const { data, error } = await db.insertPrayerRequest({
       user_id: user!.id,
-      topic: title.trim(),
+      category,
       visibility,
     });
     if (!error && data) setActive(prev => [data, ...prev]);
-    setTitle(''); setBody(''); setVisibility('private');
+    setCategory('other'); setVisibility('private');
     setSubmitting(false);
   }
 
@@ -221,23 +232,25 @@ export default function PrayerScreen() {
 
         {/* New Request */}
         <Card title="New Request" titleIcon="✦">
-          <Text style={styles.formLabel}>TITLE</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Brief description..."
-            placeholderTextColor="rgba(245,240,232,0.22)"
-            value={title}
-            onChangeText={setTitle}
-          />
-          <Text style={[styles.formLabel, { marginTop: 14 }]}>DETAILS (optional)</Text>
-          <TextInput
-            style={styles.textarea}
-            multiline
-            placeholder="Share your heart..."
-            placeholderTextColor="rgba(245,240,232,0.22)"
-            value={body}
-            onChangeText={setBody}
-          />
+          <View style={styles.privacyBanner}>
+            <Text style={styles.privacyBannerText}>
+              Only the category is stored — never the details of your request. Share the specifics with your Father of Confession in person.
+            </Text>
+          </View>
+          <Text style={styles.formLabel}>CATEGORY</Text>
+          <View style={styles.categoryGrid}>
+            {CATEGORY_OPTS.map(opt => (
+              <TouchableOpacity
+                key={opt.value}
+                style={[styles.categoryPill, category === opt.value && styles.categoryPillActive]}
+                onPress={() => setCategory(opt.value)}
+              >
+                <Text style={[styles.categoryPillText, category === opt.value && styles.categoryPillTextActive]}>
+                  {opt.icon} {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <Text style={[styles.formLabel, { marginTop: 14 }]}>VISIBILITY</Text>
           {VISIBILITY_OPTS.map(opt => (
             <TouchableOpacity
@@ -255,9 +268,9 @@ export default function PrayerScreen() {
             </TouchableOpacity>
           ))}
           <TouchableOpacity
-            style={[styles.btnGoldFull, (!title.trim() || submitting) && styles.btnDisabled]}
+            style={[styles.btnGoldFull, submitting && styles.btnDisabled]}
             onPress={handleSubmit}
-            disabled={!title.trim() || submitting}
+            disabled={submitting}
           >
             {submitting
               ? <ActivityIndicator color={colors.navy} />
@@ -319,8 +332,13 @@ const styles = StyleSheet.create({
   emptyBody: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, textAlign: 'center', lineHeight: 17, opacity: 0.7 },
 
   formLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.8, marginBottom: 8 },
-  input: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12 },
-  textarea: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', minHeight: 90, lineHeight: 20 },
+  privacyBanner: { backgroundColor: 'rgba(201,168,76,0.06)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)', borderRadius: 8, padding: 10, marginBottom: 14 },
+  privacyBannerText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 16 },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  categoryPill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: colors.border },
+  categoryPillActive: { backgroundColor: colors.goldDim, borderColor: colors.gold },
+  categoryPillText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.muted },
+  categoryPillTextActive: { color: colors.goldLight },
 
   visOpt: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 8 },
   visOptActive: { backgroundColor: colors.goldDim, borderColor: 'rgba(201,168,76,0.4)' },

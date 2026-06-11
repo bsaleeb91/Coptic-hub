@@ -104,8 +104,7 @@ create or replace function public.match_chunks(
   query_embedding extensions.vector(1024),
   match_threshold float,
   match_count     int,
-  p_agent_slug    text,
-  p_user_id       uuid
+  p_agent_slug    text
 )
 returns table (
   id       uuid,
@@ -120,7 +119,7 @@ language sql stable as $$
     1 - (sc.embedding <=> query_embedding) as similarity
   from public.source_chunks sc
   join public.sources s on s.id = sc.source_id
-  where s.user_id = p_user_id
+  where s.user_id = auth.uid()
     and s.agent_slug = p_agent_slug
     and s.status = 'ready'
     and 1 - (sc.embedding <=> query_embedding) > match_threshold
@@ -139,10 +138,23 @@ create table if not exists public.pastoral_encounters (
   encounter_type    text not null check (encounter_type in ('confession','counseling','advice','visit','phone','group')),
   encountered_at    date not null default current_date,
   member_note       text,     -- visible to congregant in their timeline
-  private_note      text,     -- FOC only, never shown to congregant
   outcomes          text[],
   follow_up_date    date,
   created_at        timestamptz not null default now()
+);
+
+-- =============================================================
+-- POIMEN: pastoral_encounter_private_notes
+-- Priest-only notes — never accessible to the congregant.
+-- Separated from pastoral_encounters so congregant RLS on that
+-- table cannot expose this column even via a .select('*') call.
+-- =============================================================
+create table if not exists public.pastoral_encounter_private_notes (
+  id            uuid primary key default gen_random_uuid(),
+  encounter_id  uuid not null references public.pastoral_encounters(id) on delete cascade,
+  priest_id     uuid not null references public.profiles(id) on delete cascade,
+  private_note  text not null,
+  created_at    timestamptz not null default now()
 );
 
 -- =============================================================
@@ -171,7 +183,7 @@ create table if not exists public.canon_completions (
   canon_id    uuid not null references public.spiritual_canons(id) on delete cascade,
   user_id     uuid not null references public.profiles(id) on delete cascade,
   completed_on date not null default current_date,
-  unique (canon_id, completed_on)
+  unique (canon_id, user_id, completed_on)
 );
 
 -- =============================================================
@@ -180,7 +192,7 @@ create table if not exists public.canon_completions (
 create table if not exists public.prayer_requests (
   id            uuid primary key default gen_random_uuid(),
   user_id       uuid not null references public.profiles(id) on delete cascade,
-  topic         text not null,
+  category      text not null default 'other' check (category in ('health','family','relationships','work','faith','gratitude','appointment','other')),
   visibility    text not null default 'private' check (visibility in ('private','foc_only','foc_and_servant','servant_only')),
   answered      boolean not null default false,
   answered_note text,
@@ -196,10 +208,15 @@ alter table public.conversations      enable row level security;
 alter table public.messages           enable row level security;
 alter table public.sources            enable row level security;
 alter table public.source_chunks      enable row level security;
-alter table public.pastoral_encounters enable row level security;
-alter table public.spiritual_canons   enable row level security;
-alter table public.canon_completions  enable row level security;
-alter table public.prayer_requests    enable row level security;
+alter table public.pastoral_encounters              enable row level security;
+alter table public.pastoral_encounter_private_notes enable row level security;
+alter table public.spiritual_canons                 enable row level security;
+alter table public.canon_completions                enable row level security;
+alter table public.prayer_requests                  enable row level security;
+
+-- Block the authenticated role from updating the role column directly.
+-- Role changes must go through a privileged admin function.
+revoke update (role) on public.profiles from authenticated;
 
 -- profiles: users see only their own row; priests see their congregants
 create policy "profiles: own row" on public.profiles
@@ -244,12 +261,16 @@ create policy "source_chunks: own sources" on public.source_chunks
     )
   );
 
--- pastoral_encounters: priest owns + congregant can read their own
+-- pastoral_encounters: priest owns + congregant reads their own (no private_note column on this table)
 create policy "encounters: priest owns" on public.pastoral_encounters
   for all using (auth.uid() = priest_id);
 
 create policy "encounters: congregant reads own" on public.pastoral_encounters
   for select using (auth.uid() = congregant_id);
+
+-- pastoral_encounter_private_notes: priest-only, never readable by congregant
+create policy "encounter_private_notes: priest owns" on public.pastoral_encounter_private_notes
+  for all using (auth.uid() = priest_id);
 
 -- spiritual_canons: priest owns + congregant reads own
 create policy "canons: priest owns" on public.spiritual_canons
@@ -286,5 +307,9 @@ create policy "prayer: servant reads shared" on public.prayer_requests
     and exists (
       select 1 from public.profiles c
       where c.id = prayer_requests.user_id and c.servant_id = auth.uid()
+    )
+    and exists (
+      select 1 from public.profiles s
+      where s.id = auth.uid() and s.school_role = 'teacher'
     )
   );

@@ -90,7 +90,7 @@ export default function StudentScreen() {
     }
     if (notePayload?.text) setSavedNote(notePayload.text);
     if (prayerData) setPrayer(prayerData.map((r: any) => ({
-      topic: r.topic,
+      topic: r.category,
       date: new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
     })));
 

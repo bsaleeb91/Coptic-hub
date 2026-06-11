@@ -26,10 +26,10 @@ export async function markPrayerAnswered(id: string): Promise<void> {
 }
 
 // Unanswered requests shared with FOC (foc_only or foc_and_servant) — priest detail view.
-export async function getFocPrayerRequests(memberId: string): Promise<{ created_at: string; topic: string }[]> {
+export async function getFocPrayerRequests(memberId: string): Promise<{ created_at: string; category: string }[]> {
   const { data } = await supabase
     .from('prayer_requests')
-    .select('created_at, topic')
+    .select('created_at, category')
     .eq('user_id', memberId)
     .in('visibility', ['foc_only', 'foc_and_servant'])
     .eq('answered', false)
@@ -38,10 +38,10 @@ export async function getFocPrayerRequests(memberId: string): Promise<{ created_
 }
 
 // Unanswered requests shared with a servant (servant_only or foc_and_servant) — servant detail view.
-export async function getServantSharedPrayer(studentId: string): Promise<{ created_at: string; topic: string }[]> {
+export async function getServantSharedPrayer(studentId: string): Promise<{ created_at: string; category: string }[]> {
   const { data } = await supabase
     .from('prayer_requests')
-    .select('created_at, topic')
+    .select('created_at, category')
     .eq('user_id', studentId)
     .in('visibility', ['servant_only', 'foc_and_servant'])
     .eq('answered', false)

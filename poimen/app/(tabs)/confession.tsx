@@ -131,7 +131,7 @@ export default function ConfessionScreen() {
     // In real mode, log a pending note to the priest via a prayer request flagged for FOC
     await db.insertPrayerRequest({
       user_id: user!.id,
-      topic: 'Confession appointment request',
+      category: 'appointment',
       visibility: 'foc_only',
     });
     setRequestSent(true);

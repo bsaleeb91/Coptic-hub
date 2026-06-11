@@ -209,7 +209,7 @@ export default function MemberScreen() {
     if (prayerData) {
       setPrayerRequests(prayerData.map(p => ({
         date: new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
-        topic: p.topic,
+        topic: p.category,
       })));
     }
 
