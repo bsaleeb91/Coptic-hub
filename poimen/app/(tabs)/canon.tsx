@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  TextInput, Animated, PanResponder, Alert, ActivityIndicator,
+  Animated, PanResponder, Alert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
@@ -46,16 +46,12 @@ const DEMO_HISTORY = [
 ];
 
 // ── Swipeable canon component row ────────────────────────────
-function SwipeableComponent({ comp, done, expanded, onToggle, onExpand }: {
-  comp: any; done: boolean; expanded: boolean;
-  onToggle: () => void; onExpand: () => void;
+function SwipeableComponent({ comp, done, onToggle }: {
+  comp: any; done: boolean; onToggle: () => void;
 }) {
-  const [note, setNote] = useState('');
-  const [shared, setShared] = useState(false);
-
   return (
     <View style={[styles.compItem, done && styles.compItemDone]}>
-      <TouchableOpacity style={styles.compHeader} onPress={onExpand} activeOpacity={0.7}>
+      <View style={styles.compHeader}>
         <TouchableOpacity onPress={onToggle}>
           <View style={[styles.compCheck, done && styles.compCheckDone]}>
             {done && <Text style={styles.compCheckMark}>✓</Text>}
@@ -76,28 +72,7 @@ function SwipeableComponent({ comp, done, expanded, onToggle, onExpand }: {
         {comp.desc || comp.reflection_prompt ? (
           <Text style={styles.compDesc} numberOfLines={2}>{comp.desc ?? comp.reflection_prompt}</Text>
         ) : null}
-        <Text style={[styles.chevron, expanded && styles.chevronOpen]}>▾</Text>
-      </TouchableOpacity>
-
-      {expanded && (
-        <View style={styles.compNotes}>
-          <Text style={styles.compNotesLabel}>REFLECTION FOR TODAY</Text>
-          <TextInput
-            style={styles.textarea}
-            multiline
-            placeholder="How did this practice land today? What stirred in you?"
-            placeholderTextColor="rgba(245,240,232,0.22)"
-            value={note}
-            onChangeText={setNote}
-          />
-          <TouchableOpacity style={styles.shareRow} onPress={() => setShared(p => !p)}>
-            <View style={[styles.shareCheck, shared && styles.shareCheckActive]}>
-              {shared && <Text style={styles.shareCheckMark}>✓</Text>}
-            </View>
-            <Text style={styles.shareLabel}>Share this reflection with my Father of Confession</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      </View>
     </View>
   );
 }
@@ -159,7 +134,6 @@ export default function CanonScreen() {
   const [components, setComponents] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(!demoMode);
 
   useEffect(() => {
@@ -182,7 +156,10 @@ export default function CanonScreen() {
     if (past) {
       const withPct = await Promise.all(past.map(async (c) => {
         const count = await db.countCanonCompletions(c.id);
-        return { ...c, pct: Math.min(Math.round((count / 30) * 100), 100) };
+        const start = new Date(c.start_date).getTime();
+        const end = c.end_date ? new Date(c.end_date).getTime() : Date.now();
+        const durationDays = Math.max(Math.round((end - start) / 86400000), 1);
+        return { ...c, pct: Math.min(Math.round((count / durationDays) * 100), 100) };
       }));
       setHistory(withPct);
     }
@@ -199,14 +176,6 @@ export default function CanonScreen() {
       const today = new Date().toISOString().split('T')[0];
       await db.upsertCanonCompletion(id, user.id, today);
     }
-  }
-
-  function toggleExpand(id: string) {
-    setExpanded(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
   }
 
   function deleteHistory(id: string) {
@@ -268,9 +237,7 @@ export default function CanonScreen() {
                 <SwipeableComponent
                   comp={comp}
                   done={checked.has(comp.id)}
-                  expanded={expanded.has(comp.id)}
                   onToggle={() => toggleCheck(comp.id)}
-                  onExpand={() => toggleExpand(comp.id)}
                 />
               </View>
             ))
@@ -359,16 +326,6 @@ const styles = StyleSheet.create({
   compFreq: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 0.8 },
   compStatus: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted },
   compDesc: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, maxWidth: 90, textAlign: 'right', lineHeight: 15 },
-  chevron: { fontFamily: fonts.lato, fontSize: 11, color: colors.muted, flexShrink: 0 },
-  chevronOpen: { transform: [{ rotate: '180deg' }] },
-  compNotes: { borderTopWidth: 1, borderTopColor: colors.border, padding: 14 },
-  compNotesLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.75, marginBottom: 8 },
-  textarea: { backgroundColor: 'rgba(10,16,30,0.6)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 12, padding: 10, minHeight: 64, textAlignVertical: 'top', lineHeight: 20 },
-  shareRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  shareCheck: { width: 14, height: 14, borderRadius: 3, borderWidth: 1, borderColor: colors.border },
-  shareCheckActive: { backgroundColor: colors.gold, borderColor: colors.gold },
-  shareCheckMark: { fontSize: 9, color: colors.navy, fontWeight: '700', textAlign: 'center' },
-  shareLabel: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, flex: 1 },
 
   readinessCard: { backgroundColor: 'rgba(10,16,30,0.5)', borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, marginBottom: 12 },
   readinessLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: colors.gold, opacity: 0.8, marginBottom: 6 },

@@ -209,7 +209,7 @@ export default function MemberScreen() {
     if (prayerData) {
       setPrayerRequests(prayerData.map(p => ({
         date: new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
-        topic: p.topic,
+        topic: p.category,
       })));
     }
 
@@ -232,7 +232,9 @@ export default function MemberScreen() {
 
   async function handleSaveNote() {
     if (!noteInput.trim()) return;
-    const newNote = savedNote ? `${savedNote}\n\n${noteInput.trim()}` : noteInput.trim();
+    const stamp = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const entry = `[${stamp}] ${noteInput.trim()}`;
+    const newNote = savedNote ? `${savedNote}\n\n${entry}` : entry;
     if (demoMode) {
       setSavedNote(newNote);
       setNoteInput('');
@@ -417,12 +419,12 @@ export default function MemberScreen() {
 
             {/* ── Prayer ── */}
             {tab === 'prayer' && (
-              <Card title="Prayer Requests (FOC Only)" titleIcon="◇">
+              <Card title="Prayer Requests (Shared with FOC)" titleIcon="◇">
                 <View style={styles.privacyNote}>
-                  <Text style={styles.privacyNoteText}>✦ Only requests explicitly shared with Father of Confession.</Text>
+                  <Text style={styles.privacyNoteText}>✦ Requests shared with FOC only, or with both FOC and Sunday school servant.</Text>
                 </View>
                 {prayerRequests.length === 0 ? (
-                  <Text style={styles.emptyText}>No FOC-shared prayer requests.</Text>
+                  <Text style={styles.emptyText}>No requests shared with Father of Confession.</Text>
                 ) : prayerRequests.map((p, i) => (
                   <View key={i} style={[styles.histRow, i < prayerRequests.length - 1 && styles.histBorder]}>
                     <Text style={styles.histDate}>{p.date}</Text>

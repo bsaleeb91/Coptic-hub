@@ -12,7 +12,7 @@ import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
 // ── Theological content — same in both modes, never stored ───
-const TABS = ['Toward God', 'Toward Others', 'Toward Self', 'Family'] as const;
+const TABS = ['Toward God', 'Toward Others', 'Toward Self', 'Omissions'] as const;
 
 const EXAMINATION: Record<string, { text: string; note?: string }[]> = {
   'Toward God': [
@@ -38,13 +38,13 @@ const EXAMINATION: Record<string, { text: string; note?: string }[]> = {
     { text: 'Have I been proud, boastful, or unwilling to receive correction?' },
     { text: 'Have I compared myself to others with envy or contempt?' },
   ],
-  'Family': [
-    { text: 'Have I honored my spouse in thought, word, and deed?' },
-    { text: 'Have I prayed with my family and nurtured a spiritual home?' },
-    { text: 'Have I raised my children in the fear and love of God?' },
-    { text: 'Have I honored and cared for my parents?' },
-    { text: 'Do I direct my children to church, confession, and Sunday school?' },
-    { text: 'Do I follow the Divine Liturgy from start to end, or do I arrive late and leave early?' },
+  'Omissions': [
+    { text: 'Have I neglected to pray for others — my family, enemies, or the departed?' },
+    { text: 'Have I failed to give alms or help those in need when I had the means?' },
+    { text: 'Have I omitted visiting the sick, the lonely, or those in hardship?' },
+    { text: 'Have I failed to honor my spouse, children, or parents as God calls me to?' },
+    { text: 'Have I left good works undone out of laziness, fear, or indifference?' },
+    { text: 'Have I neglected to give thanks to God for His mercies?' },
   ],
 };
 
@@ -131,7 +131,7 @@ export default function ConfessionScreen() {
     // In real mode, log a pending note to the priest via a prayer request flagged for FOC
     await db.insertPrayerRequest({
       user_id: user!.id,
-      topic: 'Confession appointment request',
+      category: 'appointment',
       visibility: 'foc_only',
     });
     setRequestSent(true);

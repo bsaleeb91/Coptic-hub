@@ -25,26 +25,26 @@ export async function markPrayerAnswered(id: string): Promise<void> {
   await supabase.from('prayer_requests').update({ answered: true }).eq('id', id);
 }
 
-// FOC-only, unanswered requests for a member (priest detail view).
-export async function getFocPrayerRequests(memberId: string): Promise<{ created_at: string; topic: string }[]> {
+// Unanswered requests shared with FOC (foc_only or foc_and_servant) — priest detail view.
+export async function getFocPrayerRequests(memberId: string): Promise<{ created_at: string; category: string }[]> {
   const { data } = await supabase
     .from('prayer_requests')
-    .select('created_at, topic')
+    .select('created_at, category')
     .eq('user_id', memberId)
-    .eq('visibility', 'foc_only')
+    .in('visibility', ['foc_only', 'foc_and_servant'])
     .eq('answered', false)
     .order('created_at', { ascending: false });
   return data ?? [];
 }
 
-// Requests a student has explicitly shared with their servant.
-export async function getServantSharedPrayer(studentId: string): Promise<{ body: string }[]> {
+// Unanswered requests shared with a servant (servant_only or foc_and_servant) — servant detail view.
+export async function getServantSharedPrayer(studentId: string): Promise<{ created_at: string; category: string }[]> {
   const { data } = await supabase
     .from('prayer_requests')
-    .select('body')
+    .select('created_at, category')
     .eq('user_id', studentId)
-    .eq('shared_with_servant', true)
-    .order('created_at', { ascending: false })
-    .limit(10);
+    .in('visibility', ['servant_only', 'foc_and_servant'])
+    .eq('answered', false)
+    .order('created_at', { ascending: false });
   return data ?? [];
 }

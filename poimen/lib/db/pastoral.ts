@@ -73,5 +73,17 @@ export async function getConfessionsForPriest(priestId: string): Promise<any[]> 
 }
 
 export async function insertEncounter(row: Record<string, any>): Promise<void> {
-  await supabase.from('pastoral_encounters').insert(row);
+  const { private_note, ...encounterRow } = row;
+  const { data } = await supabase
+    .from('pastoral_encounters')
+    .insert(encounterRow)
+    .select('id')
+    .single();
+  if (data?.id && private_note) {
+    await supabase.from('pastoral_encounter_private_notes').insert({
+      encounter_id: data.id,
+      priest_id: encounterRow.priest_id,
+      private_note,
+    });
+  }
 }
