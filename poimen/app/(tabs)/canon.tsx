@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  Animated, PanResponder, Alert, ActivityIndicator,
+  ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
+  Animated, PanResponder,
 } from 'react-native';
+import * as H from '@/lib/haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { colors, fonts } from '@/lib/theme';
@@ -45,84 +46,95 @@ const DEMO_HISTORY = [
   { id: 'h2', component: 'New Year Canon', start_date: '2026-01-07', end_date: '2026-03-01', pct: 72, active: false },
 ];
 
-// ── Swipeable canon component row ────────────────────────────
-function SwipeableComponent({ comp, done, onToggle }: {
+// ── Swipeable canon row — swipe right to complete / undo ─────
+const REVEAL_W = 72;
+const THRESHOLD = REVEAL_W * 0.55;
+
+function SwipeableCanonRow({ comp, done, onToggle }: {
   comp: any; done: boolean; onToggle: () => void;
 }) {
+  const tx = useRef(new Animated.Value(0)).current;
+  const doneRef = useRef(done);
+  const onToggleRef = useRef(onToggle);
+  useEffect(() => { doneRef.current = done; }, [done]);
+  useEffect(() => { onToggleRef.current = onToggle; }, [onToggle]);
+
+  const springBack = () => Animated.spring(tx, { toValue: 0, useNativeDriver: true, tension: 100, friction: 10 }).start();
+
+  const pan = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 6 && Math.abs(g.dy) < 16,
+    onPanResponderMove: (_, g) => {
+      // Only allow swipe right (positive dx)
+      if (g.dx > 0) tx.setValue(Math.min(g.dx, REVEAL_W + 10));
+    },
+    onPanResponderRelease: (_, g) => {
+      if (g.dx > THRESHOLD) {
+        // Snap to reveal, fire toggle, then spring back
+        Animated.spring(tx, { toValue: REVEAL_W, useNativeDriver: true, tension: 120, friction: 10 }).start(() => {
+          doneRef.current ? H.tap() : H.done();
+          onToggleRef.current();
+          setTimeout(springBack, 420);
+        });
+      } else {
+        springBack();
+      }
+    },
+    onPanResponderTerminate: springBack,
+  })).current;
+
+  const isWeekly = comp.frequency === 'Weekly' || comp.freq === 'WEEKLY';
+
   return (
-    <View style={[styles.compItem, done && styles.compItemDone]}>
-      <View style={styles.compHeader}>
-        <TouchableOpacity onPress={onToggle}>
+    <View style={styles.swipeOuter}>
+      {/* Action revealed behind */}
+      <View style={[styles.swipeAction, { backgroundColor: done ? 'rgba(149,165,166,0.2)' : `${colors.green}30` }]}>
+        <Text style={[styles.swipeActionText, { color: done ? colors.muted : colors.green }]}>
+          {done ? '↩ Undo' : '✓ Done'}
+        </Text>
+      </View>
+
+      {/* Row sliding over it */}
+      <Animated.View style={[styles.compItem, done && styles.compItemDone, { transform: [{ translateX: tx }] }]} {...pan.panHandlers}>
+        <TouchableOpacity style={styles.compHeader} onPress={() => { done ? H.tap() : H.done(); onToggle(); }} activeOpacity={0.85}>
           <View style={[styles.compCheck, done && styles.compCheckDone]}>
             {done && <Text style={styles.compCheckMark}>✓</Text>}
           </View>
-        </TouchableOpacity>
-        <View style={styles.compIcon}>
-          <Text style={styles.compIconEmoji}>{comp.icon ?? '📜'}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.compName, done && styles.compNameDone]}>{comp.name ?? comp.component}</Text>
-          <View style={styles.compMeta}>
-            <Text style={[styles.compFreq, comp.frequency === 'Weekly' || comp.freq === 'WEEKLY' ? { color: colors.green } : { color: colors.blue }]}>
-              {(comp.freq ?? comp.frequency ?? 'DAILY').toUpperCase()}
-            </Text>
-            <Text style={styles.compStatus}>{done ? '✓ Done today' : 'Pending'}</Text>
+          <View style={styles.compIcon}>
+            <Text style={styles.compIconEmoji}>{comp.icon ?? '📜'}</Text>
           </View>
-        </View>
-        {comp.desc || comp.reflection_prompt ? (
-          <Text style={styles.compDesc} numberOfLines={2}>{comp.desc ?? comp.reflection_prompt}</Text>
-        ) : null}
-      </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.compName, done && styles.compNameDone]}>{comp.name ?? comp.component}</Text>
+            <View style={styles.compMeta}>
+              <Text style={[styles.compFreq, isWeekly ? { color: colors.green } : { color: colors.blue }]}>
+                {(comp.freq ?? comp.frequency ?? 'DAILY').toUpperCase()}
+              </Text>
+              <Text style={styles.compStatus}>{done ? '✓ Done today' : '← swipe'}</Text>
+            </View>
+          </View>
+          {comp.desc || comp.reflection_prompt ? (
+            <Text style={styles.compDesc} numberOfLines={2}>{comp.desc ?? comp.reflection_prompt}</Text>
+          ) : null}
+        </TouchableOpacity>
+      </Animated.View>
     </View>
   );
 }
 
-// ── Swipeable history row ─────────────────────────────────────
-function SwipeableHistoryRow({ item, onDelete }: { item: any; onDelete: () => void }) {
-  const translateX = useRef(new Animated.Value(0)).current;
-  const ACTION_WIDTH = 70;
-
-  const panResponder = useRef(PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dy) < 20,
-    onPanResponderMove: (_, g) => { if (g.dx < 0) translateX.setValue(Math.max(g.dx, -ACTION_WIDTH)); },
-    onPanResponderRelease: (_, g) => {
-      if (g.dx < -ACTION_WIDTH / 2) Animated.spring(translateX, { toValue: -ACTION_WIDTH, useNativeDriver: true }).start();
-      else Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-    },
-  })).current;
-
-  function close() { Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start(); }
-
-  const pct = item.pct ?? 0;
-  const startFmt = item.start_date ? new Date(item.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-  const endFmt = item.end_date ? new Date(item.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Ongoing';
+// ── Readiness indicator ──────────────────────────────────────
+function ReadinessIndicator({ daysSince }: { daysSince: number }) {
+  const state = daysSince < 30
+    ? { icon: '✓', label: 'Ready', body: `${daysSince} days since confession. You are in good standing for Holy Communion.`, color: colors.green }
+    : daysSince < 60
+    ? { icon: '⚠', label: 'Check required', body: `${daysSince} days since your last confession. Consider scheduling before your next Communion.`, color: colors.yellow }
+    : { icon: '✝', label: 'Confession needed', body: `${daysSince} days since confession. Confession is strongly recommended before receiving Holy Communion.`, color: colors.red };
 
   return (
-    <View style={styles.swipeContainer}>
-      <View style={styles.swipeActions}>
-        <TouchableOpacity style={styles.swipeActionDelete} onPress={() => { close(); onDelete(); }}>
-          <Text style={styles.swipeActionText}>✕{'\n'}Delete</Text>
-        </TouchableOpacity>
+    <View style={[styles.readinessRow, { borderColor: `${state.color}33` }]}>
+      <Text style={[styles.readinessIcon, { color: state.color }]}>{state.icon}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.readinessStatus, { color: state.color }]}>{state.label}</Text>
+        <Text style={styles.readinessBody}>{state.body}</Text>
       </View>
-      <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
-        <View style={styles.histItem}>
-          <View style={styles.histTop}>
-            <Text style={styles.histTitle}>{item.component ?? item.title}</Text>
-            <View style={[styles.histBadge, pct >= 80 ? styles.badgeGreen : styles.badgeMuted]}>
-              <Text style={[styles.histBadgeText, { color: pct >= 80 ? colors.green : colors.muted }]}>
-                {pct >= 80 ? '✓ Completed' : 'Partial'}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.histDates}>{startFmt}{endFmt ? ` – ${endFmt}` : ''}</Text>
-          <View style={styles.histBarRow}>
-            <View style={styles.histBarTrack}>
-              <View style={[styles.histBarFill, { width: `${pct}%` as any }]} />
-            </View>
-            <Text style={styles.histPct}>{pct}%</Text>
-          </View>
-        </View>
-      </Animated.View>
     </View>
   );
 }
@@ -178,13 +190,6 @@ export default function CanonScreen() {
     }
   }
 
-  function deleteHistory(id: string) {
-    Alert.alert('Remove', 'Remove this canon from history?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => setHistory(prev => prev.filter(h => h.id !== id)) },
-    ]);
-  }
-
   const completedCount = checked.size;
   const total = components.length || 1;
   const pct = Math.round((completedCount / total) * 100);
@@ -222,7 +227,7 @@ export default function CanonScreen() {
         ) : null}
 
         {/* Today's Canon */}
-        <Card title="Today's Canon" titleIcon="◈">
+        <Card title="Today's Canon" flat>
           {loading ? (
             <ActivityIndicator color={colors.gold} style={{ paddingVertical: 20 }} />
           ) : components.length === 0 ? (
@@ -234,7 +239,7 @@ export default function CanonScreen() {
           ) : (
             components.map((comp, i) => (
               <View key={comp.id} style={i < components.length - 1 ? { marginBottom: 10 } : {}}>
-                <SwipeableComponent
+                <SwipeableCanonRow
                   comp={comp}
                   done={checked.has(comp.id)}
                   onToggle={() => toggleCheck(comp.id)}
@@ -247,40 +252,32 @@ export default function CanonScreen() {
         {/* Communion Readiness */}
         <Card title="Communion Readiness" titleIcon="✝">
           {demoMode ? (
-            <>
-              <View style={styles.readinessCard}>
-                <Text style={styles.readinessLabel}>CURRENT STATUS</Text>
-                <Text style={styles.readinessStatus}>⚠ Confession recommended</Text>
-                <Text style={styles.readinessBody}>
-                  It has been 47 days since your last confession. Consider scheduling with Fr. Bishoy before receiving Holy Communion.
-                </Text>
-              </View>
-              <View style={styles.divider} />
-              <View>
-                <Text style={styles.readinessLabel}>NEXT DIVINE LITURGY</Text>
-                <Text style={styles.liturgyVal}>Sunday, June 8 · 8:00 AM</Text>
-                <Text style={styles.liturgySub}>St. Mary's Coptic Orthodox Church</Text>
-              </View>
-            </>
+            <ReadinessIndicator daysSince={47} />
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>✝</Text>
-              <Text style={styles.emptyTitle}>Readiness based on your data</Text>
-              <Text style={styles.emptyBody}>Once your confession history and canon progress are recorded, readiness guidance will appear here.</Text>
+              <Text style={styles.emptyBody}>Once your confession history is recorded, readiness guidance will appear here.</Text>
             </View>
           )}
-          <PrivacyNote text="Communion readiness is based on your confession date and fasting observance. Your Father of Confession may adjust this guidance." />
+          <PrivacyNote text="Based on your confession date. Your Father of Confession may adjust this guidance." />
         </Card>
 
         {/* Canon History */}
         {history.length > 0 && (
-          <Card title={`Canon History (${history.length})`} titleIcon="◎">
-            {history.map((item, i) => (
-              <View key={item.id}>
-                <SwipeableHistoryRow item={item} onDelete={() => deleteHistory(item.id)} />
-                {i < history.length - 1 && <View style={styles.divider} />}
-              </View>
-            ))}
+          <Card title={`Past Canons (${history.length})`} flat>
+            {history.map((item, i) => {
+              const pct = item.pct ?? 0;
+              const startFmt = item.start_date ? new Date(item.start_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
+              const endFmt = item.end_date ? new Date(item.end_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Ongoing';
+              return (
+                <View key={item.id} style={[styles.histItem, i < history.length - 1 && styles.divider]}>
+                  <View style={styles.histTop}>
+                    <Text style={styles.histTitle}>{item.component ?? item.title}</Text>
+                    <Text style={[styles.histPct, { color: pct >= 80 ? colors.green : colors.muted }]}>{pct}%</Text>
+                  </View>
+                  <Text style={styles.histDates}>{startFmt} – {endFmt}</Text>
+                </View>
+              );
+            })}
           </Card>
         )}
 
@@ -312,6 +309,10 @@ const styles = StyleSheet.create({
   emptyBannerTitle: { fontFamily: fonts.cormorantMedium, fontSize: 18, color: colors.cream, marginBottom: 6 },
   emptyBannerBody: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },
 
+  swipeOuter: { position: 'relative', borderRadius: 12, overflow: 'hidden' },
+  swipeAction: { position: 'absolute', left: 0, top: 0, bottom: 0, width: REVEAL_W, justifyContent: 'center', alignItems: 'center' },
+  swipeActionText: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 0.8 },
+
   compItem: { backgroundColor: 'rgba(10,16,30,0.5)', borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: 'hidden' },
   compItemDone: { opacity: 0.65 },
   compHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13 },
@@ -327,31 +328,17 @@ const styles = StyleSheet.create({
   compStatus: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted },
   compDesc: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, maxWidth: 90, textAlign: 'right', lineHeight: 15 },
 
-  readinessCard: { backgroundColor: 'rgba(10,16,30,0.5)', borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, marginBottom: 12 },
-  readinessLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: colors.gold, opacity: 0.8, marginBottom: 6 },
-  readinessStatus: { fontFamily: fonts.cormorantMedium, fontSize: 18, color: colors.yellow, marginBottom: 5 },
+  readinessRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderWidth: 1, borderRadius: 10, padding: 14, marginBottom: 4 },
+  readinessIcon: { fontSize: 18, marginTop: 1 },
+  readinessStatus: { fontFamily: fonts.latoBold, fontSize: 13, marginBottom: 4 },
   readinessBody: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: 12 },
-  liturgyVal: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginTop: 4 },
-  liturgySub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 2 },
 
-  swipeContainer: { position: 'relative', overflow: 'hidden' },
-  swipeActions: { position: 'absolute', right: 0, top: 0, bottom: 0, flexDirection: 'row' },
-  swipeActionDelete: { width: 70, backgroundColor: 'rgba(192,57,43,0.25)', alignItems: 'center', justifyContent: 'center' },
-  swipeActionText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.cream, textAlign: 'center', letterSpacing: 0.5 },
-
-  histItem: { paddingVertical: 14, backgroundColor: colors.navyMid },
-  histTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 4 },
+  divider: { borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 0 },
+  histItem: { paddingVertical: 13 },
+  histTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 3 },
   histTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, flex: 1 },
-  histBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
-  badgeGreen: { backgroundColor: colors.greenBg },
-  badgeMuted: { backgroundColor: 'rgba(245,240,232,0.07)' },
-  histBadgeText: { fontFamily: fonts.latoBold, fontSize: 10 },
-  histDates: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, marginBottom: 8 },
-  histBarRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  histBarTrack: { flex: 1, height: 3, backgroundColor: 'rgba(245,240,232,0.07)', borderRadius: 3, overflow: 'hidden' },
-  histBarFill: { height: '100%', backgroundColor: colors.gold, borderRadius: 3 },
-  histPct: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.goldLight },
+  histDates: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted },
+  histPct: { fontFamily: fonts.latoBold, fontSize: 12 },
 
   emptyState: { alignItems: 'center', paddingVertical: 20, gap: 6 },
   emptyIcon: { fontSize: 28, color: colors.muted, opacity: 0.4 },

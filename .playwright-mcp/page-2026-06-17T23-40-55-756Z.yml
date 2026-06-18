@@ -1,0 +1,88 @@
+- generic [ref=e8]:
+  - generic [ref=e14]:
+    - generic [ref=e15]: Spiritual Journal
+    - generic [ref=e16]: Reflections, disciplines, and growth
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - generic [ref=e19]: SPIRITUAL PRACTICES
+        - generic [ref=e21] [cursor=pointer]: + ADD
+      - generic [ref=e22]:
+        - generic [ref=e23]:
+          - generic [ref=e24]: ◈
+          - generic [ref=e25]: No practices yet
+          - generic [ref=e26]: Add your first spiritual practice to track daily.
+        - generic [ref=e27]:
+          - generic [ref=e28]: 🔒
+          - generic [ref=e29]: Only practice names and completion % are shared with your Father of Confession — never your journal content.
+    - generic [ref=e30]:
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - generic [ref=e33]: ✦
+          - text: Today's Entry
+        - generic [ref=e34]: Wednesday, June 17
+      - generic [ref=e35]:
+        - generic [ref=e36]: TITLE (optional)
+        - textbox "e.g. Reflection on the fast" [ref=e37]
+        - generic [ref=e38]: REFLECTION
+        - textbox "What is God saying to you today? What are you grateful for? What are you struggling with?" [ref=e39]
+        - generic [ref=e40]: SCRIPTURE THAT SPOKE TO ME
+        - textbox "e.g. Psalm 63:1 — O God, You are my God..." [ref=e41]
+        - generic [ref=e42]: PRAYER INTENTION
+        - textbox "What are you bringing to God in prayer today?" [ref=e43]
+        - generic [ref=e44]: SAVE ENTRY
+    - generic [ref=e45]:
+      - generic [ref=e47]: PAST ENTRIES (0)
+      - generic [ref=e49]:
+        - generic [ref=e50]: ◎
+        - generic [ref=e51]: No entries yet
+        - generic [ref=e52]: Your saved entries will appear here.
+    - generic [ref=e53]:
+      - generic [ref=e55]:
+        - generic [ref=e56]: ◇
+        - text: Today's Prompt
+      - generic [ref=e57]:
+        - generic [ref=e58]: Apostles' Fast · Day 12
+        - generic [ref=e59]: "\"Watch and pray that you may not enter into temptation. The spirit indeed is willing, but the flesh is weak.\""
+        - generic [ref=e60]: Matthew 26:41
+        - generic [ref=e62]: Reflect on a moment this week when your spirit was willing but your flesh felt weak. What did you learn about yourself? What did you learn about God's grace?
+  - tablist [ref=e64]:
+    - tab "◈ Home ◈ Home" [ref=e66] [cursor=pointer]:
+      - generic [ref=e67]:
+        - generic [ref=e69]:
+          - generic [ref=e70]: ◈
+          - generic [ref=e71]: Home
+        - generic [ref=e73]:
+          - generic [ref=e74]: ◈
+          - generic [ref=e75]: Home
+    - tab "✝ Confess ✝ Confess" [ref=e77] [cursor=pointer]:
+      - generic [ref=e78]:
+        - generic [ref=e80]:
+          - generic [ref=e81]: ✝
+          - generic [ref=e82]: Confess
+        - generic [ref=e84]:
+          - generic [ref=e85]: ✝
+          - generic [ref=e86]: Confess
+    - tab "✦ Journal ✦ Journal" [selected] [ref=e88] [cursor=pointer]:
+      - generic [ref=e89]:
+        - generic [ref=e91]:
+          - generic [ref=e92]: ✦
+          - generic [ref=e93]: Journal
+        - generic [ref=e95]:
+          - generic [ref=e96]: ✦
+          - generic [ref=e97]: Journal
+    - tab "◇ Prayer ◇ Prayer" [ref=e99] [cursor=pointer]:
+      - generic [ref=e100]:
+        - generic [ref=e102]:
+          - generic [ref=e103]: ◇
+          - generic [ref=e104]: Prayer
+        - generic [ref=e106]:
+          - generic [ref=e107]: ◇
+          - generic [ref=e108]: Prayer
+    - tab "📜 Canon 📜 Canon" [ref=e110] [cursor=pointer]:
+      - generic [ref=e111]:
+        - generic [ref=e113]:
+          - generic [ref=e114]: 📜
+          - generic [ref=e115]: Canon
+        - generic [ref=e117]:
+          - generic [ref=e118]: 📜
+          - generic [ref=e119]: Canon

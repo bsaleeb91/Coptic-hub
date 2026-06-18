@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
@@ -51,6 +51,7 @@ export default function ServantAssignCanonScreen() {
   const [expandedGroup, setExpandedGroup] = useState<string | null>('Prayer');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showScopeInfo, setShowScopeInfo] = useState(false);
 
   const component = customComponent.trim() || selectedComponent;
   const displayName = studentName ?? 'Student';
@@ -88,13 +89,26 @@ export default function ServantAssignCanonScreen() {
         </TouchableOpacity>
 
         <Text style={styles.pageTitle}>Assign Canon</Text>
-        <Text style={styles.pageSub}>{displayName} · Sunday School Student</Text>
-
-        <View style={styles.scopeNote}>
-          <Text style={styles.scopeNoteText}>
-            As a servant, you can assign prayer and Bible reading canons. Your student will check these off in their app each day.
-          </Text>
+        <View style={styles.pageSubRow}>
+          <Text style={styles.pageSub}>{displayName} · Sunday School Student</Text>
+          <TouchableOpacity onPress={() => setShowScopeInfo(true)} style={styles.infoBtn}>
+            <Text style={styles.infoBtnText}>Prayer & Scripture only  ⓘ</Text>
+          </TouchableOpacity>
         </View>
+
+        <Modal visible={showScopeInfo} transparent animationType="fade" onRequestClose={() => setShowScopeInfo(false)}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowScopeInfo(false)}>
+            <View style={styles.tooltipBox}>
+              <Text style={styles.tooltipTitle}>Why only Prayer & Scripture?</Text>
+              <Text style={styles.tooltipBody}>
+                As a Sunday School servant, you can assign Prayer and Bible Reading canons to your students.{'\n\n'}Fasting, Confession, and advanced spiritual practices are assigned by the Father of Confession.
+              </Text>
+              <TouchableOpacity onPress={() => setShowScopeInfo(false)}>
+                <Text style={styles.tooltipDismiss}>Got it</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
 
         <Card title="Choose Practice" titleIcon="📜">
           {PRESET_COMPONENTS.map(group => (
@@ -178,16 +192,6 @@ export default function ServantAssignCanonScreen() {
           <Text style={styles.fieldHint}>Visible to the student in their Canon panel.</Text>
         </Card>
 
-        {component ? (
-          <View style={styles.previewCard}>
-            <Text style={styles.previewTitle}>Canon Preview</Text>
-            <View style={styles.previewRow}><Text style={styles.previewLabel}>Student</Text><Text style={styles.previewValue}>{displayName}</Text></View>
-            <View style={styles.previewRow}><Text style={styles.previewLabel}>Practice</Text><Text style={styles.previewValue}>{component}</Text></View>
-            <View style={styles.previewRow}><Text style={styles.previewLabel}>Frequency</Text><Text style={styles.previewValue}>{frequency === 'Custom' ? customFreq || '—' : frequency}</Text></View>
-            <View style={styles.previewRow}><Text style={styles.previewLabel}>Starts</Text><Text style={styles.previewValue}>{startDate}</Text></View>
-          </View>
-        ) : null}
-
         <TouchableOpacity
           style={[styles.saveBtn, (!component || saving) && styles.saveBtnDisabled]}
           onPress={handleSave}
@@ -219,10 +223,16 @@ const styles = StyleSheet.create({
   backArrow: { fontFamily: fonts.cormorant, fontSize: 22, color: colors.gold },
   backText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted },
   pageTitle: { fontFamily: fonts.cormorantMedium, fontSize: 26, color: colors.cream, marginBottom: 4 },
-  pageSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 14 },
+  pageSubRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  pageSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
+  infoBtn: {},
+  infoBtnText: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1, color: colors.muted, opacity: 0.6 },
 
-  scopeNote: { backgroundColor: 'rgba(201,168,76,0.05)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)', borderRadius: 10, padding: 12, marginBottom: 16 },
-  scopeNoteText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 17 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 32 },
+  tooltipBox: { backgroundColor: '#0e1929', borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 24, width: '100%' },
+  tooltipTitle: { fontFamily: fonts.cormorantMedium, fontSize: 18, color: colors.cream, marginBottom: 12 },
+  tooltipBody: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20, marginBottom: 20 },
+  tooltipDismiss: { fontFamily: fonts.latoBold, fontSize: 11, letterSpacing: 1.5, color: colors.gold, textAlign: 'center' },
 
   groupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   groupTitle: { fontFamily: fonts.latoBold, fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase', color: colors.muted },
@@ -246,12 +256,6 @@ const styles = StyleSheet.create({
   freqPillActive: { backgroundColor: colors.goldDim, borderColor: colors.gold },
   freqText: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: colors.muted },
   freqTextActive: { color: colors.goldLight },
-
-  previewCard: { backgroundColor: 'rgba(201,168,76,0.08)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.25)', borderRadius: 12, padding: 16, marginBottom: 16 },
-  previewTitle: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: colors.gold, marginBottom: 10 },
-  previewRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  previewLabel: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted },
-  previewValue: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream, flex: 1, textAlign: 'right' },
 
   saveBtn: { backgroundColor: colors.gold, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   saveBtnDisabled: { opacity: 0.35 },

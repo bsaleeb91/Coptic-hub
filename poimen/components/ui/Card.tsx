@@ -9,9 +9,24 @@ interface CardProps {
   children: React.ReactNode;
   style?: ViewStyle;
   bodyStyle?: ViewStyle;
+  flat?: boolean;
 }
 
-export function Card({ title, titleIcon, action, children, style, bodyStyle }: CardProps) {
+export function Card({ title, titleIcon, action, children, style, bodyStyle, flat }: CardProps) {
+  if (flat) {
+    return (
+      <View style={[styles.flat, style]}>
+        {title && (
+          <View style={styles.flatHeader}>
+            <Text style={styles.flatTitle}>{title.toUpperCase()}</Text>
+            {action}
+          </View>
+        )}
+        <View style={[styles.flatBody, bodyStyle]}>{children}</View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.card, style]}>
       {title && (
@@ -37,7 +52,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 14,
     overflow: 'hidden',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   header: {
     paddingHorizontal: 20,
@@ -60,5 +75,29 @@ const styles = StyleSheet.create({
   },
   body: {
     padding: 18,
+  },
+
+  // Flat variant — section label + thin top rule, no chrome
+  flat: {
+    marginBottom: 24,
+  },
+  flatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 10,
+    marginBottom: 0,
+  },
+  flatTitle: {
+    fontFamily: fonts.latoBold,
+    fontSize: 9,
+    letterSpacing: 2,
+    color: colors.muted,
+    opacity: 0.7,
+  },
+  flatBody: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 4,
   },
 });

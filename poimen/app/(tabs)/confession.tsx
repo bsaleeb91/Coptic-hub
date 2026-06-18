@@ -158,13 +158,8 @@ export default function ConfessionScreen() {
 
         {/* Progress strip */}
         <View style={styles.progressStrip}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.progressLabel}>EXAMINATION PROGRESS · THIS SESSION</Text>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${pct}%` as any }]} />
-            </View>
-          </View>
-          <Text style={styles.progressVal}>{checkedCount} / {totalItems}</Text>
+          <Text style={styles.progressLabel}>EXAMINATION PROGRESS</Text>
+          <Text style={styles.progressVal}>{checkedCount} / {totalItems} reviewed</Text>
           {checkedCount > 0 && (
             <TouchableOpacity onPress={clearSession} style={styles.clearBtn}>
               <Text style={styles.clearBtnText}>Clear</Text>
@@ -173,7 +168,7 @@ export default function ConfessionScreen() {
         </View>
 
         {/* Examination of Conscience */}
-        <Card title="Examination of Conscience" titleIcon="◇">
+        <Card title="Examination of Conscience" flat>
           {/* Tab Nav */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll} contentContainerStyle={styles.tabContent}>
             {TABS.map(tab => {
@@ -271,15 +266,6 @@ export default function ConfessionScreen() {
             </View>
           ) : (
             <>
-              <Text style={styles.formLabel}>NOTE TO YOUR FATHER OF CONFESSION (OPTIONAL)</Text>
-              <TextInput
-                style={[styles.textarea, { minHeight: 60 }]}
-                multiline
-                placeholder="Let your Father of Confession know of any specific needs or areas you'd like to focus on..."
-                placeholderTextColor="rgba(245,240,232,0.22)"
-                value={scheduleNote}
-                onChangeText={setScheduleNote}
-              />
               <TouchableOpacity
                 style={[styles.btnGoldFull, requesting && styles.btnDisabled]}
                 onPress={handleRequestAppointment}
@@ -287,7 +273,7 @@ export default function ConfessionScreen() {
               >
                 {requesting
                   ? <ActivityIndicator color={colors.navy} />
-                  : <Text style={styles.btnGoldText}>REQUEST APPOINTMENT</Text>
+                  : <Text style={styles.btnGoldText}>REQUEST APPOINTMENT WITH FOC</Text>
                 }
               </TouchableOpacity>
               <PrivacyNote text="Only your name and requested date are shared. Examination notes are never transmitted." />
@@ -296,7 +282,7 @@ export default function ConfessionScreen() {
         </Card>
 
         {/* History */}
-        <Card title="Confession History" titleIcon="◎">
+        <Card title="Confession History" flat>
           {loadingHistory ? (
             <ActivityIndicator color={colors.gold} style={{ paddingVertical: 20 }} />
           ) : history.length === 0 ? (
@@ -346,11 +332,9 @@ const styles = StyleSheet.create({
   privacyText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, flex: 1 },
   strong: { fontFamily: fonts.latoBold, color: colors.cream },
 
-  progressStrip: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 16 },
-  progressLabel: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.muted, marginBottom: 6 },
-  progressTrack: { height: 4, backgroundColor: 'rgba(245,240,232,0.07)', borderRadius: 4, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: colors.gold, borderRadius: 4 },
-  progressVal: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, flexShrink: 0 },
+  progressStrip: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, borderRadius: 10, marginBottom: 16 },
+  progressLabel: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.muted, flex: 1 },
+  progressVal: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream, flexShrink: 0 },
   clearBtn: { borderWidth: 1, borderColor: 'rgba(192,57,43,0.4)', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5 },
   clearBtnText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.red, letterSpacing: 0.5 },
 

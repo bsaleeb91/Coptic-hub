@@ -1,0 +1,52 @@
+- generic [ref=e8]:
+  - generic [ref=e14]:
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - generic [ref=e17]: My Flock
+        - generic [ref=e18]: Wednesday, June 17 · Father
+      - generic [ref=e20] [cursor=pointer]: MY VIEW
+    - generic [ref=e21]: 0 members
+    - textbox "Search members..." [ref=e22]
+    - generic [ref=e23]:
+      - generic [ref=e25] [cursor=pointer]: All
+      - generic [ref=e28] [cursor=pointer]: Due
+      - generic [ref=e30] [cursor=pointer]: Overdue
+      - generic [ref=e32] [cursor=pointer]: Flagged
+    - generic [ref=e33]:
+      - generic [ref=e35]: MEMBERS (0)
+      - generic [ref=e37]:
+        - generic [ref=e38]: No spiritual children yet
+        - generic [ref=e39]: Members who list you as their Father of Confession will appear here.
+  - tablist [ref=e41]:
+    - tab "◉ Flock ◉ Flock" [selected] [ref=e43] [cursor=pointer]:
+      - generic [ref=e44]:
+        - generic [ref=e46]:
+          - generic [ref=e47]: ◉
+          - generic [ref=e48]: Flock
+        - generic [ref=e50]:
+          - generic [ref=e51]: ◉
+          - generic [ref=e52]: Flock
+    - tab "◈ Member ◈ Member" [ref=e54] [cursor=pointer]:
+      - generic [ref=e55]:
+        - generic [ref=e57]:
+          - generic [ref=e58]: ◈
+          - generic [ref=e59]: Member
+        - generic [ref=e61]:
+          - generic [ref=e62]: ◈
+          - generic [ref=e63]: Member
+    - tab "📜 Canon 📜 Canon" [ref=e65] [cursor=pointer]:
+      - generic [ref=e66]:
+        - generic [ref=e68]:
+          - generic [ref=e69]: 📜
+          - generic [ref=e70]: Canon
+        - generic [ref=e72]:
+          - generic [ref=e73]: 📜
+          - generic [ref=e74]: Canon
+    - tab "✝ Encounter ✝ Encounter" [ref=e76] [cursor=pointer]:
+      - generic [ref=e77]:
+        - generic [ref=e79]:
+          - generic [ref=e80]: ✝
+          - generic [ref=e81]: Encounter
+        - generic [ref=e83]:
+          - generic [ref=e84]: ✝
+          - generic [ref=e85]: Encounter
