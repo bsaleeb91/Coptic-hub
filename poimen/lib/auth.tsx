@@ -8,6 +8,7 @@ type AuthContextType = {
   profile: Profile | null;
   loading: boolean;
   isPriest: boolean;
+  refreshProfile: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
   signUpWithEmail: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
   signInWithMagicLink: (email: string) => Promise<{ error: string | null }>;
@@ -55,6 +56,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return db.signInWithOtp(email);
   }
 
+  async function refreshProfile() {
+    const userId = session?.user?.id;
+    if (userId) await fetchProfile(userId);
+  }
+
   async function signOut() {
     await db.signOut();
   }
@@ -66,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       loading,
       isPriest: profile?.role === 'priest' || profile?.role === 'admin',
+      refreshProfile,
       signInWithEmail,
       signUpWithEmail,
       signInWithMagicLink,

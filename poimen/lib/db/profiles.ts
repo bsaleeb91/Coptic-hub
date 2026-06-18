@@ -8,15 +8,23 @@ export interface Profile {
   role: 'congregant' | 'priest' | 'admin';
   avatar_url: string | null;
   foc_id: string | null;
+  foc_consent_at: string | null;
 }
 
 export async function getProfile(userId: string): Promise<Profile | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, church_name, role, avatar_url, foc_id')
+    .select('id, full_name, church_name, role, avatar_url, foc_id, foc_consent_at')
     .eq('id', userId)
     .single();
   return data ?? null;
+}
+
+export async function setFocConsent(userId: string): Promise<void> {
+  await supabase
+    .from('profiles')
+    .update({ foc_consent_at: new Date().toISOString() })
+    .eq('id', userId);
 }
 
 export async function updateAccount(
@@ -40,10 +48,10 @@ export async function getFocProfile(focId: string): Promise<{ full_name: string 
 }
 
 // Member detail header (priest view).
-export async function getMemberProfile(memberId: string): Promise<{ full_name: string | null; created_at: string; role: string } | null> {
+export async function getMemberProfile(memberId: string): Promise<{ full_name: string | null; created_at: string; role: string; foc_consent_at: string | null } | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('full_name, created_at, role')
+    .select('full_name, created_at, role, foc_consent_at')
     .eq('id', memberId)
     .single();
   return data ?? null;

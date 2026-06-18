@@ -92,3 +92,13 @@ This file grows automatically. KYRIE proposes entries at the end of each session
 (2026-06-11) [Deployment] DEMO_MODE in lib/config.ts must be false for the web/Vercel deploy. true causes DemoProvider to boot into demo mode, bypassing the auth guard entirely — visitors skip sign-in and land on the dashboard. false lets unauthenticated visitors hit sign-in, where they can pick a demo role. Keep false in the committed codebase; flip locally only for quick testing.
 
 (2026-06-11) [Architecture] In Expo Router static export, use <Redirect href="/sign-in"> in the render path rather than useEffect + router.replace for auth guards. The useEffect version fires one tick late, which can produce a hung blank screen. Synchronous <Redirect> in the render path fires immediately when the condition is met. Also: always add .catch(() => setLoading(false)) on the getSession() Promise so a Supabase connection failure doesn't leave loading=true indefinitely.
+
+(2026-06-11) [Tooling] Autonoma AI (github.com/autonoma-ai/autonoma) is the open-source agentic e2e testing platform being used to test Poimen. It runs natural-language test scenarios against a real browser — no test code required. Points at poimen-app.vercel.app. Uses Playwright for web execution and Gemini API for AI. Repo cloned to ~/autonoma.
+
+(2026-06-11) [Tooling] On Windows, `corepack enable` fails with EPERM (needs admin rights to write to C:\Program Files\nodejs). Workaround: `npm install -g pnpm@10` instead — no elevation needed.
+
+(2026-06-11) [Tooling] Autonoma's `packages/db` postinstall uses bash variable syntax (`DATABASE_URL=${VAR:-default}`) that fails silently on Windows CMD during `pnpm install`. Non-blocking — those commands need Docker running anyway. Run `pnpm db:generate` and `pnpm db:migrate` manually after `docker compose up -d`.
+
+(2026-06-11) [Tooling] `winget install Docker.DockerDesktop` requires `--accept-source-agreements --accept-package-agreements` flags to run non-interactively. Docker Desktop needs a full Windows restart after install to activate WSL 2 integration before `docker compose up -d` will work.
+
+(2026-06-11) [Tooling] Autonoma README has a typo in Step 1: says `cd agent` but no `agent` folder exists. It is a monorepo — all pnpm commands (`pnpm install`, `pnpm dev`, etc.) run from the repo root (`~/autonoma`).
