@@ -28,11 +28,6 @@ const DEMO_MEMBERS = [
   { id: 'demo-cn', name: 'Christine Naguib' },
 ];
 
-const OUTCOMES = [
-  'Canon assigned', 'Canon adjusted', 'Prayer offered', 'Scripture given',
-  'Referral made', 'Follow-up scheduled', 'No action needed',
-];
-
 export default function LogEncounterScreen() {
   const router = useRouter();
   const { memberId: preselectedId, memberName: preselectedName } = useLocalSearchParams<{ memberId: string; memberName: string }>();
@@ -46,7 +41,6 @@ export default function LogEncounterScreen() {
   const [showMemberList, setShowMemberList] = useState(false);
   const [memberNote, setMemberNote] = useState('');
   const [privateNote, setPrivateNote] = useState('');
-  const [selectedOutcomes, setSelectedOutcomes] = useState<string[]>([]);
   const [followUpDate, setFollowUpDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -76,10 +70,6 @@ export default function LogEncounterScreen() {
     m.name.toLowerCase().includes(memberSearch.toLowerCase())
   );
 
-  function toggleOutcome(o: string) {
-    setSelectedOutcomes(prev => prev.includes(o) ? prev.filter(x => x !== o) : [...prev, o]);
-  }
-
   async function handleSave() {
     if (!selectedMemberId || saving) return;
     if (demoMode) {
@@ -95,7 +85,7 @@ export default function LogEncounterScreen() {
       encountered_at: new Date(encounterDate).toISOString(),
       member_note: memberNote.trim() || null,
       private_note: privateNote.trim() || null,
-      outcomes: selectedOutcomes.length > 0 ? selectedOutcomes : null,
+      outcomes: null,
       follow_up_date: followUpDate.trim() || null,
     });
     setSaved(true);
@@ -196,21 +186,6 @@ export default function LogEncounterScreen() {
             value={privateNote}
             onChangeText={setPrivateNote}
           />
-        </Card>
-
-        {/* Outcomes */}
-        <Card title="Outcomes" titleIcon="✦">
-          <View style={styles.outcomesGrid}>
-            {OUTCOMES.map(o => (
-              <TouchableOpacity
-                key={o}
-                style={[styles.outcomePill, selectedOutcomes.includes(o) && styles.outcomePillActive]}
-                onPress={() => toggleOutcome(o)}
-              >
-                <Text style={[styles.outcomePillText, selectedOutcomes.includes(o) && styles.outcomePillTextActive]}>{o}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
         </Card>
 
         {/* Follow-up */}

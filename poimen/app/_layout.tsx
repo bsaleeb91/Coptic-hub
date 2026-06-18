@@ -1,5 +1,11 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
+
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const s = document.createElement('style');
+  s.textContent = '[role="button"],button,a{cursor:pointer!important}';
+  document.head.appendChild(s);
+}
 import { Redirect, Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -18,6 +24,7 @@ import {
 } from '@expo-google-fonts/lato';
 import { AuthProvider, useSession } from '@/lib/auth';
 import { DemoProvider, useDemoMode } from '@/lib/demo';
+import { TutorialProvider } from '@/lib/tutorial-context';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -40,6 +47,8 @@ function RootLayoutNav() {
       <Stack.Screen name="(priest)" />
       <Stack.Screen name="(servant)" />
       <Stack.Screen name="profile" />
+      <Stack.Screen name="portals" />
+      <Stack.Screen name="admin" />
       <Stack.Screen name="sign-in" />
     </Stack>
   );
@@ -71,8 +80,10 @@ export default function RootLayout() {
   return (
     <DemoProvider>
       <AuthProvider>
-        <RootLayoutNav />
-        <StatusBar style="light" />
+        <TutorialProvider>
+          <RootLayoutNav />
+          <StatusBar style="light" />
+        </TutorialProvider>
       </AuthProvider>
     </DemoProvider>
   );

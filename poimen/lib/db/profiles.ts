@@ -65,3 +65,13 @@ export async function getServantStudents(servantId: string): Promise<{ id: strin
     .eq('servant_id', servantId);
   return data ?? [];
 }
+
+// All profiles — admin use only.
+export async function getAllProfiles(): Promise<Profile[]> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, full_name, church_name, role, avatar_url, foc_id')
+    .order('role')
+    .order('full_name');
+  return data ?? [];
+}

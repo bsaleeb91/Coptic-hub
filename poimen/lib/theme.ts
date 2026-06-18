@@ -7,7 +7,7 @@ export const colors = {
   goldDim: 'rgba(201,168,76,0.15)',
   cream: '#f5f0e8',
   creamDim: 'rgba(245,240,232,0.06)',
-  muted: 'rgba(245,240,232,0.45)',
+  muted: 'rgba(245,240,232,0.58)',
   cardBg: 'rgba(22,40,71,0.85)',
   border: 'rgba(201,168,76,0.2)',
   green: '#5dca87',

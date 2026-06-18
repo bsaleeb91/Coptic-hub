@@ -1,0 +1,74 @@
+- generic [ref=e8]:
+  - generic [ref=e14]:
+    - generic [ref=e15]: Spiritual Canon
+    - generic [ref=e16]: A remedy for the soul, not a task list
+    - generic [ref=e17]:
+      - generic [ref=e18]: ✦
+      - generic [ref=e19]: 📜
+      - generic [ref=e20]:
+        - generic [ref=e21]: ACTIVE CANON · ASSIGNED MAY 21
+        - generic [ref=e22]: 40-Day Psalm & Prostration Plan
+        - generic [ref=e23]: Assigned after Holy Confession · Fr. Bishoy Marcos · Day 18 of 40
+      - generic [ref=e24]:
+        - img [ref=e25]
+        - generic [ref=e29]: 0%
+    - generic [ref=e30]:
+      - generic [ref=e32]: TODAY'S CANON
+      - generic [ref=e34]:
+        - generic [ref=e35]: 📜
+        - generic [ref=e36]: No canon components yet
+        - generic [ref=e37]: Your Father of Confession will assign components after your next meeting.
+    - generic [ref=e38]:
+      - generic [ref=e40]:
+        - generic [ref=e41]: ✝
+        - text: Communion Readiness
+      - generic [ref=e42]:
+        - generic [ref=e43]:
+          - generic [ref=e44]: ⚠
+          - generic [ref=e45]:
+            - generic [ref=e46]: Check required
+            - generic [ref=e47]: 47 days since your last confession. Consider scheduling before your next Communion.
+        - generic [ref=e48]:
+          - generic [ref=e49]: 🔒
+          - generic [ref=e50]: Based on your confession date. Your Father of Confession may adjust this guidance.
+  - tablist [ref=e52]:
+    - tab "◈ Home ◈ Home" [ref=e54] [cursor=pointer]:
+      - generic [ref=e55]:
+        - generic [ref=e57]:
+          - generic [ref=e58]: ◈
+          - generic [ref=e59]: Home
+        - generic [ref=e61]:
+          - generic [ref=e62]: ◈
+          - generic [ref=e63]: Home
+    - tab "✝ Confess ✝ Confess" [ref=e65] [cursor=pointer]:
+      - generic [ref=e66]:
+        - generic [ref=e68]:
+          - generic [ref=e69]: ✝
+          - generic [ref=e70]: Confess
+        - generic [ref=e72]:
+          - generic [ref=e73]: ✝
+          - generic [ref=e74]: Confess
+    - tab "✦ Journal ✦ Journal" [ref=e76] [cursor=pointer]:
+      - generic [ref=e77]:
+        - generic [ref=e79]:
+          - generic [ref=e80]: ✦
+          - generic [ref=e81]: Journal
+        - generic [ref=e83]:
+          - generic [ref=e84]: ✦
+          - generic [ref=e85]: Journal
+    - tab "◇ Prayer ◇ Prayer" [ref=e87] [cursor=pointer]:
+      - generic [ref=e88]:
+        - generic [ref=e90]:
+          - generic [ref=e91]: ◇
+          - generic [ref=e92]: Prayer
+        - generic [ref=e94]:
+          - generic [ref=e95]: ◇
+          - generic [ref=e96]: Prayer
+    - tab "📜 Canon 📜 Canon" [selected] [ref=e98] [cursor=pointer]:
+      - generic [ref=e99]:
+        - generic [ref=e101]:
+          - generic [ref=e102]: 📜
+          - generic [ref=e103]: Canon
+        - generic [ref=e105]:
+          - generic [ref=e106]: 📜
+          - generic [ref=e107]: Canon

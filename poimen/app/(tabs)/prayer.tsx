@@ -207,7 +207,7 @@ export default function PrayerScreen() {
         <Text style={styles.pageSubtitle}>Submit, track, and mark answered prayers</Text>
 
         {/* Active Requests */}
-        <Card title={`Active (${active.length})`} titleIcon="◇">
+        <Card title={`Active (${active.length})`} flat>
           {loading ? (
             <ActivityIndicator color={colors.gold} style={{ paddingVertical: 20 }} />
           ) : active.length === 0 ? (
@@ -252,21 +252,23 @@ export default function PrayerScreen() {
             ))}
           </View>
           <Text style={[styles.formLabel, { marginTop: 14 }]}>VISIBILITY</Text>
-          {VISIBILITY_OPTS.map(opt => (
-            <TouchableOpacity
-              key={opt.value}
-              style={[styles.visOpt, visibility === opt.value && styles.visOptActive]}
-              onPress={() => setVisibility(opt.value)}
-            >
-              <View style={[styles.visRadio, visibility === opt.value && styles.visRadioActive]}>
-                {visibility === opt.value && <View style={styles.visRadioDot} />}
-              </View>
-              <Text style={styles.visIcon}>{opt.icon}</Text>
-              <Text style={[styles.visLabel, visibility === opt.value && styles.visLabelActive]}>
-                {opt.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          <View style={styles.visChipRow}>
+            {VISIBILITY_OPTS.map(opt => (
+              <TouchableOpacity
+                key={opt.value}
+                style={[styles.visChip, visibility === opt.value && styles.visChipActive]}
+                onPress={() => setVisibility(opt.value)}
+              >
+                <Text style={styles.visChipIcon}>{opt.icon}</Text>
+                <Text style={[styles.visChipText, visibility === opt.value && styles.visChipTextActive]}>
+                  {opt.label.split(' — ')[0].split(' only')[0].split(' + ')[0]}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {visibility !== 'private' && (
+            <Text style={styles.visDescription}>{VIS_DISPLAY[visibility].label}</Text>
+          )}
           <TouchableOpacity
             style={[styles.btnGoldFull, submitting && styles.btnDisabled]}
             onPress={handleSubmit}
@@ -281,7 +283,7 @@ export default function PrayerScreen() {
 
         {/* Answered Prayers */}
         {answered.length > 0 && (
-          <Card title={`Answered (${answered.length})`} titleIcon="◈">
+          <Card title={`Answered (${answered.length})`} flat>
             {answered.map((req, i) => (
               <View key={req.id}>
                 <SwipeableRequest
@@ -340,14 +342,13 @@ const styles = StyleSheet.create({
   categoryPillText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.muted },
   categoryPillTextActive: { color: colors.goldLight },
 
-  visOpt: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 8 },
-  visOptActive: { backgroundColor: colors.goldDim, borderColor: 'rgba(201,168,76,0.4)' },
-  visRadio: { width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  visRadioActive: { borderColor: colors.gold },
-  visRadioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.gold },
-  visIcon: { fontSize: 14 },
-  visLabel: { fontFamily: fonts.lato, fontSize: 13, color: colors.muted, flex: 1 },
-  visLabelActive: { color: colors.cream, fontFamily: fonts.latoBold },
+  visChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  visChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: colors.border },
+  visChipActive: { backgroundColor: colors.goldDim, borderColor: colors.gold },
+  visChipIcon: { fontSize: 12 },
+  visChipText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.muted, letterSpacing: 0.4 },
+  visChipTextActive: { color: colors.goldLight },
+  visDescription: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 6, paddingLeft: 2, lineHeight: 16 },
 
   btnGoldFull: { backgroundColor: colors.gold, borderRadius: 8, padding: 13, alignItems: 'center', marginTop: 14 },
   btnDisabled: { opacity: 0.35 },

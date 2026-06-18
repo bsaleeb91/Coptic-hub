@@ -284,7 +284,7 @@ export default function JournalScreen() {
         {/* Disciplines */}
         <Card
           title="Spiritual Practices"
-          titleIcon="◈"
+          flat
           action={
             <TouchableOpacity style={styles.btnGold} onPress={() => setShowAddDisc(true)}>
               <Text style={styles.btnGoldText}>+ ADD</Text>
@@ -345,24 +345,8 @@ export default function JournalScreen() {
           </TouchableOpacity>
         </Card>
 
-        {/* FOC Assignment */}
-        {demoMode && (
-          <Card title="Fr. Bishoy's Assignment" titleIcon="◌">
-            <Text style={styles.assignSub}>Assigned after your last confession on May 21:</Text>
-            <Text style={styles.assignTitle}>40-Day Psalm Reading Plan</Text>
-            <Text style={styles.assignBody}>Read one Psalm per day with reflection. Today is Day 18 — Psalm 18.</Text>
-            <View style={styles.progressRowSimple}>
-              <Text style={styles.progressLabel}>Progress</Text>
-              <Text style={styles.progressLabel}>Day 18 of 40</Text>
-            </View>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: '45%' }]} />
-            </View>
-          </Card>
-        )}
-
         {/* Past Entries */}
-        <Card title={`Past Entries (${entries.length})`} titleIcon="◎">
+        <Card title={`Past Entries (${entries.length})`} flat>
           {entries.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>◎</Text>
@@ -516,10 +500,10 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: colors.navyMid, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 24, paddingBottom: 40 },
   modalTitle: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 16 },
-  iconRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  iconOpt: { width: 40, height: 40, borderRadius: 10, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  iconRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  iconOpt: { width: 44, height: 44, borderRadius: 10, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   iconOptActive: { backgroundColor: colors.goldDim, borderColor: colors.gold },
-  iconEmoji: { fontSize: 18 },
+  iconEmoji: { fontSize: 20 },
   freqRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   freqPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colors.border },
   freqPillActive: { backgroundColor: colors.goldDim, borderColor: colors.gold },

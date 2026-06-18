@@ -6,9 +6,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useSession } from '@/lib/auth';
+import { useDemoMode } from '@/lib/demo';
+import { Switch } from 'react-native';
 import * as db from '@/lib/db';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { useTutorial } from '@/lib/tutorial-context';
 
 const LIFE_STAGES = ['single', 'engaged', 'married', 'widowed', 'divorced'] as const;
 type LifeStageType = typeof LIFE_STAGES[number];
@@ -22,6 +25,14 @@ interface ChildRow {
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, profile, signOut } = useSession();
+  const { demoMode, demoRole, setDemoMode } = useDemoMode();
+  const { resetAndStartTutorial } = useTutorial();
+
+  const effectiveRole = demoMode
+    ? (demoRole as 'congregant' | 'priest' | 'servant')
+    : profile?.role === 'priest' || profile?.role === 'admin' ? 'priest'
+    : profile?.role === 'servant' ? 'servant'
+    : 'congregant';
 
   // ── Account ───────────────────────────────────────────────
   const [fullName, setFullName] = useState(profile?.full_name ?? '');
@@ -405,6 +416,24 @@ export default function ProfileScreen() {
           </Text>
         </Card>
 
+        <TouchableOpacity style={styles.tutorialBtn} onPress={() => resetAndStartTutorial(effectiveRole)}>
+          <Text style={styles.tutorialBtnText}>View App Tutorial</Text>
+        </TouchableOpacity>
+
+        {/* Demo mode toggle */}
+        <View style={styles.demoRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.demoLabel}>Demo Mode</Text>
+            <Text style={styles.demoSub}>Shows sample data — no Supabase required</Text>
+          </View>
+          <Switch
+            value={demoMode}
+            onValueChange={setDemoMode}
+            trackColor={{ false: 'rgba(245,240,232,0.1)', true: 'rgba(201,168,76,0.4)' }}
+            thumbColor={demoMode ? colors.gold : 'rgba(245,240,232,0.4)'}
+          />
+        </View>
+
         <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
@@ -482,9 +511,19 @@ const styles = StyleSheet.create({
 
   privacyText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 20 },
 
+  tutorialBtn: {
+    borderWidth: 1, borderColor: colors.border,
+    borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8, marginBottom: 8,
+  },
+  tutorialBtnText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.muted, letterSpacing: 0.5 },
+
+  demoRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 13, marginTop: 8, marginBottom: 8 },
+  demoLabel: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2 },
+  demoSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
+
   signOutBtn: {
     borderWidth: 1, borderColor: 'rgba(192,57,43,0.4)',
-    borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8,
+    borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 4,
   },
   signOutText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.red, letterSpacing: 0.5 },
 });

@@ -317,7 +317,7 @@ export default function MemberScreen() {
               </View>
             </View>
 
-            {/* ── Action row (three buttons) ── */}
+            {/* ── Action row ── */}
             <View style={styles.actionRow}>
               <TouchableOpacity
                 style={[styles.btnGold, { flex: 1 }]}
@@ -326,16 +326,10 @@ export default function MemberScreen() {
                 <Text style={styles.btnGoldText}>LOG ENCOUNTER</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.btnGhost, { flex: 1 }]}
-                onPress={() => router.push({ pathname: '/(priest)/assign-canon', params: { memberId: memberId ?? '', memberName: memberName ?? memberInfo?.name ?? '' } })}
-              >
-                <Text style={styles.btnGhostText}>ASSIGN CANON</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.btnGhost, { flex: 1 }]}
+                style={styles.btnMenu}
                 onPress={() => setShowContactSheet(true)}
               >
-                <Text style={styles.btnGhostText}>CONTACT</Text>
+                <Text style={styles.btnMenuText}>···</Text>
               </TouchableOpacity>
             </View>
 
@@ -355,7 +349,7 @@ export default function MemberScreen() {
             {/* ── Overview ── */}
             {tab === 'overview' && (
               <>
-                <Card title="Spiritual Vitals (Shared Only)" titleIcon="✦">
+                <Card title="Spiritual Vitals" flat>
                   {vitals.length === 0 ? (
                     <Text style={styles.emptyText}>Member hasn't shared any vitals yet.</Text>
                   ) : vitals.map((v, i) => (
@@ -373,7 +367,7 @@ export default function MemberScreen() {
                   ))}
                 </Card>
 
-                <Card title="Confession History" titleIcon="✝">
+                <Card title="Confession History" flat>
                   <View style={styles.privacyNote}>
                     <Text style={styles.privacyNoteText}>✦ Dates and type only. Content is never stored.</Text>
                   </View>
@@ -392,7 +386,7 @@ export default function MemberScreen() {
 
             {/* ── Canon ── */}
             {tab === 'canon' && (
-              <Card title="Assigned Canon" titleIcon="📜">
+              <Card title="Assigned Canon" flat>
                 {canons.length === 0 ? (
                   <Text style={styles.emptyText}>No canon assigned yet.</Text>
                 ) : canons.map((c, i) => (
@@ -419,7 +413,7 @@ export default function MemberScreen() {
 
             {/* ── Prayer ── */}
             {tab === 'prayer' && (
-              <Card title="Prayer Requests (Shared with FOC)" titleIcon="◇">
+              <Card title="Prayer Requests" flat>
                 <View style={styles.privacyNote}>
                   <Text style={styles.privacyNoteText}>✦ Requests shared with FOC only, or with both FOC and Sunday school servant.</Text>
                 </View>
@@ -436,7 +430,7 @@ export default function MemberScreen() {
 
             {/* ── Notes ── */}
             {tab === 'notes' && (
-              <Card title="Pastoral Notes (Private)" titleIcon="✎">
+              <Card title="Pastoral Notes (Private)" flat>
                 <View style={styles.privacyNote}>
                   <Text style={styles.privacyNoteText}>✦ Your private FOC notes. Never visible to the member.</Text>
                 </View>
@@ -481,6 +475,19 @@ export default function MemberScreen() {
           <View style={styles.sheet} onStartShouldSetResponder={() => true}>
             <View style={styles.sheetHandle} />
             <Text style={styles.sheetTitle}>{memberInfo?.name ?? 'Contact'}</Text>
+
+            {/* Assign canon action */}
+            <TouchableOpacity
+              style={styles.sheetRow}
+              onPress={() => { setShowContactSheet(false); router.push({ pathname: '/(priest)/assign-canon', params: { memberId: memberId ?? '', memberName: memberName ?? memberInfo?.name ?? '' } }); }}
+            >
+              <Text style={styles.sheetRowIcon}>📜</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sheetRowLabel}>Assign Canon</Text>
+                <Text style={styles.sheetRowValue}>Add a spiritual practice</Text>
+              </View>
+              <Text style={styles.sheetRowAction}>ASSIGN</Text>
+            </TouchableOpacity>
 
             {contact?.phone ? (
               <TouchableOpacity
@@ -572,8 +579,8 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   btnGold: { backgroundColor: colors.gold, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, alignItems: 'center' },
   btnGoldText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.navy, letterSpacing: 0.8 },
-  btnGhost: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, alignItems: 'center' },
-  btnGhostText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.muted, letterSpacing: 0.8 },
+  btnMenu: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 9, alignItems: 'center', justifyContent: 'center' },
+  btnMenuText: { fontFamily: fonts.lato, fontSize: 16, color: colors.muted, letterSpacing: 2, lineHeight: 18 },
 
   tabBar: { flexDirection: 'row', backgroundColor: 'rgba(10,16,30,0.6)', borderRadius: 10, padding: 4, marginBottom: 16, gap: 2 },
   tabItem: { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center' },

@@ -186,16 +186,6 @@ export default function AssignCanonScreen() {
           <Text style={styles.fieldHint}>This prompt is visible to the member in their Canon panel.</Text>
         </Card>
 
-        {component ? (
-          <View style={styles.previewCard}>
-            <Text style={styles.previewTitle}>Canon Preview</Text>
-            <View style={styles.previewRow}><Text style={styles.previewLabel}>Member</Text><Text style={styles.previewValue}>{displayName}</Text></View>
-            <View style={styles.previewRow}><Text style={styles.previewLabel}>Component</Text><Text style={styles.previewValue}>{component}</Text></View>
-            <View style={styles.previewRow}><Text style={styles.previewLabel}>Frequency</Text><Text style={styles.previewValue}>{frequency === 'Custom' ? customFreq || '—' : frequency}</Text></View>
-            <View style={styles.previewRow}><Text style={styles.previewLabel}>Starts</Text><Text style={styles.previewValue}>{startDate}</Text></View>
-          </View>
-        ) : null}
-
         <TouchableOpacity
           style={[styles.saveBtn, (!component || saving) && styles.saveBtnDisabled]}
           onPress={handleSave}

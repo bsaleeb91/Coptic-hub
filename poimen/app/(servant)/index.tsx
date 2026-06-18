@@ -79,24 +79,12 @@ export default function ServantFlockScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryCard}>
-            <Text style={[styles.summaryVal, { color: colors.cream }]}>{students.length}</Text>
-            <Text style={styles.summaryLabel}>STUDENTS</Text>
-          </View>
-          <View style={styles.summaryCard}>
-            <Text style={[styles.summaryVal, { color: colors.gold }]}>
-              {students.reduce((n, s) => n + s.canonCount, 0)}
-            </Text>
-            <Text style={styles.summaryLabel}>CANONS ASSIGNED</Text>
-          </View>
-          <View style={styles.summaryCard}>
-            <Text style={[styles.summaryVal, { color: colors.green }]}>
-              {students.filter(s => s.canonCount > 0).length}
-            </Text>
-            <Text style={styles.summaryLabel}>ACTIVE</Text>
-          </View>
-        </View>
+        <Text style={styles.flockMeta}>
+          {students.length} student{students.length !== 1 ? 's' : ''}
+          {students.filter(s => s.canonCount > 0).length > 0
+            ? ` · ${students.filter(s => s.canonCount > 0).length} with active canon`
+            : ''}
+        </Text>
 
         <TextInput
           style={styles.search}
@@ -106,7 +94,7 @@ export default function ServantFlockScreen() {
           onChangeText={setSearch}
         />
 
-        <Card title={`Students (${filtered.length})`} titleIcon="◉">
+        <Card title={`Students (${filtered.length})`} flat>
           {loading ? (
             <ActivityIndicator color={colors.gold} style={{ paddingVertical: 20 }} />
           ) : filtered.length === 0 ? (
@@ -169,10 +157,7 @@ const styles = StyleSheet.create({
   switchBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
   switchBtnText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.muted, letterSpacing: 1.5 },
 
-  summaryRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  summaryCard: { flex: 1, backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, alignItems: 'center' },
-  summaryVal: { fontFamily: fonts.cormorantMedium, fontSize: 26, lineHeight: 30 },
-  summaryLabel: { fontFamily: fonts.latoBold, fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.muted, marginTop: 2, textAlign: 'center' },
+  flockMeta: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 18, marginTop: -12 },
 
   search: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 11, marginBottom: 16 },
 

@@ -1,0 +1,28 @@
+- generic [ref=e10]:
+  - generic [ref=e12] [cursor=pointer]: ← Back
+  - generic [ref=e13]: POIMEN
+  - generic [ref=e14]: Portals
+  - generic [ref=e15]: All three views of the pastoral care system.
+  - generic [ref=e17] [cursor=pointer]:
+    - generic [ref=e19]: ◉
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: Congregant
+        - generic [ref=e24]: YOUR ROLE
+      - generic [ref=e25]: Your personal view
+      - generic [ref=e26]: Dashboard · Confession prep · Spiritual canon · Journal · Prayer requests
+    - generic [ref=e27]: ›
+  - generic [ref=e28] [cursor=pointer]:
+    - generic [ref=e30]: ✝
+    - generic [ref=e31]:
+      - generic [ref=e33]: Priest
+      - generic [ref=e34]: Father of Confession portal
+      - generic [ref=e35]: Member roster · Pastoral encounter log · Canon assignment · Pastoral notes
+    - generic [ref=e36]: ›
+  - generic [ref=e37] [cursor=pointer]:
+    - generic [ref=e39]: ◇
+    - generic [ref=e40]:
+      - generic [ref=e42]: Servant
+      - generic [ref=e43]: Sunday school servant portal
+      - generic [ref=e44]: Student roster · Student detail · Assign prayer & scripture canons
+    - generic [ref=e45]: ›

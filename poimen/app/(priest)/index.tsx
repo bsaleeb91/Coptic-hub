@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Modal } from 'react-native';
+import * as H from '@/lib/haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
@@ -59,6 +60,7 @@ export default function FlockScreen() {
   const [search, setSearch] = useState('');
   const [members, setMembers] = useState<FlockMember[]>([]);
   const [loading, setLoading] = useState(!demoMode);
+  const [contextMember, setContextMember] = useState<FlockMember | null>(null);
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const greeting = profile?.full_name ? `Fr. ${profile.full_name.split(' ').slice(-1)[0]}` : 'Father';
@@ -127,24 +129,11 @@ export default function FlockScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, { borderColor: 'rgba(192,57,43,0.4)' }]}>
-            <Text style={[styles.summaryVal, { color: colors.red }]}>{overdue}</Text>
-            <Text style={styles.summaryLabel}>OVERDUE</Text>
-          </View>
-          <View style={[styles.summaryCard, { borderColor: 'rgba(243,156,18,0.4)' }]}>
-            <Text style={[styles.summaryVal, { color: colors.yellow }]}>{due}</Text>
-            <Text style={styles.summaryLabel}>DUE</Text>
-          </View>
-          <View style={[styles.summaryCard, { borderColor: colors.border }]}>
-            <Text style={[styles.summaryVal, { color: colors.cream }]}>{members.length}</Text>
-            <Text style={styles.summaryLabel}>TOTAL</Text>
-          </View>
-          <View style={[styles.summaryCard, { borderColor: 'rgba(201,168,76,0.4)' }]}>
-            <Text style={[styles.summaryVal, { color: colors.gold }]}>{flagged}</Text>
-            <Text style={styles.summaryLabel}>FLAGGED</Text>
-          </View>
-        </View>
+        <Text style={styles.flockMeta}>
+          {members.length} member{members.length !== 1 ? 's' : ''}
+          {overdue > 0 ? ` · ${overdue} overdue` : ''}
+          {flagged > 0 ? ` · ${flagged} flagged` : ''}
+        </Text>
 
         <TextInput
           style={styles.search}
@@ -158,17 +147,18 @@ export default function FlockScreen() {
           {FILTER_OPTS.map(opt => (
             <TouchableOpacity
               key={opt.value}
-              style={[styles.filterPill, filter === opt.value && styles.filterPillActive]}
+              style={styles.filterTab}
               onPress={() => setFilter(opt.value)}
             >
-              <Text style={[styles.filterPillText, filter === opt.value && styles.filterPillTextActive]}>
+              <Text style={[styles.filterTabText, filter === opt.value && styles.filterTabTextActive]}>
                 {opt.label}
               </Text>
+              {filter === opt.value && <View style={styles.filterTabUnderline} />}
             </TouchableOpacity>
           ))}
         </View>
 
-        <Card title={`Members (${filtered.length})`} titleIcon="◉">
+        <Card title={`Members (${filtered.length})`} flat>
           {loading ? (
             <ActivityIndicator color={colors.gold} style={{ paddingVertical: 20 }} />
           ) : filtered.length === 0 ? (
@@ -181,7 +171,8 @@ export default function FlockScreen() {
               <TouchableOpacity
                 key={member.id}
                 style={[styles.memberRow, i < filtered.length - 1 && styles.memberBorder]}
-                onPress={() => router.push({ pathname: '/(priest)/member', params: { id: member.id, name: member.name } })}
+                onPress={() => { H.tap(); router.push({ pathname: '/(priest)/member', params: { id: member.id, name: member.name } }); }}
+                onLongPress={() => { H.heavy(); setContextMember(member); }}
                 activeOpacity={0.7}
               >
                 <View style={[styles.avatar, member.flagged && styles.avatarFlagged]}>
@@ -201,12 +192,6 @@ export default function FlockScreen() {
                       ? <Text style={styles.metaItem}>✝ {member.daysSince}d ago</Text>
                       : <Text style={styles.metaItem}>✝ No record</Text>
                     }
-                    {member.canonPct !== null && (
-                      <>
-                        <Text style={styles.metaDot}>·</Text>
-                        <Text style={styles.metaItem}>📜 {member.canonPct}%</Text>
-                      </>
-                    )}
                     {member.stage ? (
                       <>
                         <Text style={styles.metaDot}>·</Text>
@@ -228,9 +213,76 @@ export default function FlockScreen() {
         </Card>
 
       </ScrollView>
+
+      {/* Long-press context sheet */}
+      <Modal
+        visible={contextMember !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setContextMember(null)}
+      >
+        <TouchableOpacity style={ctx.backdrop} activeOpacity={1} onPress={() => setContextMember(null)}>
+          <View style={ctx.sheet}>
+            <View style={ctx.handle} />
+            {contextMember && (
+              <>
+                <Text style={ctx.memberName}>{contextMember.name}</Text>
+                <Text style={ctx.memberMeta}>
+                  {contextMember.daysSince !== null ? `${contextMember.daysSince}d since confession` : 'No confession on record'}
+                  {contextMember.stage ? ` · ${contextMember.stage}` : ''}
+                </Text>
+                <View style={ctx.divider} />
+                <TouchableOpacity style={ctx.action} onPress={() => {
+                  H.tap(); setContextMember(null);
+                  router.push({ pathname: '/(priest)/log-encounter', params: { id: contextMember.id, name: contextMember.name } });
+                }}>
+                  <Text style={ctx.actionIcon}>✝</Text>
+                  <Text style={ctx.actionLabel}>Log Encounter</Text>
+                  <Text style={ctx.actionChevron}>›</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={ctx.action} onPress={() => {
+                  H.tap(); setContextMember(null);
+                  router.push({ pathname: '/(priest)/assign-canon', params: { id: contextMember.id, name: contextMember.name } });
+                }}>
+                  <Text style={ctx.actionIcon}>📜</Text>
+                  <Text style={ctx.actionLabel}>Assign Canon</Text>
+                  <Text style={ctx.actionChevron}>›</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={ctx.action} onPress={() => {
+                  H.tap(); setContextMember(null);
+                  router.push({ pathname: '/(priest)/member', params: { id: contextMember.id, name: contextMember.name } });
+                }}>
+                  <Text style={ctx.actionIcon}>◉</Text>
+                  <Text style={ctx.actionLabel}>View Profile</Text>
+                  <Text style={ctx.actionChevron}>›</Text>
+                </TouchableOpacity>
+                <View style={ctx.divider} />
+                <TouchableOpacity style={ctx.cancelBtn} onPress={() => setContextMember(null)}>
+                  <Text style={ctx.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
+
+const ctx = StyleSheet.create({
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheet: { backgroundColor: '#0b1423', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 24, paddingBottom: 36, paddingTop: 14 },
+  handle: { width: 36, height: 4, backgroundColor: 'rgba(245,240,232,0.15)', borderRadius: 2, alignSelf: 'center', marginBottom: 18 },
+  memberName: { fontFamily: fonts.cormorantMedium, fontSize: 20, color: colors.cream, marginBottom: 3 },
+  memberMeta: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 16 },
+  divider: { height: 1, backgroundColor: 'rgba(245,240,232,0.08)', marginVertical: 8 },
+  action: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
+  actionIcon: { width: 24, fontSize: 15, marginRight: 12 },
+  actionLabel: { fontFamily: fonts.lato, fontSize: 15, color: colors.cream, flex: 1 },
+  actionChevron: { fontFamily: fonts.lato, fontSize: 20, color: colors.muted },
+  cancelBtn: { paddingVertical: 14, alignItems: 'center' },
+  cancelText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.muted, letterSpacing: 0.5 },
+});
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
@@ -243,18 +295,15 @@ const styles = StyleSheet.create({
   switchBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
   switchBtnText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.muted, letterSpacing: 1.5 },
 
-  summaryRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  summaryCard: { flex: 1, backgroundColor: colors.cardBg, borderWidth: 1, borderRadius: 10, padding: 12, alignItems: 'center' },
-  summaryVal: { fontFamily: fonts.cormorantMedium, fontSize: 26, lineHeight: 30 },
-  summaryLabel: { fontFamily: fonts.latoBold, fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.muted, marginTop: 2 },
+  flockMeta: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 18, marginTop: -12 },
 
   search: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 11, marginBottom: 12 },
 
-  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
-  filterPill: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colors.border },
-  filterPillActive: { backgroundColor: colors.goldDim, borderColor: colors.gold },
-  filterPillText: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: colors.muted },
-  filterPillTextActive: { color: colors.goldLight },
+  filterRow: { flexDirection: 'row', gap: 0, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
+  filterTab: { paddingHorizontal: 16, paddingBottom: 10, position: 'relative' },
+  filterTabText: { fontFamily: fonts.latoBold, fontSize: 11, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.muted },
+  filterTabTextActive: { color: colors.goldLight },
+  filterTabUnderline: { position: 'absolute', bottom: 0, left: 16, right: 16, height: 2, backgroundColor: colors.gold, borderRadius: 1 },
 
   emptyState: { alignItems: 'center', paddingVertical: 24, gap: 6 },
   emptyTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.muted },
