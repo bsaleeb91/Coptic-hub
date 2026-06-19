@@ -254,31 +254,14 @@ export default function ConfessionScreen() {
 
         {/* Schedule */}
         <Card title="Schedule Confession" titleIcon="◈">
-          {requestSent ? (
-            <View style={styles.requestSentCard}>
-              <Text style={styles.requestSentIcon}>✝</Text>
-              <Text style={styles.requestSentTitle}>Request Sent</Text>
-              <Text style={styles.requestSentBody}>
-                {demoMode
-                  ? 'Fr. Bishoy will confirm a time for your next confession.'
-                  : 'Your Father of Confession has been notified. They will reach out to confirm a time.'}
-              </Text>
-            </View>
-          ) : (
-            <>
-              <TouchableOpacity
-                style={[styles.btnGoldFull, requesting && styles.btnDisabled]}
-                onPress={handleRequestAppointment}
-                disabled={requesting}
-              >
-                {requesting
-                  ? <ActivityIndicator color={colors.navy} />
-                  : <Text style={styles.btnGoldText}>REQUEST APPOINTMENT WITH FOC</Text>
-                }
-              </TouchableOpacity>
-              <PrivacyNote text="Only your name and requested date are shared. Examination notes are never transmitted." />
-            </>
-          )}
+          <View style={styles.comingSoonCard}>
+            <Text style={styles.comingSoonIcon}>✝</Text>
+            <Text style={styles.comingSoonTitle}>Contact Your Father of Confession</Text>
+            <Text style={styles.comingSoonBody}>
+              Reach out to your Father of Confession directly to arrange your next confession.
+              In-app scheduling is coming in a future update.
+            </Text>
+          </View>
         </Card>
 
         {/* History */}
@@ -371,6 +354,11 @@ const styles = StyleSheet.create({
   requestSentIcon: { fontSize: 32, color: colors.gold },
   requestSentTitle: { fontFamily: fonts.cormorantMedium, fontSize: 20, color: colors.cream },
   requestSentBody: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18 },
+
+  comingSoonCard: { alignItems: 'center', paddingVertical: 20, gap: 8 },
+  comingSoonIcon: { fontSize: 28, color: colors.muted, opacity: 0.5 },
+  comingSoonTitle: { fontFamily: fonts.cormorantMedium, fontSize: 18, color: colors.cream },
+  comingSoonBody: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18 },
 
   histItem: { paddingVertical: 12 },
   histBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },

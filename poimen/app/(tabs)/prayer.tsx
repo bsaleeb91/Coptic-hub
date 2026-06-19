@@ -23,17 +23,17 @@ const CATEGORY_OPTS: { value: Category; label: string; icon: string }[] = [
   { value: 'other', label: 'Other', icon: '⊕' },
 ];
 
-const VISIBILITY_OPTS: { value: Visibility; label: string; icon: string }[] = [
-  { value: 'private', label: 'Private — only me', icon: '🔒' },
-  { value: 'foc_only', label: 'Father of Confession only', icon: '✝' },
-  { value: 'foc_and_servant', label: 'FOC + Sunday school servant', icon: '◉' },
-  { value: 'servant_only', label: 'Sunday school servant only', icon: '◎' },
+const VISIBILITY_OPTS: { value: Visibility; chipLabel: string; icon: string }[] = [
+  { value: 'private', chipLabel: 'Private', icon: '🔒' },
+  { value: 'foc_only', chipLabel: 'Father of Confession', icon: '✝' },
+  { value: 'foc_and_servant', chipLabel: 'FOC + Servant', icon: '◉' },
+  { value: 'servant_only', chipLabel: 'Servant only', icon: '◎' },
 ];
 
 const VIS_DISPLAY: Record<Visibility, { icon: string; label: string }> = {
   private: { icon: '🔒', label: 'Private — only me' },
-  foc_only: { icon: '✝', label: 'Visible to FOC only' },
-  foc_and_servant: { icon: '◉', label: 'FOC + Sunday school servant' },
+  foc_only: { icon: '✝', label: 'Visible to your Father of Confession only' },
+  foc_and_servant: { icon: '◉', label: 'Visible to your Father of Confession and Sunday school servant' },
   servant_only: { icon: '◎', label: 'Sunday school servant only' },
 };
 
@@ -261,7 +261,7 @@ export default function PrayerScreen() {
               >
                 <Text style={styles.visChipIcon}>{opt.icon}</Text>
                 <Text style={[styles.visChipText, visibility === opt.value && styles.visChipTextActive]}>
-                  {opt.label.split(' — ')[0].split(' only')[0].split(' + ')[0]}
+                  {opt.chipLabel}
                 </Text>
               </TouchableOpacity>
             ))}

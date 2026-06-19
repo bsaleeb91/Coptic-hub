@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import type { Profile } from '@/lib/db';
 
@@ -28,9 +29,21 @@ const ROLE_FILTER_OPTS: { value: RoleFilter; label: string }[] = [
 
 export default function AdminScreen() {
   const router = useRouter();
+  const { profile } = useSession();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
+
+  if (profile && profile.role !== 'admin') {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+          <Text style={{ fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 8 }}>Access Denied</Text>
+          <Text style={{ fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textAlign: 'center' }}>This screen is restricted to admins.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   useEffect(() => {
     db.getAllProfiles().then((data) => {

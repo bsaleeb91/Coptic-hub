@@ -5,19 +5,56 @@ export interface Profile {
   id: string;
   full_name: string | null;
   church_name: string | null;
-  role: 'congregant' | 'priest' | 'admin';
+  role: 'congregant' | 'priest' | 'servant' | 'admin';
   avatar_url: string | null;
   foc_id: string | null;
+  servant_id: string | null;
   foc_consent_at: string | null;
+  invite_code: string | null;
 }
 
 export async function getProfile(userId: string): Promise<Profile | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, church_name, role, avatar_url, foc_id, foc_consent_at')
+    .select('id, full_name, church_name, role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code')
     .eq('id', userId)
     .single();
   return data ?? null;
+}
+
+export async function getProfileByInviteCode(
+  code: string,
+): Promise<{ id: string; full_name: string | null; church_name: string | null; role: string } | null> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, full_name, church_name, role')
+    .eq('invite_code', code.trim().toUpperCase())
+    .single();
+  return data ?? null;
+}
+
+export async function linkToFOC(userId: string, priestId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ foc_id: priestId })
+    .eq('id', userId);
+  return { error: error?.message ?? null };
+}
+
+export async function linkToServant(userId: string, servantId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ servant_id: servantId })
+    .eq('id', userId);
+  return { error: error?.message ?? null };
+}
+
+export async function unlinkFOC(userId: string): Promise<void> {
+  await supabase.from('profiles').update({ foc_id: null }).eq('id', userId);
+}
+
+export async function unlinkServant(userId: string): Promise<void> {
+  await supabase.from('profiles').update({ servant_id: null }).eq('id', userId);
 }
 
 export async function setFocConsent(userId: string): Promise<void> {

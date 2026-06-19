@@ -44,6 +44,7 @@ export default function LogEncounterScreen() {
   const [followUpDate, setFollowUpDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [dateError, setDateError] = useState('');
 
   // Member list (real mode: loaded from Supabase)
   const [memberList, setMemberList] = useState<{ id: string; name: string }[]>(demoMode ? DEMO_MEMBERS : []);
@@ -77,12 +78,18 @@ export default function LogEncounterScreen() {
       setTimeout(() => router.push('/(priest)'), 1300);
       return;
     }
+    const parsedDate = new Date(encounterDate);
+    if (isNaN(parsedDate.getTime())) {
+      setDateError('Invalid date — use a format like "Jun 7, 2026"');
+      return;
+    }
+    setDateError('');
     setSaving(true);
     await db.insertEncounter({
       priest_id: user!.id,
       congregant_id: selectedMemberId,
       encounter_type: encounterType,
-      encountered_at: new Date(encounterDate).toISOString(),
+      encountered_at: parsedDate.toISOString(),
       member_note: memberNote.trim() || null,
       private_note: privateNote.trim() || null,
       outcomes: null,
@@ -154,10 +161,11 @@ export default function LogEncounterScreen() {
           <TextInput
             style={styles.textInput}
             value={encounterDate}
-            onChangeText={setEncounterDate}
+            onChangeText={t => { setEncounterDate(t); setDateError(''); }}
             placeholder="E.g., Jun 7, 2026"
             placeholderTextColor="rgba(245,240,232,0.22)"
           />
+          {dateError ? <Text style={styles.errorText}>{dateError}</Text> : null}
         </Card>
 
         {/* Member-visible note */}
@@ -243,6 +251,7 @@ const styles = StyleSheet.create({
 
   textInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12 },
   fieldHint: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, marginTop: 6, lineHeight: 15 },
+  errorText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginTop: 6 },
 
   memberDropdown: { backgroundColor: colors.navyDark, borderWidth: 1, borderColor: colors.border, borderRadius: 8, marginTop: 4, overflow: 'hidden' },
   memberOption: { padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border },

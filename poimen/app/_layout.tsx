@@ -7,6 +7,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   document.head.appendChild(s);
 }
 import { Redirect, Stack, useSegments } from 'expo-router';
+import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import {
@@ -33,7 +34,7 @@ function RootLayoutNav() {
   const { demoMode } = useDemoMode();
   const segments = useSegments();
 
-  if (loading && !demoMode) return null;
+  if (loading && !demoMode) return <View style={{ flex: 1, backgroundColor: '#0f1f3d' }} />;
 
   if (!demoMode && !loading) {
     const onSignIn = segments[0] === 'sign-in';
@@ -50,6 +51,7 @@ function RootLayoutNav() {
       <Stack.Screen name="portals" />
       <Stack.Screen name="admin" />
       <Stack.Screen name="sign-in" />
+      <Stack.Screen name="link-to-foc" />
     </Stack>
   );
 }

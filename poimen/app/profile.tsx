@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  TextInput, ActivityIndicator, Alert,
+  TextInput, ActivityIndicator, Alert, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -154,10 +154,15 @@ export default function ProfileScreen() {
   }
 
   async function handleSignOut() {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: async () => { await signOut(); } },
-    ]);
+    if (Platform.OS === 'web') {
+      await signOut();
+      router.replace('/sign-in');
+    } else {
+      Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign Out', style: 'destructive', onPress: async () => { await signOut(); } },
+      ]);
+    }
   }
 
   const initials = (profile?.full_name ?? user?.email ?? '?')
@@ -416,6 +421,60 @@ export default function ProfileScreen() {
           </Text>
         </Card>
 
+        {/* Invite code — shown to priests and servants */}
+        {(profile?.role === 'priest' || profile?.role === 'servant' || profile?.role === 'admin') && profile?.invite_code && (
+          <Card title="Your Invite Code" titleIcon="◈">
+            <Text style={styles.inviteCodeLabel}>
+              Share this code with {profile.role === 'servant' ? 'your students' : 'your congregants'} so they can link to you in their app.
+            </Text>
+            <View style={styles.inviteCodeBox}>
+              <Text style={styles.inviteCode}>{profile.invite_code}</Text>
+            </View>
+          </Card>
+        )}
+
+        {/* FOC linking — shown to congregants */}
+        {(profile?.role === 'congregant' || !profile?.role) && (
+          <Card title="Father of Confession" titleIcon="✝">
+            {profile?.foc_id ? (
+              <View style={styles.linkedRow}>
+                <Text style={styles.linkedName}>✓ Linked</Text>
+                <TouchableOpacity onPress={() => router.push({ pathname: '/link-to-foc', params: { type: 'foc' } })}>
+                  <Text style={styles.relinkText}>Change</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.linkBtn}
+                onPress={() => router.push({ pathname: '/link-to-foc', params: { type: 'foc' } })}
+              >
+                <Text style={styles.linkBtnText}>LINK TO FATHER OF CONFESSION</Text>
+              </TouchableOpacity>
+            )}
+          </Card>
+        )}
+
+        {/* Servant linking — shown to congregants */}
+        {(profile?.role === 'congregant' || !profile?.role) && (
+          <Card title="Sunday School Servant" titleIcon="◇">
+            {profile?.servant_id ? (
+              <View style={styles.linkedRow}>
+                <Text style={styles.linkedName}>✓ Linked</Text>
+                <TouchableOpacity onPress={() => router.push({ pathname: '/link-to-foc', params: { type: 'servant' } })}>
+                  <Text style={styles.relinkText}>Change</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.linkBtn}
+                onPress={() => router.push({ pathname: '/link-to-foc', params: { type: 'servant' } })}
+              >
+                <Text style={styles.linkBtnText}>LINK TO SUNDAY SCHOOL SERVANT</Text>
+              </TouchableOpacity>
+            )}
+          </Card>
+        )}
+
         <TouchableOpacity style={styles.tutorialBtn} onPress={() => resetAndStartTutorial(effectiveRole)}>
           <Text style={styles.tutorialBtnText}>View App Tutorial</Text>
         </TouchableOpacity>
@@ -520,6 +579,23 @@ const styles = StyleSheet.create({
   demoRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 13, marginTop: 8, marginBottom: 8 },
   demoLabel: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2 },
   demoSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
+
+  inviteCodeLabel: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 14, lineHeight: 18 },
+  inviteCodeBox: {
+    backgroundColor: 'rgba(10,16,30,0.6)', borderWidth: 1, borderColor: colors.border,
+    borderRadius: 10, paddingVertical: 18, alignItems: 'center',
+  },
+  inviteCode: { fontFamily: fonts.latoBold, fontSize: 32, color: colors.goldLight, letterSpacing: 10 },
+
+  linkedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  linkedName: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.green },
+  relinkText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.gold, letterSpacing: 0.5 },
+
+  linkBtn: {
+    backgroundColor: colors.goldDim, borderWidth: 1, borderColor: colors.border,
+    borderRadius: 10, paddingVertical: 14, alignItems: 'center',
+  },
+  linkBtnText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.goldLight, letterSpacing: 1 },
 
   signOutBtn: {
     borderWidth: 1, borderColor: 'rgba(192,57,43,0.4)',

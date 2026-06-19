@@ -37,6 +37,7 @@ export default function SignInScreen() {
     if (mode === 'signin') {
       const { error } = await signInWithEmail(email.trim(), password);
       if (error) setError(error);
+      else router.replace('/(tabs)');
     } else if (mode === 'signup') {
       const { error } = await signUpWithEmail(email.trim(), password, fullName.trim());
       if (error) setError(error);
