@@ -65,8 +65,9 @@ export async function getActiveCanonsByPriest(priestId: string): Promise<{ congr
   return data ?? [];
 }
 
-export async function insertCanon(row: Record<string, any>): Promise<void> {
-  await supabase.from('spiritual_canons').insert(row);
+export async function insertCanon(row: Record<string, any>): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('spiritual_canons').insert(row);
+  return { error: error?.message ?? null };
 }
 
 export async function deactivateCanon(canonId: string): Promise<void> {

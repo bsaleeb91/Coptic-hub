@@ -57,7 +57,7 @@ const DEMO_HISTORY = [
 
 // ── Screen ───────────────────────────────────────────────────
 export default function ConfessionScreen() {
-  const { user } = useSession();
+  const { user, profile, refreshProfile } = useSession();
   const { demoMode } = useDemoMode();
   const [activeTab, setActiveTab] = useState<typeof TABS[number]>('Toward God');
 
@@ -73,6 +73,12 @@ export default function ConfessionScreen() {
   const [loadingHistory, setLoadingHistory] = useState(!demoMode);
   const [requesting, setRequesting] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
+  const [selfReportDate, setSelfReportDate] = useState(
+    new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  );
+  const [selfReporting, setSelfReporting] = useState(false);
+  const [selfReportSaved, setSelfReportSaved] = useState(false);
+  const [selfReportError, setSelfReportError] = useState('');
 
   const totalItems = Object.values(EXAMINATION).flat().length;
   const checkedCount = checked.size;
@@ -123,6 +129,22 @@ export default function ConfessionScreen() {
         }},
       ]
     );
+  }
+
+  async function handleSelfReport() {
+    if (!user) return;
+    const parsedDate = new Date(selfReportDate);
+    if (isNaN(parsedDate.getTime())) {
+      setSelfReportError('Invalid date — use a format like "Jun 15, 2026"');
+      return;
+    }
+    setSelfReportError('');
+    setSelfReporting(true);
+    await db.setLastConfession(user.id, parsedDate.toISOString());
+    await refreshProfile();
+    setSelfReporting(false);
+    setSelfReportSaved(true);
+    setTimeout(() => setSelfReportSaved(false), 2000);
   }
 
   async function handleRequestAppointment() {
@@ -264,6 +286,36 @@ export default function ConfessionScreen() {
           </View>
         </Card>
 
+        {/* Self-report — hidden in demo mode */}
+        {!demoMode && (
+          <Card title="Log My Last Confession" titleIcon="✝">
+            {profile?.last_confession_at && (
+              <Text style={styles.lastConfDate}>
+                Last recorded: {new Date(profile.last_confession_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+              </Text>
+            )}
+            <TextInput
+              style={styles.dateInput}
+              value={selfReportDate}
+              onChangeText={t => { setSelfReportDate(t); setSelfReportError(''); }}
+              placeholder="E.g., Jun 15, 2026"
+              placeholderTextColor="rgba(245,240,232,0.22)"
+            />
+            {selfReportError ? <Text style={styles.selfReportError}>{selfReportError}</Text> : null}
+            <TouchableOpacity
+              style={[styles.logBtn, selfReporting && styles.logBtnDisabled]}
+              onPress={handleSelfReport}
+              disabled={selfReporting}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.logBtnText}>
+                {selfReporting ? 'Saving…' : selfReportSaved ? '✓ LOGGED' : 'LOG CONFESSION'}
+              </Text>
+            </TouchableOpacity>
+            <Text style={styles.selfReportHint}>Only the date is saved. No content is recorded.</Text>
+          </Card>
+        )}
+
         {/* History */}
         <Card title="Confession History" flat>
           {loadingHistory ? (
@@ -373,4 +425,13 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 28, color: colors.muted, opacity: 0.4 },
   emptyTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.muted },
   emptyBody: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, textAlign: 'center', lineHeight: 17, opacity: 0.7 },
+
+  // Self-report
+  lastConfDate: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.gold, marginBottom: 10, opacity: 0.85 },
+  dateInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, marginBottom: 10 },
+  selfReportError: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginBottom: 8 },
+  logBtn: { backgroundColor: colors.gold, borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginBottom: 10 },
+  logBtnDisabled: { opacity: 0.5 },
+  logBtnText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.navy, letterSpacing: 1 },
+  selfReportHint: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, textAlign: 'center', opacity: 0.7 },
 });

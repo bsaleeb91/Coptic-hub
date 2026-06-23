@@ -45,6 +45,7 @@ export default function LogEncounterScreen() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dateError, setDateError] = useState('');
+  const [saveError, setSaveError] = useState('');
 
   // Member list (real mode: loaded from Supabase)
   const [memberList, setMemberList] = useState<{ id: string; name: string }[]>(demoMode ? DEMO_MEMBERS : []);
@@ -84,8 +85,9 @@ export default function LogEncounterScreen() {
       return;
     }
     setDateError('');
+    setSaveError('');
     setSaving(true);
-    await db.insertEncounter({
+    const { error } = await db.insertEncounter({
       priest_id: user!.id,
       congregant_id: selectedMemberId,
       encounter_type: encounterType,
@@ -95,8 +97,15 @@ export default function LogEncounterScreen() {
       outcomes: null,
       follow_up_date: followUpDate.trim() || null,
     });
-    setSaved(true);
     setSaving(false);
+    if (error) {
+      setSaveError('Failed to save — please try again.');
+      return;
+    }
+    if (encounterType === 'confession') {
+      await db.setLastConfession(selectedMemberId, parsedDate.toISOString());
+    }
+    setSaved(true);
     setTimeout(() => router.push('/(priest)'), 1300);
   }
 
@@ -218,6 +227,7 @@ export default function LogEncounterScreen() {
           </View>
         )}
 
+        {saveError ? <Text style={styles.errorText}>{saveError}</Text> : null}
         <TouchableOpacity
           style={[styles.saveBtn, (!selectedMemberId || saving) && styles.saveBtnDisabled]}
           onPress={handleSave}

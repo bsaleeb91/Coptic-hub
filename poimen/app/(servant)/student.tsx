@@ -49,8 +49,17 @@ export default function StudentScreen() {
 
   const demo = getDemoData(studentId ?? '');
   const [canons, setCanons] = useState<any[]>(demo.canons);
-  const [savedNote, setSavedNote] = useState(demo.note);
-  const [noteInput, setNoteInput] = useState('');
+  const [notes, setNotes] = useState<db.PastoralNote[]>(
+    demo.note ? [{ id: 'demo-note-1', author_id: 'demo-servant', member_id: studentId ?? '', body: demo.note, created_at: new Date(Date.now() - 86400000 * 5).toISOString(), updated_at: new Date(Date.now() - 86400000 * 5).toISOString() }] : []
+  );
+  const [newNoteText, setNewNoteText] = useState('');
+  const [addingNote, setAddingNote] = useState(false);
+  const [addNoteError, setAddNoteError] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [prayer, setPrayer] = useState<{ topic: string; date: string }[]>(
     demo.prayer.map(p => ({ topic: p, date: '' }))
   );
@@ -62,9 +71,9 @@ export default function StudentScreen() {
     if (demoMode) {
       const d = getDemoData(studentId ?? '');
       setCanons(d.canons);
-      setSavedNote(d.note);
+      setNotes(d.note ? [{ id: 'demo-note-1', author_id: 'demo-servant', member_id: studentId ?? '', body: d.note, created_at: new Date(Date.now() - 86400000 * 5).toISOString(), updated_at: new Date(Date.now() - 86400000 * 5).toISOString() }] : []);
       setPrayer(d.prayer.map(p => ({ topic: p, date: '' })));
-      setNoteInput('');
+      setNewNoteText('');
     } else if (studentId) {
       loadStudentData();
     }
@@ -74,9 +83,9 @@ export default function StudentScreen() {
     if (!user || !studentId) return;
     setLoading(true);
 
-    const [canonData, notePayload, prayerData] = await Promise.all([
+    const [canonData, notesData, prayerData] = await Promise.all([
       db.getStudentActiveCanons(studentId, user.id),
-      db.getAgentProgress(user.id, `servant-notes-${studentId}`),
+      db.getPastoralNotes(user.id, studentId),
       db.getServantSharedPrayer(studentId),
     ]);
 
@@ -88,7 +97,7 @@ export default function StudentScreen() {
       }));
       setCanons(enriched);
     }
-    if (notePayload?.text) setSavedNote(notePayload.text);
+    setNotes(notesData);
     if (prayerData) setPrayer(prayerData.map((r: any) => ({
       topic: r.category,
       date: new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -103,14 +112,51 @@ export default function StudentScreen() {
     setCanons(prev => prev.filter(c => c.id !== canonId));
   }
 
-  async function handleSaveNote() {
-    if (!noteInput.trim()) return;
-    const newNote = savedNote ? `${savedNote}\n\n${noteInput.trim()}` : noteInput.trim();
-    setSavedNote(newNote);
-    setNoteInput('');
-    if (!demoMode && user) {
-      await db.upsertAgentProgress({ user_id: user.id, agent_slug: `servant-notes-${studentId}`, payload: { text: newNote }, updated_at: new Date().toISOString() });
+  async function handleAddNote() {
+    if (!newNoteText.trim()) return;
+    if (demoMode) {
+      const n: db.PastoralNote = { id: `demo-${Date.now()}`, author_id: 'demo-servant', member_id: studentId ?? '', body: newNoteText.trim(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      setNotes(prev => [n, ...prev]);
+      setNewNoteText('');
+      return;
     }
+    setAddingNote(true);
+    setAddNoteError('');
+    const { data, error } = await db.insertPastoralNote(user!.id, studentId!, newNoteText.trim());
+    setAddingNote(false);
+    if (error || !data) { setAddNoteError('Failed to save — please try again.'); return; }
+    setNotes(prev => [data, ...prev]);
+    setNewNoteText('');
+  }
+
+  function handleStartEdit(note: db.PastoralNote) {
+    setEditingId(note.id);
+    setEditText(note.body);
+    setEditError('');
+  }
+
+  async function handleSaveEdit() {
+    if (!editingId || !editText.trim()) return;
+    if (demoMode) {
+      setNotes(prev => prev.map(n => n.id === editingId ? { ...n, body: editText.trim(), updated_at: new Date().toISOString() } : n));
+      setEditingId(null);
+      return;
+    }
+    setSavingEdit(true);
+    setEditError('');
+    const { error } = await db.updatePastoralNote(editingId, editText.trim());
+    setSavingEdit(false);
+    if (error) { setEditError('Failed to save — please try again.'); return; }
+    setNotes(prev => prev.map(n => n.id === editingId ? { ...n, body: editText.trim(), updated_at: new Date().toISOString() } : n));
+    setEditingId(null);
+  }
+
+  async function handleDeleteNote(noteId: string) {
+    if (demoMode) { setNotes(prev => prev.filter(n => n.id !== noteId)); return; }
+    setDeletingId(noteId);
+    await db.deletePastoralNote(noteId);
+    setNotes(prev => prev.filter(n => n.id !== noteId));
+    setDeletingId(null);
   }
 
   const TABS: { value: TabType; label: string }[] = [
@@ -195,27 +241,69 @@ export default function StudentScreen() {
 
             {/* ── My Notes ── */}
             {tab === 'notes' && (
-              <Card title="My Visitation Notes" titleIcon="✎">
+              <Card title="My Notes" titleIcon="✎">
                 <Text style={styles.privacyNote}>✦ Private to you — not visible to the student or their FOC.</Text>
-                {savedNote ? (
-                  <Text style={styles.savedNoteText}>{savedNote}</Text>
-                ) : null}
-                <TextInput
-                  style={styles.noteInput}
-                  placeholder="Add a note from today's meeting or call…"
-                  placeholderTextColor="rgba(245,240,232,0.22)"
-                  multiline
-                  numberOfLines={4}
-                  value={noteInput}
-                  onChangeText={setNoteInput}
-                />
-                <TouchableOpacity
-                  style={[styles.btnGold, { alignSelf: 'flex-start', marginTop: 12, opacity: noteInput.trim() ? 1 : 0.4 }]}
-                  onPress={handleSaveNote}
-                  disabled={!noteInput.trim()}
-                >
-                  <Text style={styles.btnGoldText}>SAVE NOTE</Text>
-                </TouchableOpacity>
+
+                {notes.length === 0 && (
+                  <Text style={styles.emptyTitle}>No notes yet. Add your first note below.</Text>
+                )}
+
+                {notes.map(note => (
+                  <View key={note.id} style={styles.noteCard}>
+                    <View style={styles.noteCardHeader}>
+                      <Text style={styles.noteCardDate}>
+                        {new Date(note.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {note.updated_at !== note.created_at ? '  (edited)' : ''}
+                      </Text>
+                      {editingId !== note.id && (
+                        <View style={styles.noteActions}>
+                          <TouchableOpacity onPress={() => handleStartEdit(note)} style={styles.noteActionBtn}>
+                            <Text style={styles.noteActionText}>Edit</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => handleDeleteNote(note.id)} style={styles.noteActionBtn} disabled={deletingId === note.id}>
+                            <Text style={[styles.noteActionText, { color: colors.red }]}>{deletingId === note.id ? '…' : 'Delete'}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                    {editingId === note.id ? (
+                      <>
+                        <TextInput style={styles.noteInput} value={editText} onChangeText={setEditText} multiline autoFocus placeholderTextColor="rgba(245,240,232,0.22)" />
+                        {editError ? <Text style={styles.noteError}>{editError}</Text> : null}
+                        <View style={styles.editActions}>
+                          <TouchableOpacity style={[styles.btnGold, { opacity: (!editText.trim() || savingEdit) ? 0.4 : 1 }]} onPress={handleSaveEdit} disabled={!editText.trim() || savingEdit}>
+                            <Text style={styles.btnGoldText}>{savingEdit ? 'SAVING…' : 'SAVE'}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.btnCancel} onPress={() => setEditingId(null)}>
+                            <Text style={styles.btnCancelText}>CANCEL</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    ) : (
+                      <Text style={styles.noteCardBody}>{note.body}</Text>
+                    )}
+                  </View>
+                ))}
+
+                <View style={styles.addNoteSection}>
+                  <TextInput
+                    style={styles.noteInput}
+                    placeholder="Add a note from today's meeting or call…"
+                    placeholderTextColor="rgba(245,240,232,0.22)"
+                    multiline
+                    numberOfLines={4}
+                    value={newNoteText}
+                    onChangeText={setNewNoteText}
+                  />
+                  {addNoteError ? <Text style={styles.noteError}>{addNoteError}</Text> : null}
+                  <TouchableOpacity
+                    style={[styles.btnGold, { alignSelf: 'flex-start', marginTop: 10, opacity: (!newNoteText.trim() || addingNote) ? 0.4 : 1 }]}
+                    onPress={handleAddNote}
+                    disabled={!newNoteText.trim() || addingNote}
+                  >
+                    <Text style={styles.btnGoldText}>{addingNote ? 'SAVING…' : 'ADD NOTE'}</Text>
+                  </TouchableOpacity>
+                </View>
               </Card>
             )}
 
@@ -296,8 +384,19 @@ const styles = StyleSheet.create({
   removeBtnText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.red, letterSpacing: 0.5 },
 
   privacyNote: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 12, opacity: 0.7 },
-  savedNoteText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20, marginBottom: 12, padding: 12, backgroundColor: 'rgba(10,16,30,0.4)', borderRadius: 8 },
+  noteCard: { backgroundColor: 'rgba(10,16,30,0.4)', borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 10 },
+  noteCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  noteCardDate: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1, color: colors.gold, opacity: 0.8 },
+  noteCardBody: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20 },
+  noteActions: { flexDirection: 'row', gap: 12 },
+  noteActionBtn: { paddingVertical: 2 },
+  noteActionText: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 0.8, color: colors.gold },
+  editActions: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  btnCancel: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+  btnCancelText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.muted, letterSpacing: 0.8 },
+  addNoteSection: { marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
   noteInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', minHeight: 90 },
+  noteError: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginTop: 6 },
 
   prayerRow: { flexDirection: 'row', gap: 10, paddingVertical: 12, alignItems: 'flex-start' },
   prayerBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },

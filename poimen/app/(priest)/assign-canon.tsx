@@ -35,6 +35,7 @@ export default function AssignCanonScreen() {
   const [expandedGroup, setExpandedGroup] = useState<string | null>('Prayer');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   // Existing canons for context
   const [existingCanons, setExistingCanons] = useState<any[]>([]);
@@ -66,7 +67,8 @@ export default function AssignCanonScreen() {
       return;
     }
     setSaving(true);
-    await db.insertCanon({
+    setSaveError('');
+    const { error } = await db.insertCanon({
       congregant_id: memberId,
       priest_id: user!.id,
       component,
@@ -75,8 +77,12 @@ export default function AssignCanonScreen() {
       reflection_prompt: reflectionPrompt.trim() || null,
       active: true,
     });
-    setSaved(true);
     setSaving(false);
+    if (error) {
+      setSaveError('Failed to assign — please try again.');
+      return;
+    }
+    setSaved(true);
     setTimeout(() => router.back(), 1300);
   }
 
@@ -186,6 +192,7 @@ export default function AssignCanonScreen() {
           <Text style={styles.fieldHint}>This prompt is visible to the member in their Canon panel.</Text>
         </Card>
 
+        {saveError ? <Text style={styles.errorText}>{saveError}</Text> : null}
         <TouchableOpacity
           style={[styles.saveBtn, (!component || saving) && styles.saveBtnDisabled]}
           onPress={handleSave}
@@ -250,6 +257,7 @@ const styles = StyleSheet.create({
   previewLabel: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted },
   previewValue: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream, flex: 1, textAlign: 'right' },
 
+  errorText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.red, marginBottom: 8 },
   saveBtn: { backgroundColor: colors.gold, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   saveBtnDisabled: { opacity: 0.35 },
   saveBtnText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.navy, letterSpacing: 1 },

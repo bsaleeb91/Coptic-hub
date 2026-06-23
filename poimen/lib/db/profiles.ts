@@ -11,12 +11,14 @@ export interface Profile {
   servant_id: string | null;
   foc_consent_at: string | null;
   invite_code: string | null;
+  vitals_consent: boolean | null;
+  last_confession_at: string | null;
 }
 
 export async function getProfile(userId: string): Promise<Profile | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, church_name, role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code')
+    .select('id, full_name, church_name, role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, last_confession_at')
     .eq('id', userId)
     .single();
   return data ?? null;
@@ -64,14 +66,31 @@ export async function setFocConsent(userId: string): Promise<void> {
     .eq('id', userId);
 }
 
+export async function setLastConfession(userId: string, isoDate: string): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ last_confession_at: isoDate })
+    .eq('id', userId);
+  return { error: error?.message ?? null };
+}
+
+export async function setVitalsConsent(userId: string, consent: boolean): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ vitals_consent: consent })
+    .eq('id', userId);
+  return { error: error?.message ?? null };
+}
+
 export async function updateAccount(
   userId: string,
   fields: { full_name: string; church_name: string },
-): Promise<void> {
-  await supabase
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
     .from('profiles')
     .update({ ...fields, updated_at: new Date().toISOString() })
     .eq('id', userId);
+  return { error: error?.message ?? null };
 }
 
 // Father of Confession card (dashboard).

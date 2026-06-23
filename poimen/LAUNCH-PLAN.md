@@ -8,9 +8,9 @@ Work through these in order before Capacitor build and App Store submission.
 
 - [x] **#5** Confession appointment scheduling — disabled, "Coming Soon" UI. Priest uses separate scheduling app.
 - [x] **#7** FOC consent — `foc_consent_at` on profiles. Consent modal on Dashboard. Priest view gated on consent.
-- [ ] **#9** Pastoral notes table — move priest notes from `agent_progress` JSON blob to a typed `pastoral_notes (priest_id, member_id, body, created_at)` table. Small migration, cleaner than the current blob.
-- [ ] **#12** Vitals consent gate — opt-in prompt on first vitals use. Store as `profiles.vitals_consent` boolean.
-- [ ] **#14** Confession self-report — congregant logs their own confession date for communion readiness. Store as `profiles.last_confession_at` (also set by priest when logging a confession encounter).
+- [x] **#9** Pastoral notes table — `pastoral_notes (author_id, member_id, body, created_at, updated_at)`. Covers both priest and servant notes. Edit + delete per note. Migration backfills existing blobs from agent_progress.
+- [x] **#12** Vitals consent gate — `profiles.vitals_consent boolean`. Dashboard: auto-show modal when `foc_id` set + `vitals_consent = null` (gold "SHARE WITH MY FOC" + muted skip link). Nudge banner when `vitals_consent = false`. Profile: toggle under FOC section. RLS policy updated to require `vitals_consent = true`.
+- [x] **#14** Confession self-report — `profiles.last_confession_at`. Dashboard tile shows real days (null → "—"). Priest auto-stamps on confession encounter log. Congregant self-reports via Confession tab "Log My Last Confession" card. CTA banner activates on due/overdue status.
 
 ---
 

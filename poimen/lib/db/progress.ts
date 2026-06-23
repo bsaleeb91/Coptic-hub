@@ -16,6 +16,7 @@ export async function getAgentProgress(userId: string, slug: string): Promise<an
 
 // Upsert a full row. Callers build the row (user_id, agent_slug, payload, and
 // optionally a top-level updated_at) so existing behavior is preserved exactly.
-export async function upsertAgentProgress(row: Record<string, any>): Promise<void> {
-  await supabase.from('agent_progress').upsert(row, { onConflict: 'user_id,agent_slug' });
+export async function upsertAgentProgress(row: Record<string, any>): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('agent_progress').upsert(row, { onConflict: 'user_id,agent_slug' });
+  return { error: error?.message ?? null };
 }

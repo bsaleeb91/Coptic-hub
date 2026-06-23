@@ -183,7 +183,7 @@ function TimelineRow({ item, last }: { item: any; last: boolean }) {
 // ── Main screen ───────────────────────────────────────────────
 export default function DashboardScreen() {
   const router = useRouter();
-  const { profile, user } = useSession();
+  const { profile, user, refreshProfile } = useSession();
   const { demoMode, demoRole } = useDemoMode();
   const firstName = profile?.full_name?.split(' ')[0] ?? 'friend';
 
@@ -193,6 +193,26 @@ export default function DashboardScreen() {
   const [sections, setSections] = useState<SectionId[]>(DEFAULT_SECTIONS);
   const [customizing, setCustomizing] = useState(false);
   const [savingVitals, setSavingVitals] = useState(false);
+  const [vitalsError, setVitalsError] = useState('');
+  const [showVitalsConsent, setShowVitalsConsent] = useState(false);
+  const [settingConsent, setSettingConsent] = useState(false);
+
+  // Auto-show vitals consent modal when congregant has an FOC but hasn't decided yet
+  useEffect(() => {
+    if (demoMode) return;
+    if (profile?.foc_id && profile?.vitals_consent === null) {
+      setShowVitalsConsent(true);
+    }
+  }, [profile?.foc_id, profile?.vitals_consent, demoMode]);
+
+  async function handleVitalsConsent(consent: boolean) {
+    if (!user) return;
+    setSettingConsent(true);
+    await db.setVitalsConsent(user.id, consent);
+    await refreshProfile();
+    setSettingConsent(false);
+    setShowVitalsConsent(false);
+  }
 
   // Wiggle animation for customize mode
   const wiggle = useRef(new Animated.Value(0)).current;
@@ -219,14 +239,19 @@ export default function DashboardScreen() {
   async function saveVitals() {
     if (!user) return;
     setSavingVitals(true);
-    await db.upsertAgentProgress({
+    setVitalsError('');
+    const { error } = await db.upsertAgentProgress({
       user_id: user.id,
       agent_slug: 'vitals',
       payload: Object.fromEntries(VITAL_KEYS.map((k, i) => [k, vitals[i]])),
       updated_at: new Date().toISOString(),
     });
     setSavingVitals(false);
-    H.success();
+    if (error) {
+      setVitalsError('Failed to save — please try again.');
+    } else {
+      H.success();
+    }
   }
 
   const updateVital = useCallback((i: number, v: number) => {
@@ -264,9 +289,21 @@ export default function DashboardScreen() {
   const demoDaysSince = 47;
   const demoCanonStats = { done: 2, total: 3 };
 
-  const confessionStatus = demoDaysSince < 30 ? 'recent' : demoDaysSince < 60 ? 'due' : 'overdue';
-  const statusColor = confessionStatus === 'recent' ? colors.green : confessionStatus === 'due' ? colors.yellow : colors.red;
-  const statusLabel = confessionStatus === 'recent' ? '✓ Recent' : '⚠ Due';
+  const daysSinceConfession = demoMode
+    ? demoDaysSince
+    : profile?.last_confession_at
+      ? Math.floor((Date.now() - new Date(profile.last_confession_at).getTime()) / 86400000)
+      : null;
+
+  const confessionStatus = daysSinceConfession === null ? null
+    : daysSinceConfession < 30 ? 'recent'
+    : daysSinceConfession < 60 ? 'due'
+    : 'overdue';
+  const statusColor = confessionStatus === 'recent' ? colors.green : confessionStatus === 'overdue' ? colors.red : colors.yellow;
+  const statusLabel = confessionStatus === 'recent' ? '✓ Recent'
+    : confessionStatus === 'due' ? '⚠ Due'
+    : confessionStatus === 'overdue' ? '⚠ Overdue'
+    : '— log it';
 
   const encounterTagMap: Record<string, any> = {
     confession: { tag: '✝ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
@@ -311,16 +348,16 @@ export default function DashboardScreen() {
         <View style={styles.tileRow}>
           {/* Confession tile */}
           <TouchableOpacity
-            style={[styles.tile, { borderColor: confessionStatus !== 'recent' ? `${statusColor}50` : colors.border }]}
+            style={[styles.tile, { borderColor: confessionStatus && confessionStatus !== 'recent' ? `${statusColor}50` : colors.border }]}
             onPress={() => { H.tap(); router.push('/(tabs)/confession'); }}
             onLongPress={enterCustomize}
             activeOpacity={0.8}
           >
             <Text style={styles.tileIcon}>✝</Text>
-            <Text style={styles.tileBigNum}>{demoMode ? demoDaysSince : '—'}</Text>
+            <Text style={styles.tileBigNum}>{daysSinceConfession ?? '—'}</Text>
             <Text style={styles.tileSubLabel}>days since confession</Text>
-            <View style={[styles.tileStatus, { backgroundColor: `${statusColor}20` }]}>
-              <Text style={[styles.tileStatusText, { color: statusColor }]}>{statusLabel}</Text>
+            <View style={[styles.tileStatus, { backgroundColor: confessionStatus ? `${statusColor}20` : 'transparent' }]}>
+              <Text style={[styles.tileStatusText, { color: confessionStatus ? statusColor : colors.muted }]}>{statusLabel}</Text>
             </View>
           </TouchableOpacity>
 
@@ -350,7 +387,7 @@ export default function DashboardScreen() {
         </View>
 
         {/* Confession CTA banner — only if due or overdue */}
-        {(demoMode ? confessionStatus !== 'recent' : false) && (
+        {(confessionStatus === 'due' || confessionStatus === 'overdue') && (
           <TouchableOpacity
             style={styles.banner}
             onPress={() => { H.tap(); router.push('/(tabs)/confession'); }}
@@ -362,7 +399,7 @@ export default function DashboardScreen() {
             <Text style={styles.bannerBody}>
               {demoMode
                 ? `Fr. Bishoy has confession hours this Sunday. You last confessed ${demoDaysSince} days ago.`
-                : 'Use the Confession tab to examine your conscience before meeting with your Father of Confession.'}
+                : `You last confessed ${daysSinceConfession} days ago. Use the Confession tab to prepare before your next meeting.`}
             </Text>
             <View style={styles.bannerArrow}><Text style={styles.bannerArrowText}>Begin →</Text></View>
           </TouchableOpacity>
@@ -375,10 +412,20 @@ export default function DashboardScreen() {
               <Text style={styles.sectionTitle}>Spiritual Vitals</Text>
               {!demoMode && (
                 <TouchableOpacity onPress={saveVitals} disabled={savingVitals}>
-                  <Text style={styles.sectionAction}>{savingVitals ? 'Saving…' : 'Save'}</Text>
+                  <Text style={[styles.sectionAction, vitalsError ? { color: colors.red } : {}]}>
+                    {savingVitals ? 'Saving…' : vitalsError ? 'Error — retry' : 'Save'}
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
+            {!demoMode && profile?.foc_id && profile?.vitals_consent === false && (
+              <TouchableOpacity style={styles.vitalNudge} onPress={() => setShowVitalsConsent(true)} activeOpacity={0.8}>
+                <Text style={styles.vitalNudgeText}>
+                  ◇ Your FOC can't see your vitals yet. Sharing helps him guide you better.{' '}
+                  <Text style={styles.vitalNudgeLink}>Turn on sharing →</Text>
+                </Text>
+              </TouchableOpacity>
+            )}
             {VITAL_LABELS.map((label, i) => (
               <VitalRow
                 key={i}
@@ -480,6 +527,33 @@ export default function DashboardScreen() {
 
       </ScrollView>
 
+      {/* Vitals consent modal */}
+      <Modal visible={showVitalsConsent} transparent animationType="fade" onRequestClose={() => {}}>
+        <View style={styles.consentModalBg}>
+          <View style={styles.consentModal}>
+            <Text style={styles.consentCross}>✝</Text>
+            <Text style={styles.consentTitle}>Share Your Vitals?</Text>
+            <Text style={styles.consentSub}>with {focProfile?.full_name ?? 'your Father of Confession'}</Text>
+            <Text style={styles.consentBody}>
+              Sharing your spiritual vitals lets your FOC understand how you're doing and guide you more intentionally between confessions. You can change this at any time in your profile.
+            </Text>
+            <TouchableOpacity
+              style={[styles.consentGoldBtn, settingConsent && { opacity: 0.6 }]}
+              onPress={() => handleVitalsConsent(true)}
+              disabled={settingConsent}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.consentGoldBtnText}>
+                {settingConsent ? 'Saving…' : 'SHARE WITH MY FOC'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => handleVitalsConsent(false)} disabled={settingConsent}>
+              <Text style={styles.consentSkipText}>Keep private for now</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Customize sheet */}
       <CustomizeSheet
         visible={customizing}
@@ -548,6 +622,35 @@ const styles = StyleSheet.create({
     top: 4,
   },
   vitalVal: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream, width: 34, textAlign: 'right' },
+
+  // Vitals nudge banner
+  vitalNudge: {
+    backgroundColor: 'rgba(201,168,76,0.07)', borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.2)', borderRadius: 10,
+    padding: 12, marginBottom: 14,
+  },
+  vitalNudgeText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },
+  vitalNudgeLink: { fontFamily: fonts.latoBold, color: colors.gold },
+
+  // Vitals consent modal
+  consentModalBg: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.72)',
+    alignItems: 'center', justifyContent: 'center', padding: 24,
+  },
+  consentModal: {
+    backgroundColor: '#0b1423', borderWidth: 1, borderColor: 'rgba(201,168,76,0.25)',
+    borderRadius: 20, padding: 28, alignItems: 'center', width: '100%', maxWidth: 360,
+  },
+  consentCross: { fontSize: 32, color: colors.gold, marginBottom: 12 },
+  consentTitle: { fontFamily: fonts.cormorantMedium, fontSize: 24, color: colors.cream, textAlign: 'center', marginBottom: 4 },
+  consentSub: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.gold, textAlign: 'center', marginBottom: 16, opacity: 0.85 },
+  consentBody: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+  consentGoldBtn: {
+    backgroundColor: colors.gold, borderRadius: 10,
+    paddingVertical: 14, paddingHorizontal: 24, width: '100%', alignItems: 'center', marginBottom: 16,
+  },
+  consentGoldBtnText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.navy, letterSpacing: 1.5 },
+  consentSkipText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textDecorationLine: 'underline' },
 
   cardAction: { fontFamily: fonts.lato, fontSize: 11, color: colors.gold },
   emptyInline: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, opacity: 0.7 },

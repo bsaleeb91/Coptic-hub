@@ -1,5 +1,14 @@
-// Pastoral contact, life-stage profile, children, and encounter records.
+// Pastoral contact, life-stage profile, children, encounter records, and notes.
 import { supabase } from '../supabase';
+
+export interface PastoralNote {
+  id: string;
+  author_id: string;
+  member_id: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+}
 
 // ── Contact info (shared with FOC) ───────────────────────────
 export async function getContact(userId: string): Promise<any | null> {
@@ -7,8 +16,9 @@ export async function getContact(userId: string): Promise<any | null> {
   return data ?? null;
 }
 
-export async function upsertContact(row: Record<string, any>): Promise<void> {
-  await supabase.from('pastoral_contacts').upsert(row, { onConflict: 'user_id' });
+export async function upsertContact(row: Record<string, any>): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('pastoral_contacts').upsert(row, { onConflict: 'user_id' });
+  return { error: error?.message ?? null };
 }
 
 // ── Life stage / family ──────────────────────────────────────
@@ -17,8 +27,9 @@ export async function getLifeProfile(userId: string): Promise<any | null> {
   return data ?? null;
 }
 
-export async function upsertLifeProfile(row: Record<string, any>): Promise<void> {
-  await supabase.from('pastoral_profile').upsert(row, { onConflict: 'user_id' });
+export async function upsertLifeProfile(row: Record<string, any>): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('pastoral_profile').upsert(row, { onConflict: 'user_id' });
+  return { error: error?.message ?? null };
 }
 
 export async function getChildren(parentId: string): Promise<any[]> {
@@ -34,8 +45,9 @@ export async function deleteChildren(parentId: string): Promise<void> {
   await supabase.from('pastoral_children').delete().eq('parent_id', parentId);
 }
 
-export async function insertChildren(rows: Record<string, any>[]): Promise<void> {
-  await supabase.from('pastoral_children').insert(rows);
+export async function insertChildren(rows: Record<string, any>[]): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('pastoral_children').insert(rows);
+  return { error: error?.message ?? null };
 }
 
 // ── Pastoral encounters ──────────────────────────────────────
@@ -72,18 +84,58 @@ export async function getConfessionsForPriest(priestId: string): Promise<any[]> 
   return data ?? [];
 }
 
-export async function insertEncounter(row: Record<string, any>): Promise<void> {
-  const { private_note, ...encounterRow } = row;
+// ── Pastoral notes (priest + servant) ────────────────────────
+export async function getPastoralNotes(authorId: string, memberId: string): Promise<PastoralNote[]> {
   const { data } = await supabase
+    .from('pastoral_notes')
+    .select('*')
+    .eq('author_id', authorId)
+    .eq('member_id', memberId)
+    .order('created_at', { ascending: false });
+  return data ?? [];
+}
+
+export async function insertPastoralNote(authorId: string, memberId: string, body: string): Promise<{ data: PastoralNote | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('pastoral_notes')
+    .insert({ author_id: authorId, member_id: memberId, body })
+    .select()
+    .single();
+  return { data: data ?? null, error: error?.message ?? null };
+}
+
+export async function updatePastoralNote(noteId: string, body: string): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('pastoral_notes')
+    .update({ body, updated_at: new Date().toISOString() })
+    .eq('id', noteId);
+  return { error: error?.message ?? null };
+}
+
+export async function deletePastoralNote(noteId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('pastoral_notes')
+    .delete()
+    .eq('id', noteId);
+  return { error: error?.message ?? null };
+}
+
+// ── Pastoral encounters ──────────────────────────────────────
+export async function insertEncounter(row: Record<string, any>): Promise<{ error: string | null }> {
+  const { private_note, ...encounterRow } = row;
+  const { data, error } = await supabase
     .from('pastoral_encounters')
     .insert(encounterRow)
     .select('id')
     .single();
+  if (error) return { error: error.message };
   if (data?.id && private_note) {
-    await supabase.from('pastoral_encounter_private_notes').insert({
+    const { error: noteError } = await supabase.from('pastoral_encounter_private_notes').insert({
       encounter_id: data.id,
       priest_id: encounterRow.priest_id,
       private_note,
     });
+    if (noteError) return { error: noteError.message };
   }
+  return { error: null };
 }

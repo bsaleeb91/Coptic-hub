@@ -122,6 +122,7 @@ export default function PrayerScreen() {
   const [answered, setAnswered] = useState<any[]>([]);
   const [loading, setLoading] = useState(!demoMode);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const [category, setCategory] = useState<Category>('other');
   const [visibility, setVisibility] = useState<Visibility>('private');
@@ -154,14 +155,20 @@ export default function PrayerScreen() {
       return;
     }
     setSubmitting(true);
+    setSubmitError('');
     const { data, error } = await db.insertPrayerRequest({
       user_id: user!.id,
       category,
       visibility,
     });
-    if (!error && data) setActive(prev => [data, ...prev]);
-    setCategory('other'); setVisibility('private');
     setSubmitting(false);
+    if (error || !data) {
+      setSubmitError('Failed to submit — please try again.');
+      return;
+    }
+    setActive(prev => [data, ...prev]);
+    setCategory('other');
+    setVisibility('private');
   }
 
   async function handleDelete(id: string) {
@@ -269,6 +276,7 @@ export default function PrayerScreen() {
           {visibility !== 'private' && (
             <Text style={styles.visDescription}>{VIS_DISPLAY[visibility].label}</Text>
           )}
+          {submitError ? <Text style={styles.submitError}>{submitError}</Text> : null}
           <TouchableOpacity
             style={[styles.btnGoldFull, submitting && styles.btnDisabled]}
             onPress={handleSubmit}
@@ -350,6 +358,7 @@ const styles = StyleSheet.create({
   visChipTextActive: { color: colors.goldLight },
   visDescription: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 6, paddingLeft: 2, lineHeight: 16 },
 
+  submitError: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.red, marginTop: 8 },
   btnGoldFull: { backgroundColor: colors.gold, borderRadius: 8, padding: 13, alignItems: 'center', marginTop: 14 },
   btnDisabled: { opacity: 0.35 },
   btnGoldText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.navy, letterSpacing: 0.8 },

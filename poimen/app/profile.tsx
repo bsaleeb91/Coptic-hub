@@ -24,7 +24,7 @@ interface ChildRow {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, profile, signOut } = useSession();
+  const { user, profile, signOut, refreshProfile } = useSession();
   const { demoMode, demoRole, setDemoMode } = useDemoMode();
   const { resetAndStartTutorial } = useTutorial();
 
@@ -39,6 +39,7 @@ export default function ProfileScreen() {
   const [churchName, setChurchName] = useState(profile?.church_name ?? '');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [accountError, setAccountError] = useState('');
 
   // ── Contact ───────────────────────────────────────────────
   const [phone, setPhone] = useState('');
@@ -50,6 +51,7 @@ export default function ProfileScreen() {
   const [zip, setZip] = useState('');
   const [savingContact, setSavingContact] = useState(false);
   const [savedContact, setSavedContact] = useState(false);
+  const [contactError, setContactError] = useState('');
 
   // ── Family ────────────────────────────────────────────────
   const [lifeStage, setLifeStage] = useState<LifeStageType | null>(null);
@@ -59,6 +61,7 @@ export default function ProfileScreen() {
   const [newChildYear, setNewChildYear] = useState('');
   const [savingFamily, setSavingFamily] = useState(false);
   const [savedFamily, setSavedFamily] = useState(false);
+  const [familyError, setFamilyError] = useState('');
 
   useEffect(() => {
     if (user) loadMyInfo();
@@ -92,8 +95,10 @@ export default function ProfileScreen() {
   async function handleSave() {
     if (!user) return;
     setSaving(true);
-    await db.updateAccount(user.id, { full_name: fullName.trim(), church_name: churchName.trim() });
+    setAccountError('');
+    const { error } = await db.updateAccount(user.id, { full_name: fullName.trim(), church_name: churchName.trim() });
     setSaving(false);
+    if (error) { setAccountError('Failed to save — please try again.'); return; }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -101,7 +106,8 @@ export default function ProfileScreen() {
   async function handleSaveContact() {
     if (!user) return;
     setSavingContact(true);
-    await db.upsertContact({
+    setContactError('');
+    const { error } = await db.upsertContact({
       user_id: user.id,
       phone:         phone.trim()         || null,
       email:         contactEmail.trim()  || null,
@@ -113,6 +119,7 @@ export default function ProfileScreen() {
       updated_at:    new Date().toISOString(),
     });
     setSavingContact(false);
+    if (error) { setContactError('Failed to save — please try again.'); return; }
     setSavedContact(true);
     setTimeout(() => setSavedContact(false), 2000);
   }
@@ -120,17 +127,19 @@ export default function ProfileScreen() {
   async function handleSaveFamily() {
     if (!user) return;
     setSavingFamily(true);
+    setFamilyError('');
     const showSpouse = lifeStage === 'married' || lifeStage === 'engaged';
-    await db.upsertLifeProfile({
+    const { error: lifeErr } = await db.upsertLifeProfile({
       user_id:     user.id,
       life_stage:  lifeStage ?? null,
       spouse_name: showSpouse ? (spouseName.trim() || null) : null,
       updated_at:  new Date().toISOString(),
     });
+    if (lifeErr) { setSavingFamily(false); setFamilyError('Failed to save — please try again.'); return; }
     // Replace children: delete all then re-insert current list
     await db.deleteChildren(user.id);
     if (children.length > 0) {
-      await db.insertChildren(
+      const { error: kidsErr } = await db.insertChildren(
         children.map(c => ({
           parent_id:  user!.id,
           name:       c.name,
@@ -138,6 +147,7 @@ export default function ProfileScreen() {
           updated_at: new Date().toISOString(),
         }))
       );
+      if (kidsErr) { setSavingFamily(false); setFamilyError('Failed to save children — please try again.'); return; }
     }
     setSavingFamily(false);
     setSavedFamily(true);
@@ -230,6 +240,7 @@ export default function ProfileScreen() {
               placeholderTextColor="rgba(245,240,232,0.22)"
             />
           </View>
+          {accountError ? <Text style={styles.fieldError}>{accountError}</Text> : null}
           <TouchableOpacity
             style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
             onPress={handleSave}
@@ -312,6 +323,7 @@ export default function ProfileScreen() {
               />
             </View>
           </View>
+          {contactError ? <Text style={styles.fieldError}>{contactError}</Text> : null}
           <TouchableOpacity
             style={[styles.saveBtn, savingContact && styles.saveBtnDisabled]}
             onPress={handleSaveContact}
@@ -402,6 +414,7 @@ export default function ProfileScreen() {
             </View>
           </View>
 
+          {familyError ? <Text style={styles.fieldError}>{familyError}</Text> : null}
           <TouchableOpacity
             style={[styles.saveBtn, savingFamily && styles.saveBtnDisabled]}
             onPress={handleSaveFamily}
@@ -437,12 +450,30 @@ export default function ProfileScreen() {
         {(profile?.role === 'congregant' || !profile?.role) && (
           <Card title="Father of Confession" titleIcon="✝">
             {profile?.foc_id ? (
-              <View style={styles.linkedRow}>
-                <Text style={styles.linkedName}>✓ Linked</Text>
-                <TouchableOpacity onPress={() => router.push({ pathname: '/link-to-foc', params: { type: 'foc' } })}>
-                  <Text style={styles.relinkText}>Change</Text>
-                </TouchableOpacity>
-              </View>
+              <>
+                <View style={styles.linkedRow}>
+                  <Text style={styles.linkedName}>✓ Linked</Text>
+                  <TouchableOpacity onPress={() => router.push({ pathname: '/link-to-foc', params: { type: 'foc' } })}>
+                    <Text style={styles.relinkText}>Change</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.vitalsToggleRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.vitalsToggleLabel}>Share vitals with my FOC</Text>
+                    <Text style={styles.vitalsToggleHint}>Allows your priest to see your spiritual vitals</Text>
+                  </View>
+                  <Switch
+                    value={profile?.vitals_consent === true}
+                    onValueChange={async (val) => {
+                      if (!user) return;
+                      await db.setVitalsConsent(user.id, val);
+                      await refreshProfile();
+                    }}
+                    trackColor={{ false: 'rgba(245,240,232,0.1)', true: 'rgba(201,168,76,0.4)' }}
+                    thumbColor={profile?.vitals_consent === true ? colors.gold : 'rgba(245,240,232,0.4)'}
+                  />
+                </View>
+              </>
             ) : (
               <TouchableOpacity
                 style={styles.linkBtn}
@@ -540,6 +571,7 @@ const styles = StyleSheet.create({
   },
   inputReadOnlyText: { fontFamily: fonts.latoLight, fontSize: 14, color: 'rgba(245,240,232,0.4)' },
   fieldHint: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, opacity: 0.6 },
+  fieldError: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.red, marginBottom: 8 },
 
   addressRow: { flexDirection: 'row', gap: 8 },
 
@@ -602,4 +634,11 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 4,
   },
   signOutText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.red, letterSpacing: 0.5 },
+
+  vitalsToggleRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderTopWidth: 1, borderTopColor: colors.border, marginTop: 14, paddingTop: 14,
+  },
+  vitalsToggleLabel: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2 },
+  vitalsToggleHint: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
 });

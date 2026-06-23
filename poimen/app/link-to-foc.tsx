@@ -52,6 +52,7 @@ export default function LinkToFocScreen() {
     if (linkError) {
       setError(linkError);
     } else {
+      if (isFOC) await db.setFocConsent(user.id);
       await refreshProfile();
       setLinked(true);
     }
@@ -135,6 +136,14 @@ export default function LinkToFocScreen() {
             </View>
           )}
 
+          {found && isFOC && (
+            <View style={styles.consentNote}>
+              <Text style={styles.consentNoteText}>
+                By tapping LINK you allow {found.full_name ?? 'your priest'} to view your spiritual vitals, pastoral journey, and contact information. You can unlink at any time from your Profile.
+              </Text>
+            </View>
+          )}
+
           <View style={styles.hintBox}>
             <Text style={styles.hintText}>
               Your {roleLabel} can find their code in the Profile tab of their Poimen app.
@@ -205,6 +214,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   confirmBtnText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.navy, letterSpacing: 1 },
+
+  consentNote: {
+    backgroundColor: 'rgba(201,168,76,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.18)',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+  },
+  consentNoteText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 17 },
 
   hintBox: {
     backgroundColor: colors.creamDim,
