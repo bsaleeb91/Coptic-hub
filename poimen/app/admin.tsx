@@ -34,6 +34,14 @@ export default function AdminScreen() {
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
 
+  useEffect(() => {
+    if (!profile || profile.role !== 'admin') return;
+    db.getAllProfiles().then((data) => {
+      setProfiles(data);
+      setLoading(false);
+    });
+  }, [profile]);
+
   if (profile && profile.role !== 'admin') {
     return (
       <SafeAreaView style={styles.safe}>
@@ -44,13 +52,6 @@ export default function AdminScreen() {
       </SafeAreaView>
     );
   }
-
-  useEffect(() => {
-    db.getAllProfiles().then((data) => {
-      setProfiles(data);
-      setLoading(false);
-    });
-  }, []);
 
   const visibleRoles = roleFilter === 'all' ? ROLE_ORDER : [roleFilter];
   const byRole = ROLE_ORDER.reduce<Record<string, Profile[]>>((acc, role) => {

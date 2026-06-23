@@ -70,8 +70,9 @@ export async function insertCanon(row: Record<string, any>): Promise<{ error: st
   return { error: error?.message ?? null };
 }
 
-export async function deactivateCanon(canonId: string): Promise<void> {
-  await supabase.from('spiritual_canons').update({ active: false }).eq('id', canonId);
+export async function deactivateCanon(canonId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('spiritual_canons').update({ active: false }).eq('id', canonId);
+  return { error: error?.message ?? null };
 }
 
 // ── Completions ──────────────────────────────────────────────

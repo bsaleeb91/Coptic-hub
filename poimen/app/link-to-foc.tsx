@@ -52,7 +52,10 @@ export default function LinkToFocScreen() {
     if (linkError) {
       setError(linkError);
     } else {
-      if (isFOC) await db.setFocConsent(user.id);
+      if (isFOC) {
+        const { error: consentError } = await db.setFocConsent(user.id);
+        if (consentError) { setError(consentError); setLoading(false); return; }
+      }
       await refreshProfile();
       setLinked(true);
     }

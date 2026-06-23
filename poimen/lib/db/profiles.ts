@@ -51,19 +51,22 @@ export async function linkToServant(userId: string, servantId: string): Promise<
   return { error: error?.message ?? null };
 }
 
-export async function unlinkFOC(userId: string): Promise<void> {
-  await supabase.from('profiles').update({ foc_id: null }).eq('id', userId);
+export async function unlinkFOC(userId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('profiles').update({ foc_id: null }).eq('id', userId);
+  return { error: error?.message ?? null };
 }
 
-export async function unlinkServant(userId: string): Promise<void> {
-  await supabase.from('profiles').update({ servant_id: null }).eq('id', userId);
+export async function unlinkServant(userId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('profiles').update({ servant_id: null }).eq('id', userId);
+  return { error: error?.message ?? null };
 }
 
-export async function setFocConsent(userId: string): Promise<void> {
-  await supabase
+export async function setFocConsent(userId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase
     .from('profiles')
     .update({ foc_consent_at: new Date().toISOString() })
     .eq('id', userId);
+  return { error: error?.message ?? null };
 }
 
 export async function setLastConfession(userId: string, isoDate: string): Promise<{ error: string | null }> {

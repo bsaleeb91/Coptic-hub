@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
+import { supabase } from '@/lib/supabase';
 
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
   const s = document.createElement('style');
@@ -33,6 +34,17 @@ function RootLayoutNav() {
   const { session, loading } = useSession();
   const { demoMode } = useDemoMode();
   const segments = useSegments();
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        supabase.auth.startAutoRefresh();
+      } else {
+        supabase.auth.stopAutoRefresh();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   if (loading && !demoMode) return <View style={{ flex: 1, backgroundColor: '#0f1f3d' }} />;
 
