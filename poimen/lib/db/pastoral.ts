@@ -1,5 +1,6 @@
 // Pastoral contact, life-stage profile, children, encounter records, and notes.
 import { supabase } from '../supabase';
+import { encryptNote, decryptNote } from '../crypto';
 
 export interface PastoralNote {
   id: string;
@@ -92,22 +93,26 @@ export async function getPastoralNotes(authorId: string, memberId: string): Prom
     .eq('author_id', authorId)
     .eq('member_id', memberId)
     .order('created_at', { ascending: false });
-  return data ?? [];
+  if (!data) return [];
+  return Promise.all(data.map(async (n) => ({ ...n, body: await decryptNote(n.body) })));
 }
 
 export async function insertPastoralNote(authorId: string, memberId: string, body: string): Promise<{ data: PastoralNote | null; error: string | null }> {
+  const encryptedBody = await encryptNote(body);
   const { data, error } = await supabase
     .from('pastoral_notes')
-    .insert({ author_id: authorId, member_id: memberId, body })
+    .insert({ author_id: authorId, member_id: memberId, body: encryptedBody })
     .select()
     .single();
-  return { data: data ?? null, error: error?.message ?? null };
+  if (error || !data) return { data: null, error: error?.message ?? null };
+  return { data: { ...data, body }, error: null };
 }
 
 export async function updatePastoralNote(noteId: string, body: string): Promise<{ error: string | null }> {
+  const encryptedBody = await encryptNote(body);
   const { error } = await supabase
     .from('pastoral_notes')
-    .update({ body, updated_at: new Date().toISOString() })
+    .update({ body: encryptedBody, updated_at: new Date().toISOString() })
     .eq('id', noteId);
   return { error: error?.message ?? null };
 }
@@ -130,10 +135,11 @@ export async function insertEncounter(row: Record<string, any>): Promise<{ error
     .single();
   if (error) return { error: error.message };
   if (data?.id && private_note) {
+    const encryptedNote = await encryptNote(private_note);
     const { error: noteError } = await supabase.from('pastoral_encounter_private_notes').insert({
       encounter_id: data.id,
       priest_id: encounterRow.priest_id,
-      private_note,
+      private_note: encryptedNote,
     });
     if (noteError) return { error: noteError.message };
   }
