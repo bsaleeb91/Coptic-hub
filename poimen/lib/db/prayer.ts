@@ -5,7 +5,7 @@ import { supabase } from '../supabase';
 export async function getPrayerRequests(userId: string): Promise<any[]> {
   const { data } = await supabase
     .from('prayer_requests')
-    .select('*')
+    .select('id, category, visibility, answered, created_at, body_self')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
   return data ?? [];
@@ -25,11 +25,11 @@ export async function markPrayerAnswered(id: string): Promise<void> {
   await supabase.from('prayer_requests').update({ answered: true }).eq('id', id);
 }
 
-// Unanswered requests shared with FOC (foc_only or foc_and_servant) — priest detail view.
-export async function getFocPrayerRequests(memberId: string): Promise<{ created_at: string; category: string }[]> {
+// Unanswered requests shared with FOC — priest detail view.
+export async function getFocPrayerRequests(memberId: string): Promise<{ created_at: string; category: string; body_foc: string | null; user_id: string }[]> {
   const { data } = await supabase
     .from('prayer_requests')
-    .select('created_at, category')
+    .select('created_at, category, body_foc, user_id')
     .eq('user_id', memberId)
     .in('visibility', ['foc_only', 'foc_and_servant'])
     .eq('answered', false)
@@ -37,11 +37,11 @@ export async function getFocPrayerRequests(memberId: string): Promise<{ created_
   return data ?? [];
 }
 
-// Unanswered requests shared with a servant (servant_only or foc_and_servant) — servant detail view.
-export async function getServantSharedPrayer(studentId: string): Promise<{ created_at: string; category: string }[]> {
+// Unanswered requests shared with a servant — servant detail view.
+export async function getServantSharedPrayer(studentId: string): Promise<{ created_at: string; category: string; body_servant: string | null; user_id: string }[]> {
   const { data } = await supabase
     .from('prayer_requests')
-    .select('created_at, category')
+    .select('created_at, category, body_servant, user_id')
     .eq('user_id', studentId)
     .in('visibility', ['servant_only', 'foc_and_servant'])
     .eq('answered', false)

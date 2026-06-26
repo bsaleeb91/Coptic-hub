@@ -133,11 +133,29 @@ export async function getServantStudents(servantId: string): Promise<{ id: strin
   return data ?? [];
 }
 
+export async function getPublicKey(userId: string): Promise<string | null> {
+  const { data } = await supabase.from('profiles').select('public_key').eq('id', userId).single();
+  return (data as any)?.public_key ?? null;
+}
+
+export async function upsertPublicKey(userId: string, publicKey: string): Promise<void> {
+  await supabase.from('profiles').update({ public_key: publicKey }).eq('id', userId);
+}
+
+export async function saveKeyBackup(userId: string, backup: string): Promise<void> {
+  await supabase.from('profiles').update({ key_backup: backup }).eq('id', userId);
+}
+
+export async function getKeyBackup(userId: string): Promise<string | null> {
+  const { data } = await supabase.from('profiles').select('key_backup').eq('id', userId).single();
+  return (data as any)?.key_backup ?? null;
+}
+
 // All profiles — admin use only.
 export async function getAllProfiles(): Promise<Profile[]> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, church_name, role, avatar_url, foc_id')
+    .select('id, full_name, church_name, role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, last_confession_at')
     .order('role')
     .order('full_name');
   return data ?? [];

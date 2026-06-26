@@ -34,6 +34,17 @@ export default function ProfileScreen() {
     : profile?.role === 'servant' ? 'servant'
     : 'congregant';
 
+  // ── FOC name ──────────────────────────────────────────────
+  const [focName, setFocName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (profile?.foc_id) {
+      db.getProfile(profile.foc_id).then(p => setFocName(p?.full_name ?? null));
+    } else {
+      setFocName(null);
+    }
+  }, [profile?.foc_id]);
+
   // ── Account ───────────────────────────────────────────────
   const [fullName, setFullName] = useState(profile?.full_name ?? '');
   const [churchName, setChurchName] = useState(profile?.church_name ?? '');
@@ -452,7 +463,10 @@ export default function ProfileScreen() {
             {profile?.foc_id ? (
               <>
                 <View style={styles.linkedRow}>
-                  <Text style={styles.linkedName}>✓ Linked</Text>
+                  <View>
+                    <Text style={styles.linkedName}>✓ Linked</Text>
+                    {focName ? <Text style={styles.focNameText}>{focName}</Text> : null}
+                  </View>
                   <TouchableOpacity onPress={() => router.push({ pathname: '/link-to-foc', params: { type: 'foc' } })}>
                     <Text style={styles.relinkText}>Change</Text>
                   </TouchableOpacity>
@@ -621,6 +635,7 @@ const styles = StyleSheet.create({
 
   linkedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   linkedName: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.green },
+  focNameText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginTop: 2 },
   relinkText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.gold, letterSpacing: 0.5 },
 
   linkBtn: {

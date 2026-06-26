@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  Animated, PanResponder, Alert, ActivityIndicator,
+  Animated, PanResponder, Alert, ActivityIndicator, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts } from '@/lib/theme';
@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
+import { encryptForSelf, encryptForRecipient, decryptSelf } from '@/lib/crypto';
 
 type Visibility = 'private' | 'foc_only' | 'foc_and_servant' | 'servant_only';
 type Category = 'health' | 'family' | 'relationships' | 'work' | 'faith' | 'gratitude' | 'other';
@@ -104,6 +105,7 @@ function SwipeableRequest({ item, onDelete, onMarkAnswered }: {
               {new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </Text>
           </View>
+          {item.body ? <Text style={styles.reqBody}>{item.body}</Text> : null}
           <View style={styles.reqVis}>
             <Text style={styles.reqVisText}>{VIS_DISPLAY[item.visibility as Visibility].icon} {VIS_DISPLAY[item.visibility as Visibility].label}</Text>
           </View>
@@ -116,7 +118,7 @@ function SwipeableRequest({ item, onDelete, onMarkAnswered }: {
 
 // ── Screen ───────────────────────────────────────────────────
 export default function PrayerScreen() {
-  const { user } = useSession();
+  const { user, profile } = useSession();
   const { demoMode } = useDemoMode();
   const [active, setActive] = useState<any[]>([]);
   const [answered, setAnswered] = useState<any[]>([]);
@@ -126,6 +128,7 @@ export default function PrayerScreen() {
 
   const [category, setCategory] = useState<Category>('other');
   const [visibility, setVisibility] = useState<Visibility>('private');
+  const [body, setBody] = useState('');
 
   useEffect(() => {
     if (demoMode) {
@@ -141,34 +144,57 @@ export default function PrayerScreen() {
     setLoading(true);
     const data = await db.getPrayerRequests(user.id);
     if (data) {
-      setActive(data.filter(r => !r.answered));
-      setAnswered(data.filter(r => r.answered));
+      const decrypted = await Promise.all(data.map(async r => ({
+        ...r,
+        body: r.body_self ? await decryptSelf(r.body_self) : null,
+      })));
+      setActive(decrypted.filter(r => !r.answered));
+      setAnswered(decrypted.filter(r => r.answered));
     }
     setLoading(false);
   }
 
   async function handleSubmit() {
     if (demoMode) {
-      const newReq = { id: Date.now().toString(), category, created_at: new Date().toISOString(), visibility, answered: false };
+      const newReq = { id: Date.now().toString(), category, created_at: new Date().toISOString(), visibility, answered: false, body: body || null };
       setActive(prev => [newReq, ...prev]);
-      setCategory('other'); setVisibility('private');
+      setCategory('other'); setVisibility('private'); setBody('');
       return;
     }
     setSubmitting(true);
     setSubmitError('');
-    const { data, error } = await db.insertPrayerRequest({
-      user_id: user!.id,
-      category,
-      visibility,
-    });
+
+    const row: Record<string, any> = { user_id: user!.id, category, visibility };
+
+    if (body.trim()) {
+      // Always encrypt for self so the congregant can read their own requests.
+      row.body_self = await encryptForSelf(body.trim());
+
+      // Encrypt for FOC if visibility includes priest.
+      const includesFoc = visibility === 'foc_only' || visibility === 'foc_and_servant';
+      if (includesFoc && profile?.foc_id) {
+        const focPubKey = await db.getPublicKey(profile.foc_id);
+        if (focPubKey) row.body_foc = await encryptForRecipient(body.trim(), focPubKey);
+      }
+
+      // Encrypt for servant if visibility includes servant.
+      const includesServant = visibility === 'servant_only' || visibility === 'foc_and_servant';
+      if (includesServant && profile?.servant_id) {
+        const servantPubKey = await db.getPublicKey(profile.servant_id);
+        if (servantPubKey) row.body_servant = await encryptForRecipient(body.trim(), servantPubKey);
+      }
+    }
+
+    const { data, error } = await db.insertPrayerRequest(row);
     setSubmitting(false);
     if (error || !data) {
       setSubmitError('Failed to submit — please try again.');
       return;
     }
-    setActive(prev => [data, ...prev]);
+    setActive(prev => [{ ...data, body: body.trim() || null }, ...prev]);
     setCategory('other');
     setVisibility('private');
+    setBody('');
   }
 
   async function handleDelete(id: string) {
@@ -241,7 +267,7 @@ export default function PrayerScreen() {
         <Card title="New Request" titleIcon="✦">
           <View style={styles.privacyBanner}>
             <Text style={styles.privacyBannerText}>
-              Only the category is stored — never the details of your request. Share the specifics with your Father of Confession in person.
+              Prayer details are encrypted on your device before storage. Only the intended recipient's device can decrypt them — not even Poimen can read them.
             </Text>
           </View>
           <Text style={styles.formLabel}>CATEGORY</Text>
@@ -276,6 +302,15 @@ export default function PrayerScreen() {
           {visibility !== 'private' && (
             <Text style={styles.visDescription}>{VIS_DISPLAY[visibility].label}</Text>
           )}
+          <Text style={[styles.formLabel, { marginTop: 14 }]}>DETAILS (OPTIONAL)</Text>
+          <TextInput
+            style={styles.bodyInput}
+            multiline
+            placeholder="Describe your request — this is encrypted and only readable by the recipient(s) you chose above."
+            placeholderTextColor="rgba(245,240,232,0.22)"
+            value={body}
+            onChangeText={setBody}
+          />
           {submitError ? <Text style={styles.submitError}>{submitError}</Text> : null}
           <TouchableOpacity
             style={[styles.btnGoldFull, submitting && styles.btnDisabled]}
@@ -358,6 +393,7 @@ const styles = StyleSheet.create({
   visChipTextActive: { color: colors.goldLight },
   visDescription: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 6, paddingLeft: 2, lineHeight: 16 },
 
+  bodyInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, minHeight: 80, textAlignVertical: 'top', lineHeight: 20, marginBottom: 4 },
   submitError: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.red, marginTop: 8 },
   btnGoldFull: { backgroundColor: colors.gold, borderRadius: 8, padding: 13, alignItems: 'center', marginTop: 14 },
   btnDisabled: { opacity: 0.35 },

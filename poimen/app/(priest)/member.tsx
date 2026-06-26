@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
+import { decryptFromSender } from '@/lib/crypto';
 
 // ── Demo data ─────────────────────────────────────────────────
 const DEMO_DB: Record<string, {
@@ -163,7 +164,7 @@ export default function MemberScreen() {
       setConfessions(d.confessions);
       setPrayerRequests(d.prayer);
       setCanons(d.canons);
-      setSavedNote(d.note);
+      setNotes(d.note ? [{ id: 'demo-note-1', author_id: 'demo-priest', member_id: memberId ?? '', body: d.note, created_at: new Date(Date.now() - 86400000 * 10).toISOString(), updated_at: new Date(Date.now() - 86400000 * 10).toISOString() }] : []);
     } else if (memberId) {
       loadMemberData();
     }
@@ -216,10 +217,13 @@ export default function MemberScreen() {
     }
 
     if (prayerData) {
-      setPrayerRequests(prayerData.map(p => ({
+      const senderPubKey = await db.getPublicKey(memberId);
+      const decryptedPrayers = await Promise.all(prayerData.map(async p => ({
         date: new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
         topic: p.category,
+        body: (p.body_foc && senderPubKey) ? await decryptFromSender(p.body_foc, senderPubKey) : null,
       })));
+      setPrayerRequests(decryptedPrayers);
     }
 
     if (canonData) {
@@ -454,6 +458,7 @@ export default function MemberScreen() {
                   <View key={i} style={[styles.histRow, i < prayerRequests.length - 1 && styles.histBorder]}>
                     <Text style={styles.histDate}>{p.date}</Text>
                     <Text style={styles.histType}>{p.topic}</Text>
+                    {p.body ? <Text style={styles.histNote}>{p.body}</Text> : null}
                   </View>
                 ))}
               </Card>

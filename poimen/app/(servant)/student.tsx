@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
+import { decryptFromSender } from '@/lib/crypto';
 
 // ── Demo data ─────────────────────────────────────────────────
 const DEMO_DB: Record<string, { canons: any[]; note: string; prayer: string[] }> = {
@@ -60,7 +61,7 @@ export default function StudentScreen() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [prayer, setPrayer] = useState<{ topic: string; date: string }[]>(
+  const [prayer, setPrayer] = useState<{ topic: string; date: string; body?: string | null }[]>(
     demo.prayer.map(p => ({ topic: p, date: '' }))
   );
 
@@ -98,10 +99,15 @@ export default function StudentScreen() {
       setCanons(enriched);
     }
     setNotes(notesData);
-    if (prayerData) setPrayer(prayerData.map((r: any) => ({
-      topic: r.category,
-      date: new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-    })));
+    if (prayerData) {
+      const senderPubKey = await db.getPublicKey(studentId);
+      const decryptedPrayer = await Promise.all(prayerData.map(async (r: any) => ({
+        topic: r.category,
+        date: new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        body: (r.body_servant && senderPubKey) ? await decryptFromSender(r.body_servant, senderPubKey) : null,
+      })));
+      setPrayer(decryptedPrayer);
+    }
 
     setLoading(false);
   }
@@ -322,6 +328,7 @@ export default function StudentScreen() {
                       <Text style={styles.prayerBullet}>◇</Text>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.prayerText}>{req.topic}</Text>
+                        {req.body ? <Text style={styles.prayerBody}>{req.body}</Text> : null}
                         {req.date ? <Text style={styles.prayerDate}>{req.date}</Text> : null}
                       </View>
                     </View>
@@ -402,6 +409,7 @@ const styles = StyleSheet.create({
   prayerBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
   prayerBullet: { fontFamily: fonts.lato, fontSize: 11, color: colors.gold, marginTop: 2 },
   prayerText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.cream, lineHeight: 19 },
+  prayerBody: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 17, marginTop: 3, marginBottom: 2 },
   prayerDate: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, marginTop: 2 },
 
   scopeNote: { backgroundColor: 'rgba(201,168,76,0.05)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)', borderRadius: 10, padding: 14, marginTop: 8 },
