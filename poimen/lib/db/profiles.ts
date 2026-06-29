@@ -111,7 +111,7 @@ export async function setVitalsConsent(userId: string, consent: boolean): Promis
 
 export async function updateAccount(
   userId: string,
-  fields: { full_name: string; church_name: string },
+  fields: { full_name: string; church_name: string; church_id?: string | null },
 ): Promise<{ error: string | null }> {
   const { error } = await supabase
     .from('profiles')

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  TextInput, ActivityIndicator, Alert, Platform,
+  TextInput, ActivityIndicator, Alert, Platform, Modal, FlatList,
 } from 'react-native';
+import type { Church } from '@/lib/db';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useSession } from '@/lib/auth';
@@ -48,6 +49,9 @@ export default function ProfileScreen() {
   // ── Account ───────────────────────────────────────────────
   const [fullName, setFullName] = useState(profile?.full_name ?? '');
   const [churchName, setChurchName] = useState(profile?.church_name ?? '');
+  const [churchId, setChurchId] = useState<string | null>(profile?.church_id ?? null);
+  const [churches, setChurches] = useState<Church[]>([]);
+  const [showChurchPicker, setShowChurchPicker] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [accountError, setAccountError] = useState('');
@@ -73,6 +77,10 @@ export default function ProfileScreen() {
   const [savingFamily, setSavingFamily] = useState(false);
   const [savedFamily, setSavedFamily] = useState(false);
   const [familyError, setFamilyError] = useState('');
+
+  useEffect(() => {
+    db.getChurches().then(setChurches);
+  }, []);
 
   useEffect(() => {
     if (user) loadMyInfo();
@@ -107,7 +115,7 @@ export default function ProfileScreen() {
     if (!user) return;
     setSaving(true);
     setAccountError('');
-    const { error } = await db.updateAccount(user.id, { full_name: fullName.trim(), church_name: churchName.trim() });
+    const { error } = await db.updateAccount(user.id, { full_name: fullName.trim(), church_name: churchName.trim(), church_id: churchId });
     setSaving(false);
     if (error) { setAccountError('Failed to save — please try again.'); return; }
     setSaved(true);
@@ -243,13 +251,22 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.field}>
             <Text style={styles.label}>Church</Text>
-            <TextInput
-              style={styles.input}
-              value={churchName}
-              onChangeText={setChurchName}
-              placeholder="E.g., St. Mary's Coptic Orthodox Church"
-              placeholderTextColor="rgba(245,240,232,0.22)"
-            />
+            {churches.length > 0 ? (
+              <TouchableOpacity style={styles.churchPicker} onPress={() => setShowChurchPicker(true)}>
+                <Text style={churchId ? styles.churchPickerText : styles.churchPickerPlaceholder}>
+                  {churchId ? (churches.find(c => c.id === churchId)?.name ?? churchName) : (churchName || 'Select your church…')}
+                </Text>
+                <Text style={styles.churchPickerChevron}>›</Text>
+              </TouchableOpacity>
+            ) : (
+              <TextInput
+                style={styles.input}
+                value={churchName}
+                onChangeText={setChurchName}
+                placeholder="E.g., St. Mary's Coptic Orthodox Church"
+                placeholderTextColor="rgba(245,240,232,0.22)"
+              />
+            )}
           </View>
           {accountError ? <Text style={styles.fieldError}>{accountError}</Text> : null}
           <TouchableOpacity
@@ -543,6 +560,41 @@ export default function ProfileScreen() {
         </TouchableOpacity>
 
       </ScrollView>
+
+      {/* ── Church picker modal ── */}
+      <Modal visible={showChurchPicker} transparent animationType="slide">
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerCard}>
+            <Text style={styles.pickerTitle}>Select Your Church</Text>
+            <FlatList
+              data={churches}
+              keyExtractor={c => c.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.pickerRow, churchId === item.id && styles.pickerRowActive]}
+                  onPress={() => {
+                    setChurchId(item.id);
+                    setChurchName(item.name);
+                    setShowChurchPicker(false);
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.pickerRowName, churchId === item.id && styles.pickerRowNameActive]}>
+                      {item.name}
+                    </Text>
+                    {item.address && <Text style={styles.pickerRowAddress}>{item.address}</Text>}
+                  </View>
+                  {churchId === item.id && <Text style={styles.pickerCheck}>✓</Text>}
+                </TouchableOpacity>
+              )}
+              ItemSeparatorComponent={() => <View style={styles.pickerDivider} />}
+            />
+            <TouchableOpacity style={styles.pickerCancel} onPress={() => setShowChurchPicker(false)}>
+              <Text style={styles.pickerCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -649,6 +701,31 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 4,
   },
   signOutText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.red, letterSpacing: 0.5 },
+
+  churchPicker: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border,
+    borderRadius: 8, padding: 12,
+  },
+  churchPickerText: { flex: 1, fontFamily: fonts.latoLight, fontSize: 14, color: colors.cream },
+  churchPickerPlaceholder: { flex: 1, fontFamily: fonts.latoLight, fontSize: 14, color: 'rgba(245,240,232,0.22)' },
+  churchPickerChevron: { fontFamily: fonts.cormorant, fontSize: 20, color: colors.muted },
+
+  pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  pickerCard: {
+    backgroundColor: colors.navyMid, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    borderWidth: 1, borderColor: colors.border, padding: 24, paddingBottom: 40, maxHeight: '70%' as any,
+  },
+  pickerTitle: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 16 },
+  pickerRow: { paddingVertical: 14, flexDirection: 'row', alignItems: 'center' },
+  pickerRowActive: { opacity: 1 },
+  pickerRowName: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream },
+  pickerRowNameActive: { color: colors.goldLight },
+  pickerRowAddress: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 2 },
+  pickerCheck: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.gold },
+  pickerDivider: { height: 1, backgroundColor: colors.border },
+  pickerCancel: { marginTop: 16, alignItems: 'center', paddingVertical: 12 },
+  pickerCancelText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.muted, letterSpacing: 0.5 },
 
   vitalsToggleRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
