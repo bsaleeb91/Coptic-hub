@@ -13,3 +13,4 @@ export * from './pastoral';
 export * from './canons';
 export * from './prayer';
 export * from './progress';
+export * from './admin';
