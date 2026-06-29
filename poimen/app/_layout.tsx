@@ -26,6 +26,7 @@ import {
 } from '@expo-google-fonts/lato';
 import { AuthProvider, useSession } from '@/lib/auth';
 import { DemoProvider, useDemoMode } from '@/lib/demo';
+import * as db from '@/lib/db';
 import { TutorialProvider } from '@/lib/tutorial-context';
 import { Modal, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView } from 'react-native';
 import { colors, fonts } from '@/lib/theme';
@@ -147,6 +148,12 @@ function RootLayoutNav() {
     });
     return () => sub.remove();
   }, []);
+
+  useEffect(() => {
+    if (session?.user?.id && !demoMode) {
+      db.touchLastSeen(session.user.id).catch(() => {});
+    }
+  }, [session?.user?.id]);
 
   if (loading && !demoMode) return <View style={{ flex: 1, backgroundColor: '#0f1f3d' }} />;
 

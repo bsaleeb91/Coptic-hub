@@ -5,6 +5,7 @@ export interface Profile {
   id: string;
   full_name: string | null;
   church_name: string | null;
+  church_id: string | null;
   role: 'congregant' | 'priest' | 'servant' | 'admin';
   avatar_url: string | null;
   foc_id: string | null;
@@ -13,15 +14,38 @@ export interface Profile {
   invite_code: string | null;
   vitals_consent: boolean | null;
   last_confession_at: string | null;
+  last_seen_at: string | null;
+}
+
+export interface Church {
+  id: string;
+  name: string;
+  address: string | null;
+  created_at: string;
 }
 
 export async function getProfile(userId: string): Promise<Profile | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, church_name, role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, last_confession_at')
+    .select('id, full_name, church_name, church_id, role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, last_confession_at, last_seen_at')
     .eq('id', userId)
     .single();
   return data ?? null;
+}
+
+export async function touchLastSeen(userId: string): Promise<void> {
+  await supabase
+    .from('profiles')
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq('id', userId);
+}
+
+export async function getChurches(): Promise<Church[]> {
+  const { data } = await supabase
+    .from('churches')
+    .select('id, name, address, created_at')
+    .order('name');
+  return data ?? [];
 }
 
 export async function getProfileByInviteCode(
@@ -155,7 +179,7 @@ export async function getKeyBackup(userId: string): Promise<string | null> {
 export async function getAllProfiles(): Promise<Profile[]> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, church_name, role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, last_confession_at')
+    .select('id, full_name, church_name, church_id, role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, last_confession_at, last_seen_at')
     .order('role')
     .order('full_name');
   return data ?? [];
