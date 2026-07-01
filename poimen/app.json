@@ -6,18 +6,22 @@
     "orientation": "portrait",
     "scheme": "poimen",
     "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
     "splash": {
       "backgroundColor": "#0f1f3d"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.coptic.poimen"
+      "bundleIdentifier": "com.coptic.poimen",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0f1f3d"
       },
-      "package": "com.coptic.poimen"
+      "package": "com.coptic.poimen",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",

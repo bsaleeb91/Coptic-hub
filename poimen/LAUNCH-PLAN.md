@@ -33,6 +33,12 @@ Full manual QC of https://poimen-app.vercel.app across all 3 roles:
 
 ---
 
+## Backlog (post-launch features)
+
+- [ ] **Visitation scheduling** — priest/servant schedules home or outside-home visits with congregants; time, location type (home / other), notes
+
+---
+
 ## Soft Blockers (must resolve before real parish pilot)
 
 - Theological review of category-level data sharing by a Coptic priest

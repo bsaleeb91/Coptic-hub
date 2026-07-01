@@ -126,6 +126,10 @@ export default function AdminScreen() {
         <Text style={styles.eyebrow}>ADMIN</Text>
         <Text style={styles.title}>Dashboard</Text>
 
+        <TouchableOpacity style={styles.roadmapLink} onPress={() => router.push('/roadmap')}>
+          <Text style={styles.roadmapLinkText}>App Store Roadmap →</Text>
+        </TouchableOpacity>
+
         {loading ? (
           <ActivityIndicator color={colors.gold} style={{ marginTop: 60 }} />
         ) : !summary ? (
@@ -244,6 +248,8 @@ const styles = StyleSheet.create({
 
   backBtn: { marginBottom: 20 },
   backText: { fontFamily: fonts.lato, fontSize: 13, color: colors.gold },
+  roadmapLink: { marginBottom: 24, alignSelf: 'flex-start' as any, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.goldDim },
+  roadmapLinkText: { fontFamily: fonts.latoBold, fontSize: 12, letterSpacing: 0.5, color: colors.gold },
   eyebrow: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 2.5, color: colors.gold, marginBottom: 6 },
   title: { fontFamily: fonts.cormorantMedium, fontSize: 34, color: colors.cream, marginBottom: 20 },
   sectionLabel: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 2.5, color: colors.muted, marginBottom: 10 },
