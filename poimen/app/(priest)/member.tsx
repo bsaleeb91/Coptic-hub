@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
   TextInput, ActivityIndicator, Alert, Modal, Linking, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
@@ -153,22 +153,24 @@ export default function MemberScreen() {
   // Contact sheet
   const [showContactSheet, setShowContactSheet] = useState(false);
 
-  useEffect(() => {
-    if (demoMode) {
-      const d = getDemoData(memberId ?? '');
-      setMemberInfo(d.member);
-      setContact(d.contact);
-      setLifeStageData(d.life);
-      setMemberChildren(d.children);
-      setVitals(d.vitals);
-      setConfessions(d.confessions);
-      setPrayerRequests(d.prayer);
-      setCanons(d.canons);
-      setNotes(d.note ? [{ id: 'demo-note-1', author_id: 'demo-priest', member_id: memberId ?? '', body: d.note, created_at: new Date(Date.now() - 86400000 * 10).toISOString(), updated_at: new Date(Date.now() - 86400000 * 10).toISOString() }] : []);
-    } else if (memberId) {
-      loadMemberData();
-    }
-  }, [memberId, demoMode]);
+  useFocusEffect(
+    useCallback(() => {
+      if (demoMode) {
+        const d = getDemoData(memberId ?? '');
+        setMemberInfo(d.member);
+        setContact(d.contact);
+        setLifeStageData(d.life);
+        setMemberChildren(d.children);
+        setVitals(d.vitals);
+        setConfessions(d.confessions);
+        setPrayerRequests(d.prayer);
+        setCanons(d.canons);
+        setNotes(d.note ? [{ id: 'demo-note-1', author_id: 'demo-priest', member_id: memberId ?? '', body: d.note, created_at: new Date(Date.now() - 86400000 * 10).toISOString(), updated_at: new Date(Date.now() - 86400000 * 10).toISOString() }] : []);
+      } else if (memberId) {
+        loadMemberData();
+      }
+    }, [memberId, demoMode])
+  );
 
   async function loadMemberData() {
     if (!user || !memberId) return;
