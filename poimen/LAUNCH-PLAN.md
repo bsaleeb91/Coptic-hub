@@ -18,9 +18,9 @@ Work through these in order before Capacitor build and App Store submission.
 
 Full manual QC of https://poimen-app.vercel.app across all 3 roles:
 
-- [ ] **Congregant** — onboarding, dashboard, vitals, confession prep, canon, prayer, consent modal
-- [ ] **Priest** — flock roster, member detail (all tabs), log encounter, assign canon, consent gate
-- [ ] **Servant** — student roster, student detail, assign canon (restricted), prayer tab
+- [x] **Congregant** — onboarding, dashboard, vitals, confession prep, canon, prayer, consent modal
+- [x] **Priest** — flock roster, member detail (all tabs), log encounter, assign canon, consent gate
+- [x] **Servant** — student roster, student detail, assign canon (restricted), prayer tab
 
 ---
 
