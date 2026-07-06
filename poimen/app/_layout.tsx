@@ -1,16 +1,8 @@
 import { useEffect, useState } from 'react';
 import { AppState, Platform } from 'react-native';
-import { supabase } from '@/lib/supabase';
-
-if (Platform.OS === 'web' && typeof document !== 'undefined') {
-  const s = document.createElement('style');
-  s.textContent = '[role="button"],button,a{cursor:pointer!important}';
-  document.head.appendChild(s);
-}
-import { Redirect, Stack, useSegments } from 'expo-router';
+import { Redirect, Stack, useSegments, SplashScreen } from 'expo-router';
 import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import * as SplashScreen from 'expo-splash-screen';
 import {
   CormorantGaramond_300Light,
   CormorantGaramond_400Regular,
@@ -27,11 +19,18 @@ import {
 import { AuthProvider, useSession } from '@/lib/auth';
 import { DemoProvider, useDemoMode } from '@/lib/demo';
 import * as db from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { TutorialProvider } from '@/lib/tutorial-context';
 import { Modal, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView } from 'react-native';
 import { colors, fonts } from '@/lib/theme';
 
 SplashScreen.preventAutoHideAsync();
+
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const s = document.createElement('style');
+  s.textContent = '[role="button"],button,a{cursor:pointer!important}';
+  document.head.appendChild(s);
+}
 
 // ── PIN Modal ─────────────────────────────────────────────────
 function PINModal() {
