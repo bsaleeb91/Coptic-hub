@@ -55,7 +55,7 @@ function SwipeableRequest({ item, onDelete, onMarkAnswered }: {
   onMarkAnswered: () => void;
 }) {
   const translateX = useRef(new Animated.Value(0)).current;
-  const ACTION_WIDTH = 130;
+  const ACTION_WIDTH = 152;
 
   const panResponder = useRef(PanResponder.create({
     onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dy) < 20,
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
 
   swipeContainer: { position: 'relative', overflow: 'hidden' },
   swipeActions: { position: 'absolute', right: 0, top: 0, bottom: 0, flexDirection: 'row' },
-  swipeAction: { width: 65, alignItems: 'center', justifyContent: 'center' },
+  swipeAction: { width: 76, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   swipeActionAnswer: { backgroundColor: colors.greenBg },
   swipeActionDelete: { backgroundColor: 'rgba(192,57,43,0.25)' },
   swipeActionText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.cream, textAlign: 'center', letterSpacing: 0.5 },
