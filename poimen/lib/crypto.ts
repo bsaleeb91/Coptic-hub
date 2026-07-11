@@ -4,7 +4,7 @@
 // private key stays on device. Only the intended recipient's device can decrypt.
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64, encodeUTF8, decodeUTF8 } from 'tweetnacl-util';
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 const KEY_ID = 'poimen_notes_key_v1';
@@ -14,12 +14,12 @@ const BOX_PREFIX = 'box1:';
 
 async function loadKey(): Promise<string | null> {
   if (Platform.OS === 'web') return localStorage.getItem(KEY_ID);
-  return SecureStore.getItemAsync(KEY_ID);
+  return AsyncStorage.getItem(KEY_ID);
 }
 
 async function saveKey(key: string): Promise<void> {
   if (Platform.OS === 'web') { localStorage.setItem(KEY_ID, key); return; }
-  await SecureStore.setItemAsync(KEY_ID, key);
+  await AsyncStorage.setItem(KEY_ID, key);
 }
 
 async function getOrCreateKey(): Promise<Uint8Array> {
@@ -35,7 +35,7 @@ async function getOrCreateKey(): Promise<Uint8Array> {
 async function loadBoxKeypair(): Promise<nacl.BoxKeyPair | null> {
   const stored = Platform.OS === 'web'
     ? localStorage.getItem(KEYPAIR_ID)
-    : await SecureStore.getItemAsync(KEYPAIR_ID);
+    : await AsyncStorage.getItem(KEYPAIR_ID);
   if (!stored) return null;
   const bytes = decodeBase64(stored);
   return { secretKey: bytes.slice(0, 32), publicKey: bytes.slice(32, 64) };
@@ -47,7 +47,7 @@ async function saveBoxKeypair(kp: nacl.BoxKeyPair): Promise<void> {
   combined.set(kp.publicKey, 32);
   const encoded = encodeBase64(combined);
   if (Platform.OS === 'web') { localStorage.setItem(KEYPAIR_ID, encoded); return; }
-  await SecureStore.setItemAsync(KEYPAIR_ID, encoded);
+  await AsyncStorage.setItem(KEYPAIR_ID, encoded);
 }
 
 export async function getOrCreateBoxKeypair(): Promise<nacl.BoxKeyPair> {
