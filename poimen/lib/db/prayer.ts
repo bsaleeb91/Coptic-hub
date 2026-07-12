@@ -17,12 +17,14 @@ export async function insertPrayerRequest(row: Record<string, any>): Promise<{ d
   return { data: data ?? null, error };
 }
 
-export async function deletePrayerRequest(id: string): Promise<void> {
-  await supabase.from('prayer_requests').delete().eq('id', id);
+export async function deletePrayerRequest(id: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('prayer_requests').delete().eq('id', id);
+  return { error: error?.message ?? null };
 }
 
-export async function markPrayerAnswered(id: string): Promise<void> {
-  await supabase.from('prayer_requests').update({ answered: true }).eq('id', id);
+export async function markPrayerAnswered(id: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('prayer_requests').update({ answered: true }).eq('id', id);
+  return { error: error?.message ?? null };
 }
 
 // Unanswered requests shared with FOC — priest detail view.

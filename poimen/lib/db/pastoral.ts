@@ -42,8 +42,9 @@ export async function getChildren(parentId: string): Promise<any[]> {
   return data ?? [];
 }
 
-export async function deleteChildren(parentId: string): Promise<void> {
-  await supabase.from('pastoral_children').delete().eq('parent_id', parentId);
+export async function deleteChildren(parentId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('pastoral_children').delete().eq('parent_id', parentId);
+  return { error: error?.message ?? null };
 }
 
 export async function insertChildren(rows: Record<string, any>[]): Promise<{ error: string | null }> {

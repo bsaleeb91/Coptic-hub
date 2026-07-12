@@ -156,7 +156,8 @@ export default function ProfileScreen() {
     });
     if (lifeErr) { setSavingFamily(false); setFamilyError('Failed to save — please try again.'); return; }
     // Replace children: delete all then re-insert current list
-    await db.deleteChildren(user.id);
+    const { error: delErr } = await db.deleteChildren(user.id);
+    if (delErr) { setSavingFamily(false); setFamilyError('Failed to save — please try again.'); return; }
     if (children.length > 0) {
       const { error: kidsErr } = await db.insertChildren(
         children.map(c => ({

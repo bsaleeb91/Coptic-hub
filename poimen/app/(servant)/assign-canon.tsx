@@ -51,6 +51,7 @@ export default function ServantAssignCanonScreen() {
   const [expandedGroup, setExpandedGroup] = useState<string | null>('Prayer');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [showScopeInfo, setShowScopeInfo] = useState(false);
 
   const component = customComponent.trim() || selectedComponent;
@@ -65,7 +66,8 @@ export default function ServantAssignCanonScreen() {
       return;
     }
     setSaving(true);
-    await db.insertCanon({
+    setSaveError('');
+    const { error } = await db.insertCanon({
       congregant_id: studentId,
       priest_id: user!.id,
       component,
@@ -74,8 +76,12 @@ export default function ServantAssignCanonScreen() {
       reflection_prompt: reflectionPrompt.trim() || null,
       active: true,
     });
-    setSaved(true);
     setSaving(false);
+    if (error) {
+      setSaveError('Failed to assign — please try again.');
+      return;
+    }
+    setSaved(true);
     setTimeout(() => router.back(), 1300);
   }
 
@@ -192,6 +198,7 @@ export default function ServantAssignCanonScreen() {
           <Text style={styles.fieldHint}>Visible to the student in their Canon panel.</Text>
         </Card>
 
+        {saveError ? <Text style={styles.errorText}>{saveError}</Text> : null}
         <TouchableOpacity
           style={[styles.saveBtn, (!component || saving) && styles.saveBtnDisabled]}
           onPress={handleSave}
@@ -257,6 +264,7 @@ const styles = StyleSheet.create({
   freqText: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: colors.muted },
   freqTextActive: { color: colors.goldLight },
 
+  errorText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.red, marginBottom: 8 },
   saveBtn: { backgroundColor: colors.gold, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   saveBtnDisabled: { opacity: 0.35 },
   saveBtnText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.navy, letterSpacing: 1 },

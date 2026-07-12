@@ -202,8 +202,15 @@ export default function PrayerScreen() {
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive', onPress: async () => {
+          const removed = active.find(r => r.id === id);
           setActive(prev => prev.filter(r => r.id !== id));
-          if (!demoMode) await db.deletePrayerRequest(id);
+          if (!demoMode) {
+            const { error } = await db.deletePrayerRequest(id);
+            if (error && removed) {
+              setActive(prev => [removed, ...prev]);
+              Alert.alert('Failed to delete', 'Please try again.');
+            }
+          }
         },
       },
     ]);
@@ -216,7 +223,12 @@ export default function PrayerScreen() {
     setActive(prev => prev.filter(r => r.id !== id));
     setAnswered(prev => [updated, ...prev]);
     if (!demoMode) {
-      await db.markPrayerAnswered(id);
+      const { error } = await db.markPrayerAnswered(id);
+      if (error) {
+        setActive(prev => [req, ...prev]);
+        setAnswered(prev => prev.filter(r => r.id !== id));
+        Alert.alert('Failed to save', 'Please try again.');
+      }
     }
   }
 
@@ -225,8 +237,15 @@ export default function PrayerScreen() {
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive', onPress: async () => {
+          const removed = answered.find(r => r.id === id);
           setAnswered(prev => prev.filter(r => r.id !== id));
-          if (!demoMode) await db.deletePrayerRequest(id);
+          if (!demoMode) {
+            const { error } = await db.deletePrayerRequest(id);
+            if (error && removed) {
+              setAnswered(prev => [removed, ...prev]);
+              Alert.alert('Failed to delete', 'Please try again.');
+            }
+          }
         },
       },
     ]);

@@ -22,7 +22,7 @@ type AuthContextType = {
   signUpWithEmail: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
   signInWithMagicLink: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
-  completePINSetup: (pin: string) => Promise<void>;
+  completePINSetup: (pin: string) => Promise<boolean>;
   completePINRecovery: (pin: string) => Promise<boolean>;
   startFreshKeypair: () => Promise<void>;
   skipPINSetup: () => void;
@@ -84,14 +84,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function completePINSetup(pin: string) {
+  async function completePINSetup(pin: string): Promise<boolean> {
     const userId = session?.user?.id;
-    if (!userId) return;
+    if (!userId) return false;
     const kp = await getOrCreateBoxKeypair();
     const backup = encryptKeypairWithPIN(pin, kp);
-    await db.saveKeyBackup(userId, backup);
+    const { error } = await db.saveKeyBackup(userId, backup);
+    if (error) return false;
     await db.upsertPublicKey(userId, encodeBase64(kp.publicKey));
     setPinAction(null);
+    return true;
   }
 
   async function completePINRecovery(pin: string): Promise<boolean> {

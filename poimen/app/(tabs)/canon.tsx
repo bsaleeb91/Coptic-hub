@@ -186,7 +186,15 @@ export default function CanonScreen() {
     });
     if (!demoMode && user) {
       const today = new Date().toISOString().split('T')[0];
-      await db.upsertCanonCompletion(id, user.id, today);
+      const { error } = await db.upsertCanonCompletion(id, user.id, today);
+      if (error) {
+        // Revert the optimistic toggle — the save didn't actually persist.
+        setChecked(prev => {
+          const next = new Set(prev);
+          next.has(id) ? next.delete(id) : next.add(id);
+          return next;
+        });
+      }
     }
   }
 

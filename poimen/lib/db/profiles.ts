@@ -162,12 +162,14 @@ export async function getPublicKey(userId: string): Promise<string | null> {
   return (data as any)?.public_key ?? null;
 }
 
-export async function upsertPublicKey(userId: string, publicKey: string): Promise<void> {
-  await supabase.from('profiles').update({ public_key: publicKey }).eq('id', userId);
+export async function upsertPublicKey(userId: string, publicKey: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('profiles').update({ public_key: publicKey }).eq('id', userId);
+  return { error: error?.message ?? null };
 }
 
-export async function saveKeyBackup(userId: string, backup: string): Promise<void> {
-  await supabase.from('profiles').update({ key_backup: backup }).eq('id', userId);
+export async function saveKeyBackup(userId: string, backup: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('profiles').update({ key_backup: backup }).eq('id', userId);
+  return { error: error?.message ?? null };
 }
 
 export async function getKeyBackup(userId: string): Promise<string | null> {

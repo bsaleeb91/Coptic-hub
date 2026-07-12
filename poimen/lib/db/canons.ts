@@ -93,9 +93,10 @@ export async function countCanonCompletionsSince(canonId: string, sinceDate: str
   return count ?? 0;
 }
 
-export async function upsertCanonCompletion(canonId: string, userId: string, completedOn: string): Promise<void> {
-  await supabase.from('canon_completions').upsert(
+export async function upsertCanonCompletion(canonId: string, userId: string, completedOn: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('canon_completions').upsert(
     { canon_id: canonId, user_id: userId, completed_on: completedOn },
     { onConflict: 'canon_id,user_id,completed_on' },
   );
+  return { error: error?.message ?? null };
 }

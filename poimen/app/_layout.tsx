@@ -48,7 +48,8 @@ function PINModal() {
     if (isSetup && pin !== confirmPin) { setError('PINs do not match.'); return; }
     setWorking(true);
     if (isSetup) {
-      await completePINSetup(pin);
+      const ok = await completePINSetup(pin);
+      if (!ok) { setError('Failed to save your recovery PIN — please try again.'); setWorking(false); return; }
     } else {
       const ok = await completePINRecovery(pin);
       if (!ok) { setError('Incorrect PIN. Try again.'); setWorking(false); return; }
