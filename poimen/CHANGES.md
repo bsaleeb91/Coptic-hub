@@ -77,14 +77,16 @@ Congregant's `foc_id` is set to the priest's UUID. All accounts were manually co
 ---
 
 ## Known Open Items
-See `QA-FIXES.md` for the full prioritized list. Summary of what remains:
+See `QA-FIXES.md` for the full prioritized list (synced to code 2026-07-12). Summary of what remains:
 
 **HIGH**
-- No in-app flow to link a congregant to their Father of Confession (`foc_id` must be set via Supabase dashboard)
-- `follow_up_date` column missing from `pastoral_encounters`
-- Date input on Log Encounter screen not validated
-- Admin screen has no server-side role check
-- Route protection is client-side only
+- Priest has no notification when a congregant requests an appointment
+- Route protection is client-side only (RLS is the real enforcement layer — accepted risk)
+
+**MEDIUM**
+- Session tokens in localStorage on web (accepted risk — no server layer for httpOnly cookies on static export)
+- `any` types remain in several `lib/db/*.ts` modules; no generated Supabase types yet
+- Error-return handling from `lib/db/*` writes needs a pass to confirm every screen surfaces failures
 
 **Product decisions pending**
 - FOC linking flow: priest invites congregant, or congregant searches for priest?

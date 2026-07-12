@@ -26,9 +26,9 @@ Full manual QC of https://poimen-app.vercel.app across all 3 roles:
 
 ## Phase 3 — Deploy & Build
 
-- [ ] Redeploy to Vercel after Phase 1 + 2 changes (`npx expo export --platform web` → `vercel . --prod` → alias set)
-- [ ] Capacitor setup for iOS + Android
-- [ ] TestFlight submission
+- [x] Redeploy to Vercel after Phase 1 + 2 changes (`npx expo export --platform web` → `vercel . --prod` → alias set)
+- [x] iOS native build via EAS (not Capacitor — this is an Expo/RN app, EAS is the native build path). `ascAppId` already set in `eas.json`. TurboModule crash on production build fixed 2026-07-05 (`f002fcb`); `ITSAppUsesNonExemptEncryption: false` set in `app.json` for App Store compliance.
+- [ ] TestFlight submission — status unconfirmed as of 2026-07-12, needs `eas login` (interactive) to check `eas build:list` / `eas submit:list`.
 - [ ] Play Store internal track submission
 
 ---
