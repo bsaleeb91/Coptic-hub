@@ -1,0 +1,45 @@
+# OSX
+.DS_Store
+
+# Node
+node_modules/
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# iOS/Android
+ios/
+android/
+
+# Metro
+.metro-health-check*
+
+# Debug
+.vscode/
+.idea/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Secrets
+google-services.json
+GoogleService-Info.plist
+
+# Local
+*.log

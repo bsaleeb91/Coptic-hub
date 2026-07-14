@@ -1,0 +1,157 @@
+- generic [ref=e46]:
+  - generic [ref=e52]:
+    - generic [ref=e53]:
+      - generic [ref=e54]:
+        - generic [ref=e55]: Wednesday, June 17 · Apostles' Fast · Day 25
+        - generic [ref=e56]: friend
+      - generic [ref=e57]:
+        - generic [ref=e59] [cursor=pointer]: ⊞
+        - generic [ref=e61] [cursor=pointer]: F
+    - generic [ref=e62]:
+      - generic [ref=e63]:
+        - generic [ref=e64]: 47 days
+        - generic [ref=e65]: last confession
+      - generic [ref=e67]:
+        - generic [ref=e68]: 8 / 10
+        - generic [ref=e69]: Sundays attended
+      - generic [ref=e71]:
+        - generic [ref=e72]: ⚠ due
+        - generic [ref=e73]: confession
+    - generic [ref=e75]:
+      - generic [ref=e76]: ✝
+      - generic [ref=e77]: UPCOMING
+      - generic [ref=e78]: Prepare for Holy Confession
+      - generic [ref=e79]: Fr. Bishoy has confession hours this Sunday after the Divine Liturgy. You last confessed 47 days ago. The Apostles' Fast is a blessed time to receive the sacrament.
+      - generic [ref=e82] [cursor=pointer]: BEGIN EXAMINATION
+    - generic [ref=e83]:
+      - generic [ref=e84]:
+        - generic [ref=e85]:
+          - generic [ref=e86]: ◎
+          - text: Pastoral Journey
+        - generic [ref=e87]: View all
+      - generic [ref=e88]:
+        - generic [ref=e93]:
+          - generic [ref=e94]: MAY 21, 2026
+          - generic [ref=e95]: Holy Confession
+          - generic [ref=e96]: Fr. Bishoy assigned a 40-day reading plan from the Psalms.
+          - generic [ref=e98]: ✝ Confession
+        - generic [ref=e103]:
+          - generic [ref=e104]: MAY 4, 2026
+          - generic [ref=e105]: Pastoral Visit — Home
+          - generic [ref=e106]: Fr. Bishoy visited following the birth of your daughter. Prayers and blessings offered.
+          - generic [ref=e108]: ◎ Pastoral Visit
+        - generic [ref=e113]:
+          - generic [ref=e114]: APR 20, 2026
+          - generic [ref=e115]: Holy Week Confession
+          - generic [ref=e116]: Guidance on marriage and family prayer practices.
+          - generic [ref=e118]: ✝ Confession
+        - generic [ref=e122]:
+          - generic [ref=e123]: MAR 12, 2026
+          - generic [ref=e124]: Small Group Check-in
+          - generic [ref=e125]: Discussed the Book of Job with the young couples' group.
+          - generic [ref=e127]: ◇ Note
+    - generic [ref=e128]:
+      - generic [ref=e129]: Spiritual Vitals
+      - generic [ref=e130]: tap to update
+    - generic [ref=e131] [cursor=pointer]:
+      - generic [ref=e132]: Daily Prayer (Agpeya)
+      - generic [ref=e135]: 65%
+    - generic [ref=e136] [cursor=pointer]:
+      - generic [ref=e137]: Scripture Reading
+      - generic [ref=e140]: 80%
+    - generic [ref=e141] [cursor=pointer]:
+      - generic [ref=e142]: Divine Liturgy
+      - generic [ref=e145]: 80%
+    - generic [ref=e146] [cursor=pointer]:
+      - generic [ref=e147]: Fasting
+      - generic [ref=e150]: 90%
+    - generic [ref=e151] [cursor=pointer]:
+      - generic [ref=e152]: Service / Diakonia
+      - generic [ref=e155]: 50%
+    - generic [ref=e156]:
+      - generic [ref=e157]: 🔒
+      - generic [ref=e158]: Self-reported. Visible only to you and your Father of Confession.
+    - generic [ref=e161]:
+      - generic [ref=e162]:
+        - generic [ref=e163]:
+          - generic [ref=e164]: ⊕
+          - text: Upcoming Feasts
+        - generic [ref=e165]: Full calendar
+      - generic [ref=e166]:
+        - generic [ref=e167]:
+          - generic [ref=e168]:
+            - generic [ref=e169]: JUL
+            - generic [ref=e170]: "12"
+          - generic [ref=e171]:
+            - generic [ref=e172]: Feast of the Apostles
+            - generic [ref=e173]: End of Apostles' Fast. Breaking of fast after Divine Liturgy.
+        - generic [ref=e174]:
+          - generic [ref=e175]:
+            - generic [ref=e176]: JUL
+            - generic [ref=e177]: "19"
+          - generic [ref=e178]:
+            - generic [ref=e179]: Feast of Archangel Michael
+            - generic [ref=e180]: Monthly feast. Tasbeha at 11:00 PM the prior evening.
+        - generic [ref=e181]:
+          - generic [ref=e182]:
+            - generic [ref=e183]: AUG
+            - generic [ref=e184]: "7"
+          - generic [ref=e185]:
+            - generic [ref=e186]: Feast of the Transfiguration
+            - generic [ref=e187]: Feast of the Transfiguration of our Lord Jesus Christ.
+    - generic [ref=e188]:
+      - generic [ref=e190]:
+        - generic [ref=e191]: ◉
+        - text: My Father of Confession
+      - generic [ref=e192]:
+        - generic [ref=e193]:
+          - generic [ref=e195]: BM
+          - generic [ref=e196]:
+            - generic [ref=e197]: Fr. Bishoy Marcos
+            - generic [ref=e198]: St. Mary's Coptic Orthodox Church
+        - generic [ref=e199] [cursor=pointer]:
+          - generic [ref=e200]: ✝
+          - generic [ref=e201]:
+            - generic [ref=e202]: Request Confession Appointment
+            - generic [ref=e203]: "Next available: Sunday after Liturgy"
+  - tablist [ref=e205]:
+    - tab "◈ Home ◈ Home" [selected] [ref=e207] [cursor=pointer]:
+      - generic [ref=e208]:
+        - generic [ref=e210]:
+          - generic [ref=e211]: ◈
+          - generic [ref=e212]: Home
+        - generic [ref=e214]:
+          - generic [ref=e215]: ◈
+          - generic [ref=e216]: Home
+    - tab "✝ Confess ✝ Confess" [ref=e218] [cursor=pointer]:
+      - generic [ref=e219]:
+        - generic [ref=e221]:
+          - generic [ref=e222]: ✝
+          - generic [ref=e223]: Confess
+        - generic [ref=e225]:
+          - generic [ref=e226]: ✝
+          - generic [ref=e227]: Confess
+    - tab "✦ Journal ✦ Journal" [ref=e229] [cursor=pointer]:
+      - generic [ref=e230]:
+        - generic [ref=e232]:
+          - generic [ref=e233]: ✦
+          - generic [ref=e234]: Journal
+        - generic [ref=e236]:
+          - generic [ref=e237]: ✦
+          - generic [ref=e238]: Journal
+    - tab "◇ Prayer ◇ Prayer" [ref=e240] [cursor=pointer]:
+      - generic [ref=e241]:
+        - generic [ref=e243]:
+          - generic [ref=e244]: ◇
+          - generic [ref=e245]: Prayer
+        - generic [ref=e247]:
+          - generic [ref=e248]: ◇
+          - generic [ref=e249]: Prayer
+    - tab "📜 Canon 📜 Canon" [ref=e251] [cursor=pointer]:
+      - generic [ref=e252]:
+        - generic [ref=e254]:
+          - generic [ref=e255]: 📜
+          - generic [ref=e256]: Canon
+        - generic [ref=e258]:
+          - generic [ref=e259]: 📜
+          - generic [ref=e260]: Canon

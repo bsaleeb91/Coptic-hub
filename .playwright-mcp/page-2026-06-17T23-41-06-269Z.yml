@@ -1,0 +1,40 @@
+- generic [ref=e8]:
+  - generic [ref=e14]:
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - generic [ref=e17]: My Students
+        - generic [ref=e18]: Wednesday, June 17 · Servant
+      - generic [ref=e20] [cursor=pointer]: MY VIEW
+    - generic [ref=e21]: 0 students
+    - textbox "Search students..." [ref=e22]
+    - generic [ref=e23]:
+      - generic [ref=e25]: STUDENTS (0)
+      - generic [ref=e27]:
+        - generic [ref=e28]: No students yet
+        - generic [ref=e29]: Students who list you as their servant will appear here.
+    - generic [ref=e31]: ✦ As a Sunday School servant, you can assign Bible reading and prayer canons to your students. Confession and counseling records are handled by your Father of Confession.
+  - tablist [ref=e33]:
+    - tab "◉ Students ◉ Students" [selected] [ref=e35] [cursor=pointer]:
+      - generic [ref=e36]:
+        - generic [ref=e38]:
+          - generic [ref=e39]: ◉
+          - generic [ref=e40]: Students
+        - generic [ref=e42]:
+          - generic [ref=e43]: ◉
+          - generic [ref=e44]: Students
+    - tab "📖 Student 📖 Student" [ref=e46] [cursor=pointer]:
+      - generic [ref=e47]:
+        - generic [ref=e49]:
+          - generic [ref=e50]: 📖
+          - generic [ref=e51]: Student
+        - generic [ref=e53]:
+          - generic [ref=e54]: 📖
+          - generic [ref=e55]: Student
+    - tab "📜 Canon 📜 Canon" [ref=e57] [cursor=pointer]:
+      - generic [ref=e58]:
+        - generic [ref=e60]:
+          - generic [ref=e61]: 📜
+          - generic [ref=e62]: Canon
+        - generic [ref=e64]:
+          - generic [ref=e65]: 📜
+          - generic [ref=e66]: Canon

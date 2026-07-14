@@ -1,0 +1,92 @@
+- generic [ref=e8]:
+  - generic [ref=e14]:
+    - generic [ref=e15]: Confession Preparation
+    - generic [ref=e16]: Private — your entries never leave this device
+    - generic [ref=e17]:
+      - generic [ref=e18]: 🔒
+      - generic [ref=e19]: Complete privacy guarantee. Your examination notes exist only in this session. They are never stored, transmitted, or seen by anyone. Only the date of your confession is recorded.
+    - generic [ref=e20]:
+      - generic [ref=e21]: EXAMINATION PROGRESS
+      - generic [ref=e22]: 0 / 23 reviewed
+    - generic [ref=e23]:
+      - generic [ref=e25]: EXAMINATION OF CONSCIENCE
+      - generic [ref=e26]:
+        - generic [ref=e28]:
+          - generic [ref=e30] [cursor=pointer]: Toward God
+          - generic [ref=e32] [cursor=pointer]: Toward Others
+          - generic [ref=e34] [cursor=pointer]: Toward Self
+          - generic [ref=e36] [cursor=pointer]: Omissions
+        - generic [ref=e39] [cursor=pointer]:
+          - generic [ref=e40]: Have I neglected or rushed my daily prayers (Agpeya)?
+          - generic [ref=e41]: Reflect on the quality of your prayer, not only its presence.
+        - generic [ref=e45] [cursor=pointer]: Have I attended the Divine Liturgy with full attention and reverence?
+        - generic [ref=e48] [cursor=pointer]:
+          - generic [ref=e49]: Have I kept the fasts of the Church with sincerity?
+          - generic [ref=e50]: Including the spirit of fasting — prayer, almsgiving, and avoidance of entertainment.
+        - generic [ref=e54] [cursor=pointer]: Have I read and meditated on Scripture regularly?
+        - generic [ref=e58] [cursor=pointer]: Have I harbored doubt, despair, or distrust in God's providence?
+        - generic [ref=e62] [cursor=pointer]: Have I exposed myself to content that weakens my faith or darkens my mind?
+        - generic [ref=e66] [cursor=pointer]: Have I been thankful to God for His gifts and blessings?
+        - generic [ref=e68]: PERSONAL REFLECTION
+        - textbox "What has been weighing on your heart since your last confession? What do you wish to bring before God?" [ref=e69]
+        - generic [ref=e70]: RECURRING STRUGGLES (PRIVATE)
+        - textbox "Note any patterns you want to address — recurring temptations, persistent habits, or areas of spiritual weakness..." [ref=e71]
+        - generic [ref=e72]: ANSWERED PRAYERS & GROWTH
+        - textbox "Note moments of grace, answered prayers, or growth to give thanks for..." [ref=e73]
+        - generic [ref=e75]: ✦ Session only — these notes disappear when you leave this screen.
+    - generic [ref=e76]:
+      - generic [ref=e78]:
+        - generic [ref=e79]: ◈
+        - text: Schedule Confession
+      - generic [ref=e80]:
+        - generic [ref=e82] [cursor=pointer]: REQUEST APPOINTMENT WITH FOC
+        - generic [ref=e83]:
+          - generic [ref=e84]: 🔒
+          - generic [ref=e85]: Only your name and requested date are shared. Examination notes are never transmitted.
+    - generic [ref=e86]:
+      - generic [ref=e88]: CONFESSION HISTORY
+      - generic [ref=e90]:
+        - generic [ref=e91]: ✝
+        - generic [ref=e92]: No history yet
+        - generic [ref=e93]: Confession dates appear here after your Father of Confession logs your meeting. Content is never recorded.
+  - tablist [ref=e95]:
+    - tab "◈ Home ◈ Home" [ref=e97] [cursor=pointer]:
+      - generic [ref=e98]:
+        - generic [ref=e100]:
+          - generic [ref=e101]: ◈
+          - generic [ref=e102]: Home
+        - generic [ref=e104]:
+          - generic [ref=e105]: ◈
+          - generic [ref=e106]: Home
+    - tab "✝ Confess ✝ Confess" [selected] [ref=e108] [cursor=pointer]:
+      - generic [ref=e109]:
+        - generic [ref=e111]:
+          - generic [ref=e112]: ✝
+          - generic [ref=e113]: Confess
+        - generic [ref=e115]:
+          - generic [ref=e116]: ✝
+          - generic [ref=e117]: Confess
+    - tab "✦ Journal ✦ Journal" [ref=e119] [cursor=pointer]:
+      - generic [ref=e120]:
+        - generic [ref=e122]:
+          - generic [ref=e123]: ✦
+          - generic [ref=e124]: Journal
+        - generic [ref=e126]:
+          - generic [ref=e127]: ✦
+          - generic [ref=e128]: Journal
+    - tab "◇ Prayer ◇ Prayer" [ref=e130] [cursor=pointer]:
+      - generic [ref=e131]:
+        - generic [ref=e133]:
+          - generic [ref=e134]: ◇
+          - generic [ref=e135]: Prayer
+        - generic [ref=e137]:
+          - generic [ref=e138]: ◇
+          - generic [ref=e139]: Prayer
+    - tab "📜 Canon 📜 Canon" [ref=e141] [cursor=pointer]:
+      - generic [ref=e142]:
+        - generic [ref=e144]:
+          - generic [ref=e145]: 📜
+          - generic [ref=e146]: Canon
+        - generic [ref=e148]:
+          - generic [ref=e149]: 📜
+          - generic [ref=e150]: Canon

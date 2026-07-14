@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Poimen",
+    "slug": "poimen",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "poimen",
+    "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f1f3d"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.coptic.poimen",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0f1f3d"
+      },
+      "package": "com.coptic.poimen",
+      "versionCode": 1
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6557a462-5807-40e8-b87a-b14a70ac5a95"
+      }
+    }
+  }
+}
