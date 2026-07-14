@@ -1,45 +1,47 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  TextInput, Animated, PanResponder, Alert, ActivityIndicator, Modal,
+  TextInput, Animated, PanResponder, Alert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
-import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
-type Frequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+// Spiritual practices/disciplines were removed from this tab — daily practices
+// live on the Canon tab (assigned canon + personal rule). This tab is now
+// purely the written journal: today's entry, past entries, and the prompt.
 
-const FREQ_COLOR: Record<Frequency, string> = {
-  daily: colors.blue, weekly: colors.green, monthly: colors.goldLight,
-  quarterly: colors.purple, yearly: colors.yellow,
-};
+interface JournalEntry {
+  id: string;
+  created_at: string;
+  title: string;
+  reflection: string;
+  scripture?: string;
+  prayer_intention?: string;
+}
 
-const FREQ_OPTS: Frequency[] = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'];
-
-const DEMO_DISCIPLINES = [
-  { id: 'd1', icon: '🙏', name: 'Morning Agpeya', freq: 'daily' as Frequency, streak: '5-day streak', shared: true, done: true },
-  { id: 'd2', icon: '📖', name: 'Bible Reading', freq: 'daily' as Frequency, streak: '5-day streak', shared: true, done: false },
-  { id: 'd3', icon: '🕯', name: 'Vespers', freq: 'weekly' as Frequency, streak: '3 this month', shared: true, done: false },
-  { id: 'd4', icon: '✝', name: 'Divine Liturgy', freq: 'weekly' as Frequency, streak: '8 / 10 Sundays', shared: true, done: true },
-  { id: 'd5', icon: '❤', name: 'Almsgiving', freq: 'monthly' as Frequency, streak: '', shared: false, done: false },
-  { id: 'd6', icon: '🌿', name: 'Retreat / Day of Prayer', freq: 'quarterly' as Frequency, streak: '', shared: true, done: false },
-];
-
-const DEMO_ENTRIES = [
-  { id: 'e1', created_at: '2026-06-04', title: 'Reflection on the fast', reflection: 'Felt a deepening sense of gratitude during the Agpeya today. The third hour prayer felt different — more present.' },
-  { id: 'e2', created_at: '2026-05-30', title: 'Gratitude', reflection: 'Reflecting on God\'s faithfulness with the baby\'s health. Psalm 116 kept coming to mind.' },
+const DEMO_ENTRIES: JournalEntry[] = [
+  { id: 'e1', created_at: '2026-06-04', title: 'Reflection on the fast', reflection: 'Felt a deepening sense of gratitude during the Agpeya today. The third hour prayer felt different — more present.', scripture: 'Psalm 62:1 — O God, my God, I rise early to be with You', prayer_intention: 'That this stillness would carry into the workday.' },
+  { id: 'e2', created_at: '2026-05-30', title: 'Gratitude', reflection: 'Reflecting on God\'s faithfulness with the baby\'s health. Psalm 116 kept coming to mind.', scripture: 'Psalm 116:7 — Return to your rest, O my soul' },
   { id: 'e3', created_at: '2026-05-22', title: 'After confession', reflection: 'Feeling lighter. Beginning the 40-day Psalm plan. Starting with Psalm 50.' },
 ];
 
-const ICONS = ['🙏', '📖', '🕯', '✝', '❤', '🌿', '⛪', '🫶', '✨', '🕊'];
+function fmtDate(iso: string, long = false): string {
+  // Date-only strings ("2026-06-04") parse as UTC midnight and can display as
+  // the previous day locally — anchor them to local noon so the calendar day
+  // survives any timezone. Full ISO timestamps parse as-is.
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(iso + 'T12:00:00') : new Date(iso);
+  return d.toLocaleDateString('en-US', long
+    ? { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }
+    : { month: 'long', day: 'numeric', year: 'numeric' });
+}
 
-// ── Swipeable discipline row ─────────────────────────────────
-function SwipeableDiscipline({ disc, done, onToggle, onDelete }: {
-  disc: any; done: boolean; onToggle: () => void; onDelete: () => void;
+// ── Swipeable entry row — swipe left to delete, tap to open ──
+function SwipeableEntry({ entry, onPress, onDelete }: {
+  entry: JournalEntry; onPress: () => void; onDelete: () => void;
 }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const ACTION_WIDTH = 70;
@@ -70,71 +72,14 @@ function SwipeableDiscipline({ disc, done, onToggle, onDelete }: {
         </TouchableOpacity>
       </View>
       <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
-        <View style={[styles.discItem, done && styles.discItemDone]}>
-          <TouchableOpacity onPress={onToggle}>
-            <View style={[styles.discCheck, done && styles.discCheckDone]}>
-              {done && <Text style={styles.discCheckMark}>✓</Text>}
-            </View>
-          </TouchableOpacity>
-          <View style={styles.discIcon}>
-            <Text style={styles.discIconEmoji}>{disc.icon}</Text>
+        <TouchableOpacity style={styles.entryItem} onPress={onPress} activeOpacity={0.7}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.entryDate}>{fmtDate(entry.created_at)}</Text>
+            <Text style={styles.entryTitle}>{entry.title}</Text>
+            <Text style={styles.entryPreview} numberOfLines={2}>{entry.reflection}</Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.discName, done && styles.discNameDone]}>{disc.name}</Text>
-            <View style={styles.discMeta}>
-              <Text style={[styles.discFreq, { color: FREQ_COLOR[disc.freq as Frequency] }]}>{disc.freq.toUpperCase()}</Text>
-              {disc.streak ? <Text style={styles.discStreak}>{disc.streak}</Text> : null}
-            </View>
-          </View>
-          {disc.shared && (
-            <View style={styles.sharedBadge}>
-              <Text style={styles.sharedBadgeText}>✝ FOC</Text>
-            </View>
-          )}
-        </View>
-      </Animated.View>
-    </View>
-  );
-}
-
-// ── Swipeable entry row ──────────────────────────────────────
-function SwipeableEntry({ entry, onDelete }: { entry: any; onDelete: () => void }) {
-  const translateX = useRef(new Animated.Value(0)).current;
-  const ACTION_WIDTH = 70;
-
-  const panResponder = useRef(PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dy) < 20,
-    onPanResponderMove: (_, g) => {
-      if (g.dx < 0) translateX.setValue(Math.max(g.dx, -ACTION_WIDTH));
-    },
-    onPanResponderRelease: (_, g) => {
-      if (g.dx < -ACTION_WIDTH / 2) {
-        Animated.spring(translateX, { toValue: -ACTION_WIDTH, useNativeDriver: true }).start();
-      } else {
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-      }
-    },
-  })).current;
-
-  function close() {
-    Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-  }
-
-  return (
-    <View style={styles.swipeContainer}>
-      <View style={styles.swipeActions}>
-        <TouchableOpacity style={styles.swipeActionDelete} onPress={() => { close(); onDelete(); }}>
-          <Text style={styles.swipeActionText}>✕{'\n'}Delete</Text>
+          <Text style={styles.entryChevron}>›</Text>
         </TouchableOpacity>
-      </View>
-      <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
-        <View style={styles.entryItem}>
-          <Text style={styles.entryDate}>
-            {new Date(entry.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-          </Text>
-          <Text style={styles.entryTitle}>{entry.title}</Text>
-          <Text style={styles.entryPreview} numberOfLines={2}>{entry.reflection}</Text>
-        </View>
       </Animated.View>
     </View>
   );
@@ -145,11 +90,10 @@ export default function JournalScreen() {
   const { user } = useSession();
   const { demoMode } = useDemoMode();
 
-  const [disciplines, setDisciplines] = useState<any[]>([]);
-  const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [entries, setEntries] = useState<any[]>([]);
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(!demoMode);
   const [savingEntry, setSavingEntry] = useState(false);
+  const [viewEntry, setViewEntry] = useState<JournalEntry | null>(null);
 
   // New entry form
   const [entryTitle, setEntryTitle] = useState('');
@@ -157,17 +101,8 @@ export default function JournalScreen() {
   const [scripture, setScripture] = useState('');
   const [prayerIntention, setPrayerIntention] = useState('');
 
-  // Add discipline modal
-  const [showAddDisc, setShowAddDisc] = useState(false);
-  const [newDiscName, setNewDiscName] = useState('');
-  const [newDiscFreq, setNewDiscFreq] = useState<Frequency>('daily');
-  const [newDiscIcon, setNewDiscIcon] = useState('🙏');
-  const [newDiscShared, setNewDiscShared] = useState(false);
-
   useEffect(() => {
     if (demoMode) {
-      setDisciplines(DEMO_DISCIPLINES);
-      setChecked(new Set(DEMO_DISCIPLINES.filter(d => d.done).map(d => d.id)));
       setEntries(DEMO_ENTRIES);
     } else {
       load();
@@ -177,32 +112,12 @@ export default function JournalScreen() {
   async function load() {
     if (!user) return;
     setLoading(true);
-    const [progData, entryData] = await Promise.all([
-      db.getAgentProgress(user.id, 'journal-disciplines'),
-      db.getAgentProgress(user.id, 'journal-entries'),
-    ]);
-    if (progData?.disciplines) {
-      setDisciplines(progData.disciplines);
-      const today = new Date().toDateString();
-      const todayChecked: string[] = progData.checkedToday?.date === today
-        ? progData.checkedToday.ids : [];
-      setChecked(new Set(todayChecked));
-    }
+    const entryData = await db.getAgentProgress(user.id, 'journal-entries');
     if (entryData?.entries) setEntries(entryData.entries);
     setLoading(false);
   }
 
-  async function saveDisciplines(discs: any[], checkedIds?: Set<string>) {
-    if (!user || demoMode) return;
-    const ids = checkedIds ?? checked;
-    await db.upsertAgentProgress({
-      user_id: user.id, agent_slug: 'journal-disciplines',
-      payload: { disciplines: discs, checkedToday: { date: new Date().toDateString(), ids: [...ids] } },
-      updated_at: new Date().toISOString(),
-    });
-  }
-
-  async function saveEntries(newEntries: any[]) {
+  async function saveEntries(newEntries: JournalEntry[]) {
     if (!user || demoMode) return;
     await db.upsertAgentProgress({
       user_id: user.id, agent_slug: 'journal-entries',
@@ -211,40 +126,10 @@ export default function JournalScreen() {
     });
   }
 
-  function toggleDisc(id: string) {
-    setChecked(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      saveDisciplines(disciplines, next);
-      return next;
-    });
-  }
-
-  function addDiscipline() {
-    if (!newDiscName.trim()) return;
-    const disc = { id: Date.now().toString(), icon: newDiscIcon, name: newDiscName.trim(), freq: newDiscFreq, streak: '', shared: newDiscShared, done: false };
-    const updated = [...disciplines, disc];
-    setDisciplines(updated);
-    saveDisciplines(updated);
-    setNewDiscName(''); setNewDiscFreq('daily'); setNewDiscIcon('🙏'); setNewDiscShared(false);
-    setShowAddDisc(false);
-  }
-
-  function deleteDiscipline(id: string) {
-    Alert.alert('Remove Practice', 'Remove this spiritual practice?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => {
-        const updated = disciplines.filter(d => d.id !== id);
-        setDisciplines(updated);
-        saveDisciplines(updated);
-      }},
-    ]);
-  }
-
   async function saveEntry() {
     if (!reflection.trim()) return;
     setSavingEntry(true);
-    const entry = {
+    const entry: JournalEntry = {
       id: Date.now().toString(),
       created_at: new Date().toISOString(),
       title: entryTitle.trim() || 'Untitled',
@@ -266,65 +151,59 @@ export default function JournalScreen() {
         const updated = entries.filter(e => e.id !== id);
         setEntries(updated);
         saveEntries(updated);
+        setViewEntry(null);
       }},
     ]);
   }
 
-  const dailyDiscs = disciplines.filter(d => d.freq === 'daily');
-  const dailyDone = dailyDiscs.filter(d => checked.has(d.id)).length;
   const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
+  // ── Entry detail ───────────────────────────────────────────
+  if (viewEntry) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.detailHeader}>
+          <TouchableOpacity onPress={() => setViewEntry(null)} hitSlop={10}>
+            <Text style={styles.detailBack}>‹ Journal</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => deleteEntry(viewEntry.id)} hitSlop={10}>
+            <Text style={styles.detailDelete}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={styles.content}>
+          <Text style={styles.detailDate}>{fmtDate(viewEntry.created_at, true)}</Text>
+          <Text style={styles.detailTitle}>{viewEntry.title}</Text>
+
+          <Text style={styles.detailLabel}>REFLECTION</Text>
+          <Text style={styles.detailBody}>{viewEntry.reflection}</Text>
+
+          {!!viewEntry.scripture && (
+            <>
+              <Text style={styles.detailLabel}>SCRIPTURE THAT SPOKE TO ME</Text>
+              <View style={styles.detailScriptureCard}>
+                <Text style={styles.detailScripture}>{viewEntry.scripture}</Text>
+              </View>
+            </>
+          )}
+
+          {!!viewEntry.prayer_intention && (
+            <>
+              <Text style={styles.detailLabel}>PRAYER INTENTION</Text>
+              <Text style={styles.detailBody}>{viewEntry.prayer_intention}</Text>
+            </>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Journal home ───────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
 
         <Text style={styles.pageTitle}>Spiritual Journal</Text>
-        <Text style={styles.pageSubtitle}>Reflections, disciplines, and growth</Text>
-
-        {/* Disciplines */}
-        <Card
-          title="Spiritual Practices"
-          flat
-          action={
-            <TouchableOpacity style={styles.btnGold} onPress={() => setShowAddDisc(true)}>
-              <Text style={styles.btnGoldText}>+ ADD</Text>
-            </TouchableOpacity>
-          }
-        >
-          {dailyDiscs.length > 0 && (
-            <View style={styles.progressRow}>
-              <Text style={styles.progressIcon}>📅</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.progressLabel}>TODAY'S PROGRESS</Text>
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: `${dailyDiscs.length ? (dailyDone / dailyDiscs.length) * 100 : 0}%` as any }]} />
-                </View>
-              </View>
-              <Text style={styles.progressVal}>{dailyDone} / {dailyDiscs.length}</Text>
-            </View>
-          )}
-
-          {loading ? (
-            <ActivityIndicator color={colors.gold} style={{ paddingVertical: 20 }} />
-          ) : disciplines.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>◈</Text>
-              <Text style={styles.emptyTitle}>No practices yet</Text>
-              <Text style={styles.emptyBody}>Add your first spiritual practice to track daily.</Text>
-            </View>
-          ) : (
-            disciplines.map((disc) => (
-              <SwipeableDiscipline
-                key={disc.id}
-                disc={disc}
-                done={checked.has(disc.id)}
-                onToggle={() => toggleDisc(disc.id)}
-                onDelete={() => deleteDiscipline(disc.id)}
-              />
-            ))
-          )}
-          <PrivacyNote text="Only practice names and completion % are shared with your Father of Confession — never your journal content." />
-        </Card>
+        <Text style={styles.pageSubtitle}>Reflections, prompts, and growth</Text>
 
         {/* Today's Entry */}
         <Card title="Today's Entry" titleIcon="✦" action={<Text style={styles.dateLabel}>{todayStr}</Text>}>
@@ -347,18 +226,22 @@ export default function JournalScreen() {
 
         {/* Past Entries */}
         <Card title={`Past Entries (${entries.length})`} flat>
-          {entries.length === 0 ? (
+          {loading ? (
+            <ActivityIndicator color={colors.gold} style={{ paddingVertical: 20 }} />
+          ) : entries.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>◎</Text>
               <Text style={styles.emptyTitle}>No entries yet</Text>
               <Text style={styles.emptyBody}>Your saved entries will appear here.</Text>
             </View>
           ) : (
-            entries.map((entry, i) => (
-              <View key={entry.id}>
-                <SwipeableEntry entry={entry} onDelete={() => deleteEntry(entry.id)} />
-                {i < entries.length - 1 && <View style={styles.divider} />}
-              </View>
+            entries.map(entry => (
+              <SwipeableEntry
+                key={entry.id}
+                entry={entry}
+                onPress={() => setViewEntry(entry)}
+                onDelete={() => deleteEntry(entry.id)}
+              />
             ))
           )}
         </Card>
@@ -375,52 +258,6 @@ export default function JournalScreen() {
         </Card>
 
       </ScrollView>
-
-      {/* Add Practice Modal */}
-      <Modal visible={showAddDisc} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Add Spiritual Practice</Text>
-
-            <Text style={styles.formLabel}>NAME</Text>
-            <TextInput style={styles.input} placeholder="e.g. Evening Agpeya" placeholderTextColor="rgba(245,240,232,0.22)" value={newDiscName} onChangeText={setNewDiscName} autoFocus />
-
-            <Text style={[styles.formLabel, { marginTop: 14 }]}>ICON</Text>
-            <View style={styles.iconRow}>
-              {ICONS.map(icon => (
-                <TouchableOpacity key={icon} style={[styles.iconOpt, newDiscIcon === icon && styles.iconOptActive]} onPress={() => setNewDiscIcon(icon)}>
-                  <Text style={styles.iconEmoji}>{icon}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={[styles.formLabel, { marginTop: 14 }]}>FREQUENCY</Text>
-            <View style={styles.freqRow}>
-              {FREQ_OPTS.map(f => (
-                <TouchableOpacity key={f} style={[styles.freqPill, newDiscFreq === f && styles.freqPillActive]} onPress={() => setNewDiscFreq(f)}>
-                  <Text style={[styles.freqPillText, newDiscFreq === f && styles.freqPillTextActive]}>{f}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <TouchableOpacity style={styles.shareToggle} onPress={() => setNewDiscShared(p => !p)}>
-              <View style={[styles.shareCheckbox, newDiscShared && styles.shareCheckboxActive]}>
-                {newDiscShared && <Text style={styles.shareCheckMark}>✓</Text>}
-              </View>
-              <Text style={styles.shareToggleText}>Share completion % with my Father of Confession</Text>
-            </TouchableOpacity>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.btnGhost} onPress={() => setShowAddDisc(false)}>
-                <Text style={styles.btnGhostText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.btnGoldFull, { flex: 1, marginTop: 0 }]} onPress={addDiscipline} disabled={!newDiscName.trim()}>
-                <Text style={styles.btnGoldFullText}>ADD PRACTICE</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -433,37 +270,10 @@ const styles = StyleSheet.create({
   pageTitle: { fontFamily: fonts.cormorantMedium, fontSize: 28, color: colors.cream, marginBottom: 4 },
   pageSubtitle: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 20 },
 
-  btnGold: { backgroundColor: colors.gold, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-  btnGoldText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.navy, letterSpacing: 0.8 },
-  btnGhost: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
-  btnGhostText: { fontFamily: fonts.lato, fontSize: 11, color: colors.muted },
-
-  swipeContainer: { position: 'relative', overflow: 'hidden' },
+  swipeContainer: { position: 'relative', overflow: 'hidden', borderRadius: 10, marginBottom: 8 },
   swipeActions: { position: 'absolute', right: 0, top: 0, bottom: 0, flexDirection: 'row' },
   swipeActionDelete: { width: 70, backgroundColor: 'rgba(192,57,43,0.25)', alignItems: 'center', justifyContent: 'center' },
   swipeActionText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.cream, textAlign: 'center', letterSpacing: 0.5 },
-
-  progressRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(10,16,30,0.4)', borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 14 },
-  progressIcon: { fontSize: 16 },
-  progressLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase', color: colors.muted, marginBottom: 5 },
-  progressTrack: { height: 4, backgroundColor: 'rgba(245,240,232,0.07)', borderRadius: 4, overflow: 'hidden', flex: 1 },
-  progressFill: { height: '100%', backgroundColor: colors.gold, borderRadius: 4 },
-  progressVal: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream },
-
-  discItem: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(10,16,30,0.5)', borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 8 },
-  discItemDone: { opacity: 0.5 },
-  discCheck: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  discCheckDone: { backgroundColor: colors.gold, borderColor: colors.gold },
-  discCheckMark: { fontSize: 12, color: colors.navy, fontWeight: '700' },
-  discIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: colors.goldDim, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  discIconEmoji: { fontSize: 15 },
-  discName: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2 },
-  discNameDone: { textDecorationLine: 'line-through' },
-  discMeta: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  discFreq: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 0.8 },
-  discStreak: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted },
-  sharedBadge: { backgroundColor: 'rgba(201,168,76,0.12)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.25)', borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 },
-  sharedBadgeText: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1, color: colors.gold },
 
   formLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.8, marginBottom: 8 },
   textarea: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', lineHeight: 20 },
@@ -474,15 +284,13 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.35 },
   btnGoldFullText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.navy, letterSpacing: 0.8 },
 
-  assignSub: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 8, lineHeight: 18 },
-  assignTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 6 },
-  assignBody: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, marginBottom: 12 },
-  progressRowSimple: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-
-  entryItem: { paddingVertical: 12, backgroundColor: colors.navyMid },
+  // Opaque background — the delete underlay sits behind this row and must not
+  // show through until revealed by the swipe.
+  entryItem: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, backgroundColor: '#0d182e', borderWidth: 1, borderColor: colors.border, borderRadius: 10 },
   entryDate: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.7, marginBottom: 3 },
   entryTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2 },
   entryPreview: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },
+  entryChevron: { fontSize: 18, color: colors.gold, paddingHorizontal: 4 },
 
   divider: { height: 1, backgroundColor: colors.border },
 
@@ -495,24 +303,15 @@ const styles = StyleSheet.create({
   promptQuote: { fontFamily: fonts.cormorantItalic, fontSize: 17, color: colors.cream, lineHeight: 26, marginBottom: 8 },
   promptRef: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 10 },
   promptReflection: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 20 },
-  cardAction: { fontFamily: fonts.lato, fontSize: 11, color: colors.gold },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: colors.navyMid, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 24, paddingBottom: 40 },
-  modalTitle: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 16 },
-  iconRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  iconOpt: { width: 44, height: 44, borderRadius: 10, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  iconOptActive: { backgroundColor: colors.goldDim, borderColor: colors.gold },
-  iconEmoji: { fontSize: 20 },
-  freqRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  freqPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colors.border },
-  freqPillActive: { backgroundColor: colors.goldDim, borderColor: colors.gold },
-  freqPillText: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: colors.muted },
-  freqPillTextActive: { color: colors.goldLight },
-  shareToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 },
-  shareCheckbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  shareCheckboxActive: { backgroundColor: colors.gold, borderColor: colors.gold },
-  shareCheckMark: { fontSize: 11, color: colors.navy, fontWeight: '700' },
-  shareToggleText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, flex: 1, lineHeight: 17 },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
+  // Entry detail
+  detailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  detailBack: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.gold },
+  detailDelete: { fontFamily: fonts.lato, fontSize: 13, color: colors.red },
+  detailDate: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.7, marginBottom: 6 },
+  detailTitle: { fontFamily: fonts.cormorantMedium, fontSize: 26, color: colors.cream, marginBottom: 20 },
+  detailLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.8, marginBottom: 8, marginTop: 4 },
+  detailBody: { fontFamily: fonts.latoLight, fontSize: 15, color: colors.cream, lineHeight: 24, marginBottom: 20 },
+  detailScriptureCard: { backgroundColor: 'rgba(201,168,76,0.06)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)', borderRadius: 10, padding: 14, marginBottom: 20 },
+  detailScripture: { fontFamily: fonts.cormorantItalic, fontSize: 16, color: colors.goldLight, lineHeight: 24 },
 });

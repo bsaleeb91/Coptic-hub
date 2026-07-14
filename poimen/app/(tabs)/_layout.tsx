@@ -53,6 +53,14 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="psalms"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon symbol="♪" label="Psalms" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="canon"
         options={{
           tabBarIcon: ({ focused }) => (

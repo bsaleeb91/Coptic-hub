@@ -4,7 +4,7 @@ import {
   Animated, PanResponder, Modal, Dimensions, AccessibilityInfo,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
@@ -13,6 +13,9 @@ import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 import { loadSections, saveSections, SECTION_DEFS, DEFAULT_SECTIONS, type SectionId } from '@/lib/dashboard-layout';
 import * as H from '@/lib/haptics';
+import { loadRule } from '@/lib/canon/rule-store';
+import { todayItems } from '@/lib/canon/today';
+import { loadTodayChecks } from '@/lib/canon/checks';
 
 const { width: SW } = Dimensions.get('window');
 const TILE_W = (SW - 48) / 2;
@@ -224,6 +227,19 @@ export default function DashboardScreen() {
     loadAll();
   }, [user]);
 
+  // "Canon today" tile — tracks My Spiritual Canon (rule items + today's
+  // check-offs). Reloaded on every focus so checking items on the Canon tab
+  // reflects here immediately.
+  const [canonToday, setCanonToday] = useState<{ done: number; total: number } | null>(null);
+  useFocusEffect(useCallback(() => {
+    (async () => {
+      const [rule, checks] = await Promise.all([loadRule(), loadTodayChecks()]);
+      const items = todayItems(rule, new Date());
+      const done = items.filter(it => checks.has(`rule_${it.key}`)).length;
+      setCanonToday({ done, total: items.length });
+    })();
+  }, []));
+
   async function loadAll() {
     if (!user) return;
     const [prog, enc, foc] = await Promise.all([
@@ -287,7 +303,10 @@ export default function DashboardScreen() {
 
   const role = demoMode ? demoRole : profile?.role;
   const demoDaysSince = 47;
-  const demoCanonStats = { done: 2, total: 3 };
+
+  // Canon tile display state, derived from My Spiritual Canon.
+  const canonAllDone = canonToday != null && canonToday.total > 0 && canonToday.done === canonToday.total;
+  const canonSet = canonToday != null && canonToday.total > 0;
 
   const daysSinceConfession = demoMode
     ? demoDaysSince
@@ -370,21 +389,34 @@ export default function DashboardScreen() {
           >
             <Text style={styles.tileIcon}>📜</Text>
             <Text style={styles.tileBigNum}>
-              {demoMode ? `${demoCanonStats.done}/${demoCanonStats.total}` : '—'}
+              {canonSet ? `${canonToday!.done}/${canonToday!.total}` : '—'}
             </Text>
             <Text style={styles.tileSubLabel}>canon today</Text>
             <View style={[styles.tileStatus, {
-              backgroundColor: demoMode && demoCanonStats.done === demoCanonStats.total
-                ? `${colors.green}20` : `${colors.yellow}20`
+              backgroundColor: canonAllDone ? `${colors.green}20` : `${colors.yellow}20`
             }]}>
               <Text style={[styles.tileStatusText, {
-                color: demoMode && demoCanonStats.done === demoCanonStats.total ? colors.green : colors.yellow
+                color: canonAllDone ? colors.green : colors.yellow
               }]}>
-                {!demoMode ? '— set up' : demoCanonStats.done === demoCanonStats.total ? '✓ All done' : '↑ In progress'}
+                {!canonSet ? '— set up' : canonAllDone ? '✓ All done' : '↑ In progress'}
               </Text>
             </View>
           </TouchableOpacity>
         </View>
+
+        {/* Psalms memorization entry */}
+        <TouchableOpacity
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 16, marginBottom: 20 }}
+          onPress={() => { H.tap(); router.push('/psalms'); }}
+          activeOpacity={0.85}
+        >
+          <Text style={{ fontSize: 24 }}>📖</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ fontFamily: fonts.latoBold, fontSize: 14, color: colors.cream, marginBottom: 2, flexShrink: 1 }}>Memorize the Psalms</Text>
+            <Text style={{ fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, flexShrink: 1 }}>Agpeya psalter · spaced repetition</Text>
+          </View>
+          <Text style={{ fontSize: 18, color: colors.gold }}>›</Text>
+        </TouchableOpacity>
 
         {/* Confession CTA banner — only if due or overdue */}
         {(confessionStatus === 'due' || confessionStatus === 'overdue') && (

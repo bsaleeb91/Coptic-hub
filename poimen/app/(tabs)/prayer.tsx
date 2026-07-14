@@ -48,6 +48,13 @@ const DEMO_ANSWERED = [
   { id: 'da1', topic: 'Safe delivery of our daughter', created_at: '2026-05-02', answered_note: 'God blessed us with a healthy daughter. Giving thanks for answered prayer.', answered: true },
 ];
 
+// Date-only strings parse as UTC midnight and can display as the previous day
+// locally — anchor them to local noon. Full ISO timestamps parse as-is.
+function fmtShortDate(iso: string): string {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(iso + 'T12:00:00') : new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 // ── Swipeable Row ────────────────────────────────────────────
 function SwipeableRequest({ item, onDelete, onMarkAnswered }: {
   item: any;
@@ -99,11 +106,9 @@ function SwipeableRequest({ item, onDelete, onMarkAnswered }: {
           <View style={styles.reqTop}>
             <Text style={styles.reqTitle}>
               {CATEGORY_OPTS.find(c => c.value === item.category)?.icon ?? '⊕'}{' '}
-              {CATEGORY_OPTS.find(c => c.value === item.category)?.label ?? item.category}
+              {CATEGORY_OPTS.find(c => c.value === item.category)?.label ?? item.topic ?? item.category ?? 'Request'}
             </Text>
-            <Text style={styles.reqDate}>
-              {new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </Text>
+            <Text style={styles.reqDate}>{fmtShortDate(item.created_at)}</Text>
           </View>
           {item.body ? <Text style={styles.reqBody}>{item.body}</Text> : null}
           <View style={styles.reqVis}>
@@ -250,15 +255,13 @@ export default function PrayerScreen() {
               <Text style={styles.emptyBody}>Add your first prayer request below.</Text>
             </View>
           ) : (
-            active.map((req, i) => (
-              <View key={req.id}>
-                <SwipeableRequest
-                  item={req}
-                  onDelete={() => handleDelete(req.id)}
-                  onMarkAnswered={() => handleMarkAnswered(req.id)}
-                />
-                {i < active.length - 1 && <View style={styles.divider} />}
-              </View>
+            active.map(req => (
+              <SwipeableRequest
+                key={req.id}
+                item={req}
+                onDelete={() => handleDelete(req.id)}
+                onMarkAnswered={() => handleMarkAnswered(req.id)}
+              />
             ))
           )}
         </Card>
@@ -327,15 +330,13 @@ export default function PrayerScreen() {
         {/* Answered Prayers */}
         {answered.length > 0 && (
           <Card title={`Answered (${answered.length})`} flat>
-            {answered.map((req, i) => (
-              <View key={req.id}>
-                <SwipeableRequest
-                  item={{ ...req, visibility: req.visibility ?? 'private' }}
-                  onDelete={() => handleDeleteAnswered(req.id)}
-                  onMarkAnswered={() => {}}
-                />
-                {i < answered.length - 1 && <View style={styles.divider} />}
-              </View>
+            {answered.map(req => (
+              <SwipeableRequest
+                key={req.id}
+                item={{ ...req, visibility: req.visibility ?? 'private' }}
+                onDelete={() => handleDeleteAnswered(req.id)}
+                onMarkAnswered={() => {}}
+              />
             ))}
           </Card>
         )}
@@ -353,14 +354,16 @@ const styles = StyleSheet.create({
   pageTitle: { fontFamily: fonts.cormorantMedium, fontSize: 28, color: colors.cream, marginBottom: 4 },
   pageSubtitle: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 20 },
 
-  swipeContainer: { position: 'relative', overflow: 'hidden' },
+  swipeContainer: { position: 'relative', overflow: 'hidden', borderRadius: 10, marginBottom: 8 },
   swipeActions: { position: 'absolute', right: 0, top: 0, bottom: 0, flexDirection: 'row' },
   swipeAction: { width: 65, alignItems: 'center', justifyContent: 'center' },
   swipeActionAnswer: { backgroundColor: colors.greenBg },
   swipeActionDelete: { backgroundColor: 'rgba(192,57,43,0.25)' },
   swipeActionText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.cream, textAlign: 'center', letterSpacing: 0.5 },
 
-  reqItem: { paddingVertical: 14, backgroundColor: colors.navyMid },
+  // Opaque background — the swipe actions sit behind this row and must not
+  // show through until revealed by the swipe.
+  reqItem: { padding: 14, backgroundColor: '#0d182e', borderWidth: 1, borderColor: colors.border, borderRadius: 10 },
   reqTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 5 },
   reqTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, flex: 1 },
   reqDate: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, flexShrink: 0 },

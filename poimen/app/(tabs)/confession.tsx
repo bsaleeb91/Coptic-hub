@@ -1,78 +1,81 @@
-import React, { useState, useEffect } from 'react';
+// app/(tabs)/confession.tsx
+// Confession — Poimen's tab, rebuilt on Nepsis's *persistent* model (per the port
+// decision). The examination of conscience and journal are now saved between
+// confessions, encrypted on-device (lib/confession/store.ts → tweetnacl), instead
+// of the previous session-only flow. Poimen's confession-date logging + history +
+// scheduling are retained because the priest/servant dashboards depend on them.
+//
+// Sub-screens: hub → journal · examination · in-session notes → complete.
+
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator,
+  TextInput, Alert, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
-import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
+import { SIN_CATALOGUE } from '@/lib/confession/sinCatalogue';
+import type { SinCategory, SinFrequency, JournalCategory, JournalIncident, ExamChecks } from '@/lib/confession/types';
+import {
+  loadIncidents, addIncident, deleteIncident, clearIncidents,
+  loadExam, saveExam, clearExam,
+} from '@/lib/confession/store';
 
-// ── Theological content — same in both modes, never stored ───
-const TABS = ['Toward God', 'Toward Others', 'Toward Self', 'Omissions'] as const;
+const SECOND = 'rgba(245,240,232,0.75)';
+const CARD_BG = 'rgba(10,16,30,0.5)';
 
-const EXAMINATION: Record<string, { text: string; note?: string }[]> = {
-  'Toward God': [
-    { text: 'Have I neglected or rushed my daily prayers (Agpeya)?', note: 'Reflect on the quality of your prayer, not only its presence.' },
-    { text: 'Have I attended the Divine Liturgy with full attention and reverence?' },
-    { text: 'Have I kept the fasts of the Church with sincerity?', note: 'Including the spirit of fasting — prayer, almsgiving, and avoidance of entertainment.' },
-    { text: 'Have I read and meditated on Scripture regularly?' },
-    { text: 'Have I harbored doubt, despair, or distrust in God\'s providence?' },
-    { text: 'Have I exposed myself to content that weakens my faith or darkens my mind?' },
-    { text: 'Have I been thankful to God for His gifts and blessings?' },
-  ],
-  'Toward Others': [
-    { text: 'Have I harbored anger, bitterness, or unforgiveness toward anyone?' },
-    { text: 'Have I spoken ill of others, gossiped, or judged?' },
-    { text: 'Have I been honest in my dealings with others?' },
-    { text: 'Have I been generous with my time, treasure, and talents?' },
-    { text: 'Have I neglected those in need around me?' },
-  ],
-  'Toward Self': [
-    { text: 'Have I indulged in impure thoughts, speech, or actions?' },
-    { text: 'Have I been enslaved to any habit or addiction?' },
-    { text: 'Have I given adequate care to my body as a temple of the Holy Spirit?' },
-    { text: 'Have I been proud, boastful, or unwilling to receive correction?' },
-    { text: 'Have I compared myself to others with envy or contempt?' },
-  ],
-  'Omissions': [
-    { text: 'Have I neglected to pray for others — my family, enemies, or the departed?' },
-    { text: 'Have I failed to give alms or help those in need when I had the means?' },
-    { text: 'Have I omitted visiting the sick, the lonely, or those in hardship?' },
-    { text: 'Have I failed to honor my spouse, children, or parents as God calls me to?' },
-    { text: 'Have I left good works undone out of laziness, fear, or indifference?' },
-    { text: 'Have I neglected to give thanks to God for His mercies?' },
-  ],
+const FREQ_LABEL: Record<SinFrequency, string> = { once: 'Once', few: 'A few times', often: 'Often' };
+
+// Dark-theme-friendly palette per examination domain (the Nepsis light-mode
+// colorLight values don't read on navy, so we map to Poimen's accents).
+type DomainMeta = { label: string; icon: string; color: string; bg: string };
+const DOMAIN_META: Record<JournalCategory, DomainMeta> = {
+  tongue:              { label: 'The Tongue',          icon: '🗣', color: '#e07a86',      bg: 'rgba(224,112,112,0.12)' },
+  thoughts:            { label: 'Thoughts',            icon: '💭', color: colors.blue,    bg: colors.blueBg },
+  hearing:             { label: 'Hearing',             icon: '👂', color: colors.goldLight,bg: colors.goldDim },
+  eyes:                { label: 'The Eyes',            icon: '👁', color: colors.green,    bg: colors.greenBg },
+  actions:             { label: 'Actions',             icon: '🤲', color: colors.purple,   bg: 'rgba(201,160,220,0.12)' },
+  neglected_practices: { label: 'Neglected Practices', icon: '📿', color: '#c2b199',      bg: 'rgba(194,177,153,0.12)' },
+  other:               { label: 'Other',               icon: '📝', color: colors.muted,    bg: colors.creamDim },
 };
 
-// ── Demo history ─────────────────────────────────────────────
-const DEMO_HISTORY = [
-  { id: 'd1', date: 'May 21, 2026', label: '47 days ago', note: 'Fr. assigned: 40-day Psalm reading plan' },
-  { id: 'd2', date: 'Apr 20, 2026', label: 'Holy Week', note: 'Fr. assigned: Marriage prayer practice' },
-  { id: 'd3', date: 'Feb 5, 2026', label: '', note: 'Preparation for the Great Fast', dim: true },
-];
+const CATEGORIES: SinCategory[] = ['tongue', 'thoughts', 'hearing', 'eyes', 'actions', 'neglected_practices'];
+const DOMAINS: JournalCategory[] = [...CATEGORIES, 'other'];
 
-// ── Screen ───────────────────────────────────────────────────
-export default function ConfessionScreen() {
+function relTime(ms: number): string {
+  const d = new Date(ms);
+  const now = new Date();
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return `Today · ${time}`;
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return `Yesterday · ${time}`;
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ` · ${time}`;
+}
+
+type SubScreen = 'hub' | 'journal' | 'examination' | 'session' | 'complete';
+
+function SubHeader({ title, onBack, right }: { title: string; onBack: () => void; right?: React.ReactNode }) {
+  return (
+    <View style={styles.subHeader}>
+      <TouchableOpacity onPress={onBack} hitSlop={10}><Text style={styles.linkGold}>‹ Back</Text></TouchableOpacity>
+      <Text style={styles.subHeaderTitle}>{title}</Text>
+      <View style={{ minWidth: 54, alignItems: 'flex-end' }}>{right}</View>
+    </View>
+  );
+}
+
+// ─── Hub ───────────────────────────────────────────────────────────────────────
+
+function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
   const { user, profile, refreshProfile } = useSession();
   const { demoMode } = useDemoMode();
-  const [activeTab, setActiveTab] = useState<typeof TABS[number]>('Toward God');
 
-  // Session-only state — cleared when user leaves screen, never stored
-  const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [reflection, setReflection] = useState('');
-  const [struggles, setStruggles] = useState('');
-  const [growth, setGrowth] = useState('');
-  const [scheduleNote, setScheduleNote] = useState('');
-
-  // History from Supabase (real mode)
   const [history, setHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(!demoMode);
-  const [requesting, setRequesting] = useState(false);
-  const [requestSent, setRequestSent] = useState(false);
   const [selfReportDate, setSelfReportDate] = useState(
     new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   );
@@ -80,13 +83,12 @@ export default function ConfessionScreen() {
   const [selfReportSaved, setSelfReportSaved] = useState(false);
   const [selfReportError, setSelfReportError] = useState('');
 
-  const totalItems = Object.values(EXAMINATION).flat().length;
-  const checkedCount = checked.size;
-  const pct = Math.round((checkedCount / totalItems) * 100);
-
   useEffect(() => {
     if (demoMode) {
-      setHistory(DEMO_HISTORY);
+      setHistory([
+        { id: 'd1', date: 'May 21, 2026', note: 'Fr. assigned: 40-day Psalm reading plan' },
+        { id: 'd2', date: 'Apr 20, 2026', note: 'Fr. assigned: Marriage prayer practice' },
+      ]);
     } else {
       loadHistory();
     }
@@ -97,38 +99,13 @@ export default function ConfessionScreen() {
     setLoadingHistory(true);
     const data = await db.getConfessionsForCongregant(user.id);
     if (data) {
-      setHistory(data.map(enc => ({
+      setHistory(data.map((enc: any) => ({
         id: enc.id,
         date: new Date(enc.encountered_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-        label: '',
         note: enc.member_note ?? '',
       })));
     }
     setLoadingHistory(false);
-  }
-
-  function toggle(key: string) {
-    setChecked(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  }
-
-  function clearSession() {
-    Alert.alert(
-      'Clear Examination',
-      'Clear all checkmarks and notes? This only removes session data — nothing was ever stored.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Clear', style: 'destructive', onPress: () => {
-          setChecked(new Set());
-          setReflection('');
-          setStruggles('');
-          setGrowth('');
-        }},
-      ]
-    );
   }
 
   async function handleSelfReport() {
@@ -147,144 +124,36 @@ export default function ConfessionScreen() {
     setTimeout(() => setSelfReportSaved(false), 2000);
   }
 
-  async function handleRequestAppointment() {
-    if (demoMode) { setRequestSent(true); return; }
-    setRequesting(true);
-    // In real mode, log a pending note to the priest via a prayer request flagged for FOC
-    await db.insertPrayerRequest({
-      user_id: user!.id,
-      category: 'appointment',
-      visibility: 'foc_only',
-    });
-    setRequestSent(true);
-    setRequesting(false);
-  }
-
-  const currentItems = EXAMINATION[activeTab];
-
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-
-        <Text style={styles.pageTitle}>Confession Preparation</Text>
-        <Text style={styles.pageSubtitle}>Private — your entries never leave this device</Text>
+        <Text style={styles.pageTitle}>Confession</Text>
+        <Text style={styles.pageSubtitle}>Private — encrypted and kept on this device</Text>
 
         {/* Privacy banner */}
         <View style={styles.privacyBanner}>
           <Text style={styles.privacyLock}>🔒</Text>
           <Text style={styles.privacyText}>
-            <Text style={styles.strong}>Complete privacy guarantee. </Text>
-            Your examination notes exist only in this session. They are never stored, transmitted, or seen by anyone. Only the date of your confession is recorded.
+            <Text style={styles.strong}>Encrypted on your device. </Text>
+            Your journal and examination are saved between confessions, encrypted with a key that never
+            leaves this phone. Only the date of your confession is ever shared with your Father of Confession.
           </Text>
         </View>
 
-        {/* Progress strip */}
-        <View style={styles.progressStrip}>
-          <Text style={styles.progressLabel}>EXAMINATION PROGRESS</Text>
-          <Text style={styles.progressVal}>{checkedCount} / {totalItems} reviewed</Text>
-          {checkedCount > 0 && (
-            <TouchableOpacity onPress={clearSession} style={styles.clearBtn}>
-              <Text style={styles.clearBtnText}>Clear</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        {/* Prepare */}
+        <Text style={styles.sectionLabel}>PREPARE</Text>
+        <ModuleCard icon="📓" title="Confession journal"
+          sub="Log incidents as they happen — waiting for you in your notes"
+          onPress={() => onNav('journal')} />
+        <ModuleCard icon="📋" title="Examination of conscience"
+          sub="Review each day and before confession — carries into your notes"
+          onPress={() => onNav('examination')} />
 
-        {/* Examination of Conscience */}
-        <Card title="Examination of Conscience" flat>
-          {/* Tab Nav */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll} contentContainerStyle={styles.tabContent}>
-            {TABS.map(tab => {
-              const tabItems = EXAMINATION[tab];
-              const tabChecked = tabItems.filter((_, i) => checked.has(`${tab}-${i}`)).length;
-              return (
-                <TouchableOpacity
-                  key={tab}
-                  style={[styles.tab, activeTab === tab && styles.tabActive]}
-                  onPress={() => setActiveTab(tab)}
-                >
-                  <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
-                  {tabChecked > 0 && (
-                    <View style={styles.tabBadge}>
-                      <Text style={styles.tabBadgeText}>{tabChecked}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          {/* Questions */}
-          {currentItems.map((item, i) => {
-            const key = `${activeTab}-${i}`;
-            const done = checked.has(key);
-            return (
-              <TouchableOpacity
-                key={key}
-                style={[styles.examItem, i < currentItems.length - 1 && styles.examBorder]}
-                onPress={() => toggle(key)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.examCheck, done && styles.examCheckDone]}>
-                  {done && <Text style={styles.checkMark}>✓</Text>}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.examText, done && styles.examTextDone]}>{item.text}</Text>
-                  {item.note && <Text style={styles.examNote}>{item.note}</Text>}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-
-          <View style={styles.divider} />
-
-          <Text style={styles.formLabel}>PERSONAL REFLECTION</Text>
-          <TextInput
-            style={styles.textarea}
-            multiline
-            placeholder="What has been weighing on your heart since your last confession? What do you wish to bring before God?"
-            placeholderTextColor="rgba(245,240,232,0.22)"
-            value={reflection}
-            onChangeText={setReflection}
-          />
-
-          <Text style={[styles.formLabel, { marginTop: 14 }]}>RECURRING STRUGGLES (PRIVATE)</Text>
-          <TextInput
-            style={styles.textarea}
-            multiline
-            placeholder="Note any patterns you want to address — recurring temptations, persistent habits, or areas of spiritual weakness..."
-            placeholderTextColor="rgba(245,240,232,0.22)"
-            value={struggles}
-            onChangeText={setStruggles}
-          />
-
-          <Text style={[styles.formLabel, { marginTop: 14 }]}>ANSWERED PRAYERS & GROWTH</Text>
-          <TextInput
-            style={[styles.textarea, { minHeight: 64 }]}
-            multiline
-            placeholder="Note moments of grace, answered prayers, or growth to give thanks for..."
-            placeholderTextColor="rgba(245,240,232,0.22)"
-            value={growth}
-            onChangeText={setGrowth}
-          />
-
-          <View style={styles.sessionNote}>
-            <Text style={styles.sessionNoteText}>
-              ✦ Session only — these notes disappear when you leave this screen.
-            </Text>
-          </View>
-        </Card>
-
-        {/* Schedule */}
-        <Card title="Schedule Confession" titleIcon="◈">
-          <View style={styles.comingSoonCard}>
-            <Text style={styles.comingSoonIcon}>✝</Text>
-            <Text style={styles.comingSoonTitle}>Contact Your Father of Confession</Text>
-            <Text style={styles.comingSoonBody}>
-              Reach out to your Father of Confession directly to arrange your next confession.
-              In-app scheduling is coming in a future update.
-            </Text>
-          </View>
-        </Card>
+        {/* During confession */}
+        <Text style={styles.sectionLabel}>DURING CONFESSION</Text>
+        <ModuleCard icon="🙏" title="My confession notes"
+          sub={"Tap each item as you speak it —\nnothing is sent anywhere"}
+          onPress={() => onNav('session')} accent />
 
         {/* Self-report — hidden in demo mode */}
         {!demoMode && (
@@ -316,6 +185,18 @@ export default function ConfessionScreen() {
           </Card>
         )}
 
+        {/* Schedule */}
+        <Card title="Schedule Confession" titleIcon="◈">
+          <View style={styles.comingSoonCard}>
+            <Text style={styles.comingSoonIcon}>✝</Text>
+            <Text style={styles.comingSoonTitle}>Contact Your Father of Confession</Text>
+            <Text style={styles.comingSoonBody}>
+              Reach out to your Father of Confession directly to arrange your next confession.
+              In-app scheduling is coming in a future update.
+            </Text>
+          </View>
+        </Card>
+
         {/* History */}
         <Card title="Confession History" flat>
           {loadingHistory ? (
@@ -325,33 +206,507 @@ export default function ConfessionScreen() {
               <Text style={styles.emptyIcon}>✝</Text>
               <Text style={styles.emptyTitle}>No history yet</Text>
               <Text style={styles.emptyBody}>
-                Confession dates appear here after your Father of Confession logs your meeting. Content is never recorded.
+                Confession dates appear here after your Father of Confession logs your meeting, or when
+                you record one. Content is never stored on the server.
               </Text>
             </View>
           ) : (
             <>
               {history.map((item, i) => (
                 <View key={item.id} style={[styles.histItem, i < history.length - 1 && styles.histBorder]}>
-                  <Text style={[styles.histDate, item.dim && { opacity: 0.5 }]}>
-                    {item.date}{item.label ? ` · ${item.label}` : ''}
-                  </Text>
+                  <Text style={styles.histDate}>{item.date}</Text>
                   <Text style={styles.histTitle}>Holy Confession</Text>
                   {item.note ? <Text style={styles.histNote}>{item.note}</Text> : null}
-                  <View style={styles.histTag}>
-                    <Text style={styles.histTagText}>✝ Received</Text>
-                  </View>
+                  <View style={styles.histTag}><Text style={styles.histTagText}>✝ Received</Text></View>
                 </View>
               ))}
-              <Text style={styles.histFooter}>
-                Dates only. Content protected by the holy seal.
-              </Text>
+              <Text style={styles.histFooter}>Dates only. Content protected by the holy seal.</Text>
             </>
           )}
         </Card>
-
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function ModuleCard({ icon, title, sub, onPress, accent }: {
+  icon: string; title: string; sub: string; onPress: () => void; accent?: boolean;
+}) {
+  return (
+    <TouchableOpacity style={[styles.moduleCard, accent && { borderColor: colors.gold + '55' }]} onPress={onPress} activeOpacity={0.85}>
+      <View style={styles.moduleIcon}><Text style={{ fontSize: 20 }}>{icon}</Text></View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.moduleTitle}>{title}</Text>
+        {/* Each line as its own Text: works around an iOS paint bug where the
+            second line of a multi-line Text was measured but never drawn. */}
+        {sub.split('\n').map((line, i) => (
+          <Text key={i} style={styles.moduleSub}>{line}</Text>
+        ))}
+      </View>
+      <Text style={styles.moduleChevron}>›</Text>
+    </TouchableOpacity>
+  );
+}
+
+// ─── Journal ─────────────────────────────────────────────────────────────────────
+
+function JournalView({ onBack }: { onBack: () => void }) {
+  const [incidents, setIncidents] = useState<JournalIncident[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => { loadIncidents().then(list => { setIncidents(list); setLoaded(true); }); }, []);
+
+  const remove = (id: string) => {
+    Alert.alert('Remove entry', 'Delete this journal entry?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => setIncidents(await deleteIncident(id)) },
+    ]);
+  };
+
+  if (adding) {
+    return (
+      <IncidentComposer
+        onCancel={() => setAdding(false)}
+        onSave={async (input) => { setIncidents(await addIncident(input)); setAdding(false); }}
+      />
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <SubHeader title="Journal" onBack={onBack}
+        right={<TouchableOpacity onPress={() => setAdding(true)} hitSlop={12}><Text style={styles.addPlus}>＋</Text></TouchableOpacity>} />
+      <ScrollView contentContainerStyle={styles.content}>
+        {loaded && incidents.length === 0 && (
+          <View style={styles.emptyCard}>
+            <Text style={{ fontSize: 32, marginBottom: 10 }}>📓</Text>
+            <Text style={styles.emptyCardTitle}>Nothing logged yet</Text>
+            <Text style={styles.emptyCardBody}>
+              As things happen through the day, tap ＋ to note them under one of the six examination
+              domains. Whatever you record here will be waiting in your confession notes.
+            </Text>
+            <TouchableOpacity style={styles.emptyBtn} onPress={() => setAdding(true)}>
+              <Text style={styles.emptyBtnText}>＋  Log an incident</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {incidents.length > 0 && <Text style={styles.sectionLabel}>SINCE YOUR LAST CONFESSION</Text>}
+        {incidents.map(inc => {
+          const m = DOMAIN_META[inc.category];
+          const sin = inc.sinId ? SIN_CATALOGUE.find(s => s.id === inc.sinId) : undefined;
+          return (
+            <View key={inc.id} style={styles.journalCard}>
+              <View style={styles.journalCardHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.journalCardTitle}>{inc.title}</Text>
+                  <Text style={styles.journalCardDate}>{relTime(inc.createdAt)}</Text>
+                </View>
+                <TouchableOpacity onPress={() => remove(inc.id)} hitSlop={10}><Text style={{ fontSize: 16, color: colors.muted }}>✕</Text></TouchableOpacity>
+              </View>
+              {!!sin && (
+                <Text style={styles.journalCardExplain}>
+                  {sin.description}  <Text style={{ color: m.color }}>{sin.scripture}</Text>
+                </Text>
+              )}
+              {!!inc.note && <Text style={styles.journalCardBody}>{inc.note}</Text>}
+              <View style={[styles.domainTag, { backgroundColor: m.bg, borderColor: m.color + '44' }]}>
+                <Text style={{ fontSize: 12 }}>{m.icon}</Text>
+                <Text style={[styles.domainTagText, { color: m.color }]}>{m.label}</Text>
+              </View>
+            </View>
+          );
+        })}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ─── Incident composer ───────────────────────────────────────────────────────────
+
+function IncidentComposer({ onCancel, onSave }: {
+  onCancel: () => void;
+  onSave: (input: { category: JournalCategory; sinId?: string; title: string; note: string }) => void;
+}) {
+  const [category, setCategory] = useState<JournalCategory | null>(null);
+  const [sinId, setSinId] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+  const [noteFocused, setNoteFocused] = useState(false);
+
+  const catItems = category && category !== 'other' ? SIN_CATALOGUE.filter(s => s.category === category) : [];
+  const selectedSin = SIN_CATALOGUE.find(s => s.id === sinId);
+  const canSave = !!category && (!!sinId || note.trim().length > 0);
+
+  const save = () => {
+    if (!category) return;
+    const title = selectedSin?.name || note.trim().split('\n')[0].slice(0, 60) || DOMAIN_META[category].label;
+    onSave({ category, sinId: sinId ?? undefined, title, note });
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.subHeader}>
+        <TouchableOpacity onPress={onCancel} hitSlop={10}><Text style={styles.linkGold}>Cancel</Text></TouchableOpacity>
+        <Text style={styles.subHeaderTitle}>New entry</Text>
+        <TouchableOpacity onPress={save} disabled={!canSave} hitSlop={10}>
+          <Text style={[styles.linkGold, { color: canSave ? colors.gold : colors.muted }]}>Save</Text>
+        </TouchableOpacity>
+      </View>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+          <Text style={styles.sectionLabel}>WHICH DOMAIN?</Text>
+          <View style={styles.domainGrid}>
+            {DOMAINS.map(cat => {
+              const m = DOMAIN_META[cat];
+              const active = category === cat;
+              return (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.domainChip, { borderColor: active ? m.color : colors.border, backgroundColor: active ? m.bg : 'transparent' }]}
+                  onPress={() => { setCategory(cat); setSinId(null); }}
+                >
+                  <Text style={{ fontSize: 16 }}>{m.icon}</Text>
+                  <Text style={[styles.domainChipText, { color: active ? m.color : colors.cream }]}>{m.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {!!category && catItems.length > 0 && (
+            <>
+              <Text style={[styles.sectionLabel, { marginTop: 20 }]}>
+                WHAT WAS IT?  <Text style={styles.labelHint}>(optional — tap to select)</Text>
+              </Text>
+              {catItems.map(s => {
+                const active = sinId === s.id;
+                const m = DOMAIN_META[category];
+                return (
+                  <TouchableOpacity
+                    key={s.id}
+                    style={[styles.pickCard, { borderColor: active ? m.color : colors.border, backgroundColor: active ? m.bg : 'transparent' }]}
+                    onPress={() => setSinId(active ? null : s.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.pickCardHead}>
+                      <Text style={styles.pickCardName}>{s.name}</Text>
+                      <View style={[styles.pickRadio, { borderColor: active ? m.color : colors.border, backgroundColor: active ? m.color : 'transparent' }]}>
+                        {active && <Text style={styles.pickRadioTick}>✓</Text>}
+                      </View>
+                    </View>
+                    <Text style={styles.pickCardDesc}>{s.description}</Text>
+                    <Text style={[styles.pickCardRef, { color: m.color }]}>{s.scripture}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </>
+          )}
+
+          <View style={styles.noteLabelRow}>
+            <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>
+              WHAT HAPPENED?{catItems.length > 0 && <Text style={styles.labelHint}>  (optional)</Text>}
+            </Text>
+            {noteFocused && (
+              <TouchableOpacity onPress={() => Keyboard.dismiss()} hitSlop={10}><Text style={styles.linkGold}>Done</Text></TouchableOpacity>
+            )}
+          </View>
+          <TextInput
+            style={styles.noteInput}
+            placeholder={category === 'other' ? 'Describe what you want to confess…' : 'Describe the moment in your own words…'}
+            placeholderTextColor="rgba(245,240,232,0.22)"
+            multiline
+            value={note}
+            onChangeText={setNote}
+            onFocus={() => setNoteFocused(true)}
+            onBlur={() => setNoteFocused(false)}
+            textAlignVertical="top"
+          />
+          <Text style={styles.composerHint}>
+            🔒  Encrypted on your device and shown in your confession notes. It clears when you delete
+            your notes after confession.
+          </Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+// ─── Examination of conscience ───────────────────────────────────────────────────
+
+function ExaminationView({ onBack }: { onBack: () => void }) {
+  const [checked, setChecked] = useState<Map<string, SinFrequency>>(new Map());
+  const [catIndex, setCatIndex] = useState(0);
+
+  useEffect(() => { loadExam().then(obj => setChecked(new Map(Object.entries(obj) as [string, SinFrequency][]))); }, []);
+
+  const currentCat = CATEGORIES[catIndex];
+  const catItems = SIN_CATALOGUE.filter(s => s.category === currentCat);
+  const meta = DOMAIN_META[currentCat];
+
+  const FREQ_OPTIONS: { label: string; value: SinFrequency; color: string }[] = [
+    { label: 'Once', value: 'once', color: colors.muted },
+    { label: 'Few times', value: 'few', color: colors.yellow },
+    { label: 'Often', value: 'often', color: colors.red },
+  ];
+
+  const toggleFreq = (id: string, freq: SinFrequency) => {
+    setChecked(prev => {
+      const next = new Map(prev);
+      if (next.get(id) === freq) next.delete(id); else next.set(id, freq);
+      saveExam(Object.fromEntries(next) as ExamChecks);
+      return next;
+    });
+  };
+
+  const isFirst = catIndex === 0;
+  const isLast = catIndex === CATEGORIES.length - 1;
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <SubHeader title="Examination" onBack={onBack}
+        right={<Text style={styles.headerCount}>{checked.size} noted</Text>} />
+
+      {/* Category pills */}
+      <View style={styles.catPills}>
+        {CATEGORIES.map((cat, i) => {
+          const m = DOMAIN_META[cat];
+          const cnt = SIN_CATALOGUE.filter(s => s.category === cat && checked.has(s.id)).length;
+          const active = i === catIndex;
+          return (
+            <TouchableOpacity key={cat} onPress={() => setCatIndex(i)}
+              style={[styles.catPill, { borderColor: active ? m.color : 'transparent', backgroundColor: active ? m.bg : 'transparent' }]}>
+              <Text style={{ fontSize: 14 }}>{m.icon}</Text>
+              {cnt > 0 && <View style={[styles.catPillBadge, { backgroundColor: m.color }]}><Text style={styles.catPillBadgeText}>{cnt}</Text></View>}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={[styles.catHeaderCard, { backgroundColor: meta.bg, borderColor: meta.color + '44' }]}>
+          <Text style={{ fontSize: 28 }}>{meta.icon}</Text>
+          <View>
+            <Text style={[styles.catHeaderTitle, { color: meta.color }]}>{meta.label}</Text>
+            <Text style={[styles.catHeaderCount, { color: meta.color }]}>{catItems.length} items to consider</Text>
+          </View>
+        </View>
+
+        {catItems.map(sin => {
+          const currentFreq = checked.get(sin.id);
+          return (
+            <View key={sin.id} style={[styles.sinCard, { borderColor: currentFreq ? meta.color + '55' : colors.border, backgroundColor: currentFreq ? meta.bg : CARD_BG }]}>
+              <Text style={styles.sinName}>{sin.name}</Text>
+              <Text style={styles.sinDesc}>{sin.description}</Text>
+              <Text style={[styles.sinScripture, { color: meta.color }]}>{sin.scripture}</Text>
+              <View style={styles.freqBtns}>
+                {FREQ_OPTIONS.map(f => {
+                  const active = currentFreq === f.value;
+                  return (
+                    <TouchableOpacity key={f.value}
+                      style={[styles.freqBtn, { backgroundColor: active ? f.color : 'transparent', borderColor: active ? f.color : colors.border }]}
+                      onPress={() => toggleFreq(sin.id, f.value)}>
+                      <Text style={[styles.freqBtnText, { color: active ? colors.navy : SECOND }]}>{f.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          );
+        })}
+
+        <View style={styles.navRow}>
+          <TouchableOpacity style={[styles.navBtn, { opacity: isFirst ? 0.3 : 1 }]} onPress={() => !isFirst && setCatIndex(i => i - 1)} disabled={isFirst}>
+            <Text style={styles.navBtnText}>← Prev</Text>
+          </TouchableOpacity>
+          {!isLast ? (
+            <TouchableOpacity style={[styles.navBtn, { backgroundColor: colors.gold, borderColor: colors.gold }]} onPress={() => setCatIndex(i => i + 1)}>
+              <Text style={[styles.navBtnText, { color: colors.navy }]}>Next →</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={[styles.navBtn, { backgroundColor: colors.green, borderColor: colors.green }]} onPress={onBack}>
+              <Text style={[styles.navBtnText, { color: colors.navy }]}>✓ Done</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        <Text style={styles.catProgress}>Category {catIndex + 1} of {CATEGORIES.length}</Text>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ─── In-session notes ────────────────────────────────────────────────────────────
+
+function SessionView({ onBack, onComplete }: { onBack: () => void; onComplete: () => void }) {
+  const [incidents, setIncidents] = useState<JournalIncident[]>([]);
+  const [exam, setExam] = useState<ExamChecks>({});
+  const [loaded, setLoaded] = useState(false);
+  const [spoken, setSpoken] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    Promise.all([loadIncidents(), loadExam()]).then(([list, checks]) => {
+      setIncidents(list); setExam(checks); setLoaded(true);
+    });
+  }, []);
+
+  const toggle = (id: string) => setSpoken(prev => {
+    const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next;
+  });
+
+  type NoteItem = { id: string; category: JournalCategory; title: string; detail?: string };
+  const examItems: NoteItem[] = Object.entries(exam)
+    .map(([sinId, freq]): NoteItem | null => {
+      const sin = SIN_CATALOGUE.find(s => s.id === sinId);
+      if (!sin) return null;
+      return { id: `exam:${sinId}`, category: sin.category, title: sin.name, detail: `${FREQ_LABEL[freq]} · ${sin.scripture}` };
+    })
+    .filter((x): x is NoteItem => x !== null);
+  const journalItems: NoteItem[] = incidents.map(inc => ({ id: inc.id, category: inc.category, title: inc.title, detail: inc.note || undefined }));
+  const allItems = [...examItems, ...journalItems];
+  const remaining = allItems.length - spoken.size;
+  const grouped = DOMAINS.map(cat => ({ cat, items: allItems.filter(i => i.category === cat) })).filter(g => g.items.length > 0);
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <SubHeader title="In confession" onBack={onBack}
+        right={<Text style={styles.headerCount}>{allItems.length > 0 ? `${remaining} left` : ''}</Text>} />
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.sessionIntro}>
+          Everything from your examination and journal, grouped by domain. Tap each as you speak it aloud.
+          Everything stays on this device only.
+        </Text>
+
+        {loaded && allItems.length === 0 && (
+          <View style={styles.emptyCard}>
+            <Text style={{ fontSize: 32, marginBottom: 10 }}>🕊</Text>
+            <Text style={styles.emptyCardTitle}>Nothing noted this period</Text>
+            <Text style={styles.emptyCardBody}>
+              Whatever you mark in your examination or log in your journal appears here, ready to speak.
+              You can still confess freely from the heart.
+            </Text>
+          </View>
+        )}
+
+        {grouped.map(({ cat, items }) => {
+          const m = DOMAIN_META[cat];
+          return (
+            <View key={cat} style={styles.catCard}>
+              <View style={styles.sessionCatHead}>
+                <Text style={{ fontSize: 14 }}>{m.icon}</Text>
+                <Text style={[styles.catLabel, { color: m.color }]}>{m.label}</Text>
+              </View>
+              {items.map(item => {
+                const done = spoken.has(item.id);
+                return (
+                  <TouchableOpacity key={item.id} style={[styles.sessionRow, done && styles.sessionRowDone]} onPress={() => toggle(item.id)} activeOpacity={0.7}>
+                    <View style={[styles.sessionDot, { backgroundColor: done ? colors.green : m.color }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.sessionItemName, done && styles.strikethrough]}>{item.title}</Text>
+                      {!!item.detail && <Text style={[styles.sessionItemSub, done && styles.strikethrough]}>{item.detail}</Text>}
+                    </View>
+                    <Text style={{ fontSize: 18, color: done ? colors.green : colors.border, marginTop: 1 }}>{done ? '✓' : '○'}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          );
+        })}
+
+        <View style={styles.sessionNote}>
+          <Text style={styles.sessionNoteText}>This is a guide, not a script. If something comes to mind that isn't listed, speak it freely.</Text>
+        </View>
+
+        <TouchableOpacity style={[styles.bigBtn, { backgroundColor: colors.green }]} onPress={onComplete}>
+          <Text style={[styles.bigBtnText, { color: colors.navy }]}>✓  Confession complete</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ─── Complete ────────────────────────────────────────────────────────────────────
+
+function CompleteView({ onBack }: { onBack: () => void }) {
+  const { user, refreshProfile } = useSession();
+  const { demoMode } = useDemoMode();
+  const [dateSaved, setDateSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  async function recordDate() {
+    if (demoMode || !user) { setDateSaved(true); return; }
+    setSaving(true);
+    await db.setLastConfession(user.id, new Date().toISOString());
+    await refreshProfile();
+    setSaving(false);
+    setDateSaved(true);
+  }
+
+  function handleDelete() {
+    Alert.alert(
+      'Delete confession notes',
+      'Your examination and journal entries for this period will be permanently deleted from this device. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete permanently', style: 'destructive',
+          onPress: async () => {
+            await Promise.all([clearIncidents(), clearExam()]);
+            Alert.alert('Deleted', 'Your notes have been permanently removed.');
+            onBack();
+          },
+        },
+      ],
+    );
+  }
+
+  return (
+    <SafeAreaView style={[styles.safe, { backgroundColor: '#0A2A22' }]}>
+      <ScrollView contentContainerStyle={{ padding: 28, alignItems: 'center' }}>
+        <Text style={styles.completeCross}>✝</Text>
+        <Text style={styles.completeTitle}>Glory to God</Text>
+        <Text style={styles.completeVerse}>
+          "If we confess our sins, He is faithful and just to forgive us our sins and to cleanse us from all unrighteousness."
+        </Text>
+        <Text style={styles.completeRef}>1 John 1:9</Text>
+
+        <View style={styles.afterCard}>
+          <Text style={[styles.catLabel, { color: colors.goldLight, marginBottom: 12 }]}>AFTER CONFESSION</Text>
+          {[
+            'Receive Holy Communion if you have fasted and are permitted',
+            'Fulfill your epitimia as instructed by your Father of Confession',
+            'Update your Rule with any changes he gave you, if applicable',
+          ].map((s, i) => (
+            <View key={i} style={styles.afterStep}>
+              <View style={styles.stepNum}><Text style={styles.stepNumText}>{i + 1}</Text></View>
+              <Text style={styles.afterStepText}>{s}</Text>
+            </View>
+          ))}
+        </View>
+
+        {!demoMode && (
+          <TouchableOpacity style={[styles.bigBtn, { backgroundColor: colors.gold }]} onPress={recordDate} disabled={saving || dateSaved}>
+            <Text style={[styles.bigBtnText, { color: colors.navy }]}>{saving ? 'Saving…' : dateSaved ? '✓ Date recorded' : '✝  Record today as my confession'}</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={[styles.bigBtn, { backgroundColor: colors.red }]} onPress={handleDelete}>
+          <Text style={[styles.bigBtnText, { color: colors.cream }]}>🗑  Delete my confession notes</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.bigBtn, { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border }]} onPress={onBack}>
+          <Text style={[styles.bigBtnText, { color: SECOND }]}>Return to confession</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ─── Root ────────────────────────────────────────────────────────────────────────
+
+export default function ConfessionScreen() {
+  const [screen, setScreen] = useState<SubScreen>('hub');
+  if (screen === 'journal')     return <JournalView    onBack={() => setScreen('hub')} />;
+  if (screen === 'examination') return <ExaminationView onBack={() => setScreen('hub')} />;
+  if (screen === 'session')     return <SessionView    onBack={() => setScreen('hub')} onComplete={() => setScreen('complete')} />;
+  if (screen === 'complete')    return <CompleteView   onBack={() => setScreen('hub')} />;
+  return <Hub onNav={setScreen} />;
 }
 
 const styles = StyleSheet.create({
@@ -362,50 +717,34 @@ const styles = StyleSheet.create({
   pageTitle: { fontFamily: fonts.cormorantMedium, fontSize: 28, color: colors.cream, marginBottom: 4 },
   pageSubtitle: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 20 },
 
+  subHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  subHeaderTitle: { fontFamily: fonts.cormorantMedium, fontSize: 20, color: colors.cream },
+  linkGold: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.gold, minWidth: 54 },
+  headerCount: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.gold },
+  addPlus: { fontSize: 26, color: colors.gold, marginTop: -2 },
+
   privacyBanner: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', backgroundColor: 'rgba(201,168,76,0.05)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)', borderRadius: 12, padding: 16, marginBottom: 16 },
   privacyLock: { fontSize: 18, flexShrink: 0 },
   privacyText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, flex: 1 },
   strong: { fontFamily: fonts.latoBold, color: colors.cream },
 
-  progressStrip: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, borderRadius: 10, marginBottom: 16 },
-  progressLabel: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.muted, flex: 1 },
-  progressVal: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream, flexShrink: 0 },
-  clearBtn: { borderWidth: 1, borderColor: 'rgba(192,57,43,0.4)', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5 },
-  clearBtnText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.red, letterSpacing: 0.5 },
+  sectionLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: SECOND, marginBottom: 8, marginTop: 6 },
+  labelHint: { fontFamily: fonts.latoLight, letterSpacing: 0, textTransform: 'none', color: colors.muted },
 
-  tabScroll: { marginHorizontal: -18, marginBottom: 16 },
-  tabContent: { paddingHorizontal: 18, gap: 0 },
-  tab: { paddingHorizontal: 14, paddingVertical: 9, borderBottomWidth: 2, borderBottomColor: 'transparent', flexDirection: 'row', alignItems: 'center', gap: 6 },
-  tabActive: { borderBottomColor: colors.gold },
-  tabText: { fontFamily: fonts.latoBold, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.muted },
-  tabTextActive: { color: colors.goldLight },
-  tabBadge: { backgroundColor: colors.gold, borderRadius: 8, width: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
-  tabBadgeText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.navy },
+  moduleCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 12, marginBottom: 8, backgroundColor: CARD_BG },
+  moduleIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: colors.goldDim, alignItems: 'center', justifyContent: 'center' },
+  moduleTitle: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.cream, flexShrink: 1 },
+  moduleSub: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 17, flexShrink: 1 },
+  moduleChevron: { fontSize: 20, color: colors.gold },
 
-  examItem: { flexDirection: 'row', gap: 10, paddingVertical: 9, alignItems: 'flex-start' },
-  examBorder: { borderBottomWidth: 1, borderBottomColor: 'rgba(201,168,76,0.06)' },
-  examCheck: { width: 16, height: 16, borderRadius: 4, borderWidth: 1, borderColor: colors.border, marginTop: 2, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  examCheckDone: { backgroundColor: colors.gold, borderColor: colors.gold },
-  checkMark: { fontSize: 11, color: colors.navy, fontWeight: '700' },
-  examText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.cream, lineHeight: 18 },
-  examTextDone: { textDecorationLine: 'line-through', opacity: 0.38 },
-  examNote: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 3, fontStyle: 'italic' },
-
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: 16 },
-  formLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.8, marginBottom: 8 },
-  textarea: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, minHeight: 80, textAlignVertical: 'top', lineHeight: 20 },
-
-  sessionNote: { backgroundColor: 'rgba(201,168,76,0.06)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)', borderRadius: 8, padding: 10, marginTop: 14 },
-  sessionNoteText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, letterSpacing: 0.2 },
-
-  btnGoldFull: { backgroundColor: colors.gold, borderRadius: 8, padding: 12, alignItems: 'center', marginTop: 14 },
-  btnDisabled: { opacity: 0.4 },
-  btnGoldText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.navy, letterSpacing: 0.8 },
-
-  requestSentCard: { alignItems: 'center', paddingVertical: 20, gap: 8 },
-  requestSentIcon: { fontSize: 32, color: colors.gold },
-  requestSentTitle: { fontFamily: fonts.cormorantMedium, fontSize: 20, color: colors.cream },
-  requestSentBody: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18 },
+  // Self-report
+  lastConfDate: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.gold, marginBottom: 10, opacity: 0.85 },
+  dateInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, marginBottom: 10 },
+  selfReportError: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginBottom: 8 },
+  logBtn: { backgroundColor: colors.gold, borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginBottom: 10 },
+  logBtnDisabled: { opacity: 0.5 },
+  logBtnText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.navy, letterSpacing: 1 },
+  selfReportHint: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, textAlign: 'center', opacity: 0.7 },
 
   comingSoonCard: { alignItems: 'center', paddingVertical: 20, gap: 8 },
   comingSoonIcon: { fontSize: 28, color: colors.muted, opacity: 0.5 },
@@ -426,12 +765,81 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.muted },
   emptyBody: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, textAlign: 'center', lineHeight: 17, opacity: 0.7 },
 
-  // Self-report
-  lastConfDate: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.gold, marginBottom: 10, opacity: 0.85 },
-  dateInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, marginBottom: 10 },
-  selfReportError: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginBottom: 8 },
-  logBtn: { backgroundColor: colors.gold, borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginBottom: 10 },
-  logBtnDisabled: { opacity: 0.5 },
-  logBtnText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.navy, letterSpacing: 1 },
-  selfReportHint: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, textAlign: 'center', opacity: 0.7 },
+  emptyCard: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 28, alignItems: 'center', marginTop: 8, backgroundColor: CARD_BG },
+  emptyCardTitle: { fontFamily: fonts.latoBold, fontSize: 15, color: colors.cream, marginBottom: 6 },
+  emptyCardBody: { fontFamily: fonts.latoLight, fontSize: 13, color: SECOND, lineHeight: 20, textAlign: 'center' },
+  emptyBtn: { marginTop: 16, backgroundColor: colors.gold, paddingVertical: 11, paddingHorizontal: 22, borderRadius: 10 },
+  emptyBtnText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.navy },
+
+  // Journal cards
+  journalCard: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, marginBottom: 8, backgroundColor: CARD_BG },
+  journalCardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6 },
+  journalCardTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream },
+  journalCardDate: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 2 },
+  journalCardExplain: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, fontStyle: 'italic', marginBottom: 6 },
+  journalCardBody: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.cream, lineHeight: 18, marginBottom: 8 },
+  domainTag: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 3, alignSelf: 'flex-start' },
+  domainTagText: { fontFamily: fonts.latoBold, fontSize: 11 },
+
+  // Composer
+  domainGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  domainChip: { flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, minWidth: '47%', flexGrow: 1 },
+  domainChipText: { fontFamily: fonts.latoBold, fontSize: 13 },
+  pickCard: { borderWidth: 1, borderRadius: 12, padding: 14, marginTop: 10 },
+  pickCardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  pickCardName: { flex: 1, fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream },
+  pickRadio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  pickRadioTick: { color: colors.navy, fontSize: 12, fontFamily: fonts.latoBold },
+  pickCardDesc: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, marginTop: 4, marginBottom: 4 },
+  pickCardRef: { fontFamily: fonts.latoBold, fontSize: 11 },
+  noteLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, marginBottom: 8 },
+  noteInput: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, minHeight: 110, fontFamily: fonts.latoLight, fontSize: 14, lineHeight: 20, color: colors.cream, backgroundColor: 'rgba(10,16,30,0.7)' },
+  composerHint: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, marginTop: 12 },
+
+  // Examination
+  catPills: { flexDirection: 'row', gap: 6, paddingHorizontal: 20, paddingBottom: 10, paddingTop: 12 },
+  catPill: { width: 38, height: 38, borderRadius: 10, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  catPillBadge: { position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  catPillBadgeText: { color: colors.navy, fontSize: 9, fontFamily: fonts.latoBold },
+  catHeaderCard: { flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 14 },
+  catHeaderTitle: { fontFamily: fonts.cormorantMedium, fontSize: 18 },
+  catHeaderCount: { fontFamily: fonts.latoLight, fontSize: 12, marginTop: 2, opacity: 0.85 },
+  sinCard: { borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 10 },
+  sinName: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 4 },
+  sinDesc: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, marginBottom: 4 },
+  sinScripture: { fontFamily: fonts.latoBold, fontSize: 11, marginBottom: 10 },
+  freqBtns: { flexDirection: 'row', gap: 6 },
+  freqBtn: { flex: 1, paddingVertical: 7, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
+  freqBtnText: { fontFamily: fonts.latoBold, fontSize: 11 },
+  navRow: { flexDirection: 'row', gap: 10, marginTop: 20 },
+  navBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
+  navBtnText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream },
+  catProgress: { fontFamily: fonts.latoLight, textAlign: 'center', fontSize: 11, color: colors.muted, marginTop: 10 },
+
+  // Session
+  sessionIntro: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 14, lineHeight: 18 },
+  catCard: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, marginBottom: 10, backgroundColor: CARD_BG },
+  sessionCatHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 8 },
+  catLabel: { fontFamily: fonts.latoBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sessionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(245,240,232,0.06)' },
+  sessionRowDone: { opacity: 0.4 },
+  sessionDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
+  sessionItemName: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream },
+  sessionItemSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 2 },
+  strikethrough: { textDecorationLine: 'line-through' },
+  sessionNote: { backgroundColor: CARD_BG, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginTop: 4 },
+  sessionNoteText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },
+  bigBtn: { width: '100%', paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 10 },
+  bigBtnText: { fontFamily: fonts.latoBold, fontSize: 14, letterSpacing: 0.3 },
+
+  // Complete
+  completeCross: { fontSize: 44, color: colors.goldLight, marginTop: 32, marginBottom: 12 },
+  completeTitle: { fontFamily: fonts.cormorantMedium, fontSize: 26, color: colors.goldLight, marginBottom: 12 },
+  completeVerse: { fontFamily: fonts.cormorantItalic, fontSize: 15, color: colors.cream, textAlign: 'center', lineHeight: 22, marginBottom: 6 },
+  completeRef: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.green, marginBottom: 24 },
+  afterCard: { borderWidth: 1, borderColor: 'rgba(93,202,135,0.35)', borderRadius: 12, padding: 16, width: '100%', backgroundColor: 'rgba(93,202,135,0.06)' },
+  afterStep: { flexDirection: 'row', gap: 10, marginBottom: 10, alignItems: 'flex-start' },
+  stepNum: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.navyMid, alignItems: 'center', justifyContent: 'center' },
+  stepNumText: { color: colors.goldLight, fontSize: 11, fontFamily: fonts.latoBold },
+  afterStepText: { color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, lineHeight: 19, flex: 1 },
 });

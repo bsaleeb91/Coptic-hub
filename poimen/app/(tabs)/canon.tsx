@@ -1,45 +1,27 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
   Animated, PanResponder,
 } from 'react-native';
 import * as H from '@/lib/haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Circle } from 'react-native-svg';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
+import { loadRule } from '@/lib/canon/rule-store';
+import { hydrateRuleFromCloud } from '@/lib/canon/rule-sync';
+import { todayItems, RuleItem } from '@/lib/canon/today';
+import { isFastDay } from '@/lib/canon/fasting';
+import { loadTodayChecks, saveTodayChecks } from '@/lib/canon/checks';
 
-// ── Progress ring ────────────────────────────────────────────
-const RING_RADIUS = 22;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-function ProgressRing({ pct }: { pct: number }) {
-  const offset = RING_CIRCUMFERENCE * (1 - pct / 100);
-  return (
-    <View style={styles.ring}>
-      <Svg width={56} height={56} viewBox="0 0 56 56" style={{ transform: [{ rotate: '-90deg' }] }}>
-        <Circle cx={28} cy={28} r={RING_RADIUS} stroke="rgba(245,240,232,0.08)" strokeWidth={4} fill="none" />
-        <Circle cx={28} cy={28} r={RING_RADIUS} stroke={colors.gold} strokeWidth={4} fill="none"
-          strokeDasharray={`${RING_CIRCUMFERENCE}`} strokeDashoffset={offset} strokeLinecap="round" />
-      </Svg>
-      <View style={styles.ringCenter}>
-        <Text style={styles.ringPct}>{pct}%</Text>
-      </View>
-    </View>
-  );
-}
-
-// ── Demo data ────────────────────────────────────────────────
-const DEMO_COMPONENTS = [
-  { id: 'c1', icon: '📖', name: 'Daily Psalm Reading', freq: 'DAILY', desc: 'Read one Psalm slowly, with reflection. Today: Psalm 18.', done: true },
-  { id: 'c2', icon: '🙏', name: 'Morning Prostrations', freq: 'DAILY', desc: '12 prostrations upon waking, with the prayer of St. Ephrem.', done: true },
-  { id: 'c3', icon: '✝', name: 'Psalm 50 Before Sleep', freq: 'DAILY', desc: 'Recite Psalm 50 as the last prayer before sleeping.', done: false },
-  { id: 'c4', icon: '🕯', name: 'Vespers Attendance', freq: 'WEEKLY', desc: 'Attend Saturday Vespers or Tasbeha when available.', done: false },
-];
+// The canon shown here is the user's OWN spiritual canon (their rule of prayer,
+// set with their Father of Confession in the rule editor) — built per weekday
+// by lib/canon/today.ts. The old priest-assigned components checklist was
+// removed; Past Canons history below still reflects assigned canons.
 
 const DEMO_HISTORY = [
   { id: 'h1', component: 'Great Lent Canon', start_date: '2026-03-01', end_date: '2026-04-19', pct: 84, active: false },
@@ -82,16 +64,18 @@ function SwipeableCanonRow({ comp, done, onToggle }: {
     onPanResponderTerminate: springBack,
   })).current;
 
-  const isWeekly = comp.frequency === 'Weekly' || comp.freq === 'WEEKLY';
+  // The action panel fades in with the swipe — otherwise it shows through the
+  // row at rest (done rows are semi-transparent via compItemDone's opacity).
+  const actionOpacity = tx.interpolate({ inputRange: [0, REVEAL_W], outputRange: [0, 1], extrapolate: 'clamp' });
 
   return (
     <View style={styles.swipeOuter}>
       {/* Action revealed behind */}
-      <View style={[styles.swipeAction, { backgroundColor: done ? 'rgba(149,165,166,0.2)' : `${colors.green}30` }]}>
+      <Animated.View style={[styles.swipeAction, { opacity: actionOpacity, backgroundColor: done ? 'rgba(149,165,166,0.2)' : `${colors.green}30` }]}>
         <Text style={[styles.swipeActionText, { color: done ? colors.muted : colors.green }]}>
           {done ? '↩ Undo' : '✓ Done'}
         </Text>
-      </View>
+      </Animated.View>
 
       {/* Row sliding over it */}
       <Animated.View style={[styles.compItem, done && styles.compItemDone, { transform: [{ translateX: tx }] }]} {...pan.panHandlers}>
@@ -102,18 +86,10 @@ function SwipeableCanonRow({ comp, done, onToggle }: {
           <View style={styles.compIcon}>
             <Text style={styles.compIconEmoji}>{comp.icon ?? '📜'}</Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.compName, done && styles.compNameDone]}>{comp.name ?? comp.component}</Text>
-            <View style={styles.compMeta}>
-              <Text style={[styles.compFreq, isWeekly ? { color: colors.green } : { color: colors.blue }]}>
-                {(comp.freq ?? comp.frequency ?? 'DAILY').toUpperCase()}
-              </Text>
-              <Text style={styles.compStatus}>{done ? '✓ Done today' : '← swipe'}</Text>
-            </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.compName, done && styles.compNameDone]}>{comp.name}</Text>
+            <Text style={styles.compStatus}>{done ? '✓ Done today' : '← swipe to complete'}</Text>
           </View>
-          {comp.desc || comp.reflection_prompt ? (
-            <Text style={styles.compDesc} numberOfLines={2}>{comp.desc ?? comp.reflection_prompt}</Text>
-          ) : null}
         </TouchableOpacity>
       </Animated.View>
     </View>
@@ -141,30 +117,37 @@ function ReadinessIndicator({ daysSince }: { daysSince: number }) {
 
 // ── Screen ───────────────────────────────────────────────────
 export default function CanonScreen() {
+  const router = useRouter();
   const { user } = useSession();
   const { demoMode } = useDemoMode();
-  const [components, setComponents] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(!demoMode);
+  const [ruleItems, setRuleItems] = useState<RuleItem[] | null>(null); // null = loading
 
   useEffect(() => {
     if (demoMode) {
-      setComponents(DEMO_COMPONENTS);
-      setChecked(new Set(DEMO_COMPONENTS.filter(c => c.done).map(c => c.id)));
       setHistory(DEMO_HISTORY);
     } else {
-      load();
+      loadHistory();
     }
   }, [user]);
 
-  async function load() {
-    if (!user) return;
-    setLoading(true);
-    const active = await db.getActiveCanons(user.id);
-    const past = await db.getInactiveCanons(user.id);
+  // Reload the canon every time the tab gains focus, so edits made in the
+  // rule editor reflect here immediately.
+  useFocusEffect(useCallback(() => {
+    loadCanon();
+  }, [user, demoMode]));
 
-    if (active) setComponents(active);
+  async function loadCanon() {
+    if (user && !demoMode) await hydrateRuleFromCloud(user.id);
+    const rule = await loadRule();
+    setRuleItems(todayItems(rule, new Date()));
+    setChecked(await loadTodayChecks());
+  }
+
+  async function loadHistory() {
+    if (!user) return;
+    const past = await db.getInactiveCanons(user.id);
     if (past) {
       const withPct = await Promise.all(past.map(async (c) => {
         const count = await db.countCanonCompletions(c.id);
@@ -175,30 +158,22 @@ export default function CanonScreen() {
       }));
       setHistory(withPct);
     }
-    setLoading(false);
   }
 
-  async function toggleCheck(id: string) {
+  // Check-offs persist on-device for the current day (auto-reset at local
+  // midnight) so the Home "canon today" tile can track them too.
+  function toggleCheck(id: string) {
     setChecked(prev => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
+      saveTodayChecks(next);
       return next;
     });
-    if (!demoMode && user) {
-      const today = new Date().toISOString().split('T')[0];
-      await db.upsertCanonCompletion(id, user.id, today);
-    }
   }
 
-  const completedCount = checked.size;
-  const total = components.length || 1;
-  const pct = Math.round((completedCount / total) * 100);
-
-  const activeCanon = demoMode
-    ? { label: 'ACTIVE CANON · ASSIGNED MAY 21', title: '40-Day Psalm & Prostration Plan', meta: 'Assigned after Holy Confession · Fr. Bishoy Marcos · Day 18 of 40' }
-    : components.length > 0
-    ? { label: `ACTIVE CANON · ${components.length} COMPONENT${components.length !== 1 ? 'S' : ''}`, title: 'Spiritual Canon', meta: 'Assigned by your Father of Confession' }
-    : null;
+  const items = ruleItems ?? [];
+  const completedCount = items.filter(it => checked.has(`rule_${it.key}`)).length;
+  const fastingToday = isFastDay(new Date());
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -207,45 +182,51 @@ export default function CanonScreen() {
         <Text style={styles.pageTitle}>Spiritual Canon</Text>
         <Text style={styles.pageSubtitle}>A remedy for the soul, not a task list</Text>
 
-        {/* Status bar */}
-        {activeCanon ? (
-          <View style={styles.statusBar}>
-            <Text style={styles.statusBarDecor}>✦</Text>
-            <Text style={styles.statusIcon}>📜</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.statusLabel}>{activeCanon.label}</Text>
-              <Text style={styles.statusTitle}>{activeCanon.title}</Text>
-              <Text style={styles.statusMeta}>{activeCanon.meta}</Text>
+        {/* My Spiritual Canon — the user's own rule of prayer for today */}
+        <Card
+          title="My Spiritual Canon"
+          flat
+          action={
+            <View style={styles.headerActions}>
+              {fastingToday && (
+                <View style={styles.fastBadge}><Text style={styles.fastBadgeText}>Fasting day</Text></View>
+              )}
+              {items.length > 0 && (
+                <Text style={styles.headerCount}>{completedCount}/{items.length}</Text>
+              )}
+              <TouchableOpacity onPress={() => { H.tap(); router.push('/canon/rule'); }} hitSlop={8}>
+                <Text style={styles.editLink}>Edit ›</Text>
+              </TouchableOpacity>
             </View>
-            <ProgressRing pct={pct} />
-          </View>
-        ) : !demoMode ? (
-          <View style={styles.emptyBanner}>
-            <Text style={styles.emptyBannerTitle}>No active canon yet</Text>
-            <Text style={styles.emptyBannerBody}>Your Father of Confession will assign a spiritual canon after your next confession. It will appear here.</Text>
-          </View>
-        ) : null}
-
-        {/* Today's Canon */}
-        <Card title="Today's Canon" flat>
-          {loading ? (
+          }
+        >
+          {ruleItems == null ? (
             <ActivityIndicator color={colors.gold} style={{ paddingVertical: 20 }} />
-          ) : components.length === 0 ? (
+          ) : items.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>📜</Text>
-              <Text style={styles.emptyTitle}>No canon components yet</Text>
-              <Text style={styles.emptyBody}>Your Father of Confession will assign components after your next meeting.</Text>
+              <Text style={styles.emptyTitle}>No canon set yet</Text>
+              <Text style={styles.emptyBody}>
+                Set your spiritual canon with your Father of Confession — Agpeya hours, church services,
+                fasting, prostrations, quiet time, and reading, per day of the week.
+              </Text>
+              <TouchableOpacity style={styles.setBtn} onPress={() => { H.tap(); router.push('/canon/rule'); }} activeOpacity={0.85}>
+                <Text style={styles.setBtnText}>Set my canon</Text>
+              </TouchableOpacity>
             </View>
           ) : (
-            components.map((comp, i) => (
-              <View key={comp.id} style={i < components.length - 1 ? { marginBottom: 10 } : {}}>
-                <SwipeableCanonRow
-                  comp={comp}
-                  done={checked.has(comp.id)}
-                  onToggle={() => toggleCheck(comp.id)}
-                />
-              </View>
-            ))
+            <>
+              {items.map(item => (
+                <View key={item.key} style={{ marginBottom: 10 }}>
+                  <SwipeableCanonRow
+                    comp={{ id: `rule_${item.key}`, icon: item.icon, name: item.label }}
+                    done={checked.has(`rule_${item.key}`)}
+                    onToggle={() => toggleCheck(`rule_${item.key}`)}
+                  />
+                </View>
+              ))}
+              <PrivacyNote text="Your spiritual canon stays private to you — it is never shared with anyone." />
+            </>
           )}
         </Card>
 
@@ -294,26 +275,19 @@ const styles = StyleSheet.create({
   pageTitle: { fontFamily: fonts.cormorantMedium, fontSize: 28, color: colors.cream, marginBottom: 4 },
   pageSubtitle: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 20, fontStyle: 'italic' },
 
-  statusBar: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: 'rgba(201,168,76,0.11)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.32)', borderRadius: 12, padding: 18, marginBottom: 20, position: 'relative', overflow: 'hidden' },
-  statusBarDecor: { position: 'absolute', right: 16, fontSize: 52, color: 'rgba(201,168,76,0.06)', fontFamily: fonts.cormorant },
-  statusIcon: { fontSize: 28, flexShrink: 0 },
-  statusLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: colors.gold, marginBottom: 3 },
-  statusTitle: { fontFamily: fonts.cormorantMedium, fontSize: 18, color: colors.cream, marginBottom: 2 },
-  statusMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
-
-  ring: { width: 56, height: 56, flexShrink: 0, position: 'relative' },
-  ringCenter: { position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' },
-  ringPct: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream },
-
-  emptyBanner: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 18, marginBottom: 20 },
-  emptyBannerTitle: { fontFamily: fonts.cormorantMedium, fontSize: 18, color: colors.cream, marginBottom: 6 },
-  emptyBannerBody: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerCount: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.muted },
+  editLink: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.gold },
+  fastBadge: { backgroundColor: 'rgba(201,168,76,0.15)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  fastBadgeText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.goldLight },
 
   swipeOuter: { position: 'relative', borderRadius: 12, overflow: 'hidden' },
   swipeAction: { position: 'absolute', left: 0, top: 0, bottom: 0, width: REVEAL_W, justifyContent: 'center', alignItems: 'center' },
   swipeActionText: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 0.8 },
 
-  compItem: { backgroundColor: 'rgba(10,16,30,0.5)', borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: 'hidden' },
+  // Opaque background — the "✓ Done" swipe action sits behind the left edge of
+  // this row (under the checkbox) and must not show through until swiped.
+  compItem: { backgroundColor: '#0d182e', borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: 'hidden' },
   compItemDone: { opacity: 0.65 },
   compHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13 },
   compCheck: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
@@ -321,12 +295,12 @@ const styles = StyleSheet.create({
   compCheckMark: { fontSize: 12, color: colors.navy, fontWeight: '700' },
   compIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: colors.goldDim, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   compIconEmoji: { fontSize: 16 },
-  compName: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2 },
+  compName: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2, flexShrink: 1 },
   compNameDone: { textDecorationLine: 'line-through' },
-  compMeta: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  compFreq: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 0.8 },
   compStatus: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted },
-  compDesc: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, maxWidth: 90, textAlign: 'right', lineHeight: 15 },
+
+  setBtn: { marginTop: 12, backgroundColor: colors.gold, paddingVertical: 11, paddingHorizontal: 24, borderRadius: 10 },
+  setBtnText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.navy, letterSpacing: 0.4 },
 
   readinessRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderWidth: 1, borderRadius: 10, padding: 14, marginBottom: 4 },
   readinessIcon: { fontSize: 18, marginTop: 1 },

@@ -5,7 +5,18 @@
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64, encodeUTF8, decodeUTF8 } from 'tweetnacl-util';
 import * as SecureStore from 'expo-secure-store';
+import * as ExpoCrypto from 'expo-crypto';
 import { Platform } from 'react-native';
+
+// Hermes (native) has no Web Crypto API, so tweetnacl finds no PRNG at import
+// time and every nacl.randomBytes call throws "no PRNG" — encryption silently
+// fails on iOS/Android while working on web. Seed nacl from expo-crypto when
+// crypto.getRandomValues is missing; on web the browser PRNG is used as before.
+if (typeof (globalThis as any).crypto?.getRandomValues !== 'function') {
+  nacl.setPRNG((x, n) => {
+    x.set(ExpoCrypto.getRandomBytes(n));
+  });
+}
 
 const KEY_ID = 'poimen_notes_key_v1';
 const KEYPAIR_ID = 'poimen_box_keypair_v1';
