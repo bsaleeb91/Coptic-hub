@@ -23,23 +23,24 @@ export async function getInactiveCanons(congregantId: string): Promise<any[]> {
   return data ?? [];
 }
 
-// Active canons for a member (priest detail view).
+// Active canons for a member (priest detail view) — includes items the
+// congregant added themselves (priest_id null), not just ones this priest assigned.
 export async function getMemberActiveCanons(memberId: string): Promise<any[]> {
   const { data } = await supabase
     .from('spiritual_canons')
-    .select('id, component, frequency, start_date')
+    .select('id, component, frequency, start_date, priest_id')
     .eq('congregant_id', memberId)
     .eq('active', true);
   return data ?? [];
 }
 
-// Active canons a servant assigned to a student.
-export async function getStudentActiveCanons(studentId: string, priestId: string): Promise<any[]> {
+// Active canons for a student (servant detail view) — includes items the
+// student added themselves (priest_id null), not just ones this servant assigned.
+export async function getStudentActiveCanons(studentId: string): Promise<any[]> {
   const { data } = await supabase
     .from('spiritual_canons')
-    .select('id, component, frequency, start_date')
+    .select('id, component, frequency, start_date, priest_id')
     .eq('congregant_id', studentId)
-    .eq('priest_id', priestId)
     .eq('active', true);
   return data ?? [];
 }

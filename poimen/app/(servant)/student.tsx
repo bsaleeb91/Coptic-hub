@@ -85,7 +85,7 @@ export default function StudentScreen() {
     setLoading(true);
 
     const [canonData, notesData, prayerData] = await Promise.all([
-      db.getStudentActiveCanons(studentId, user.id),
+      db.getStudentActiveCanons(studentId),
       db.getPastoralNotes(user.id, studentId),
       db.getServantSharedPrayer(studentId),
     ]);
@@ -94,7 +94,7 @@ export default function StudentScreen() {
       const enriched = await Promise.all(canonData.map(async c => {
         const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
         const count = await db.countCanonCompletionsSince(c.id, sevenDaysAgo);
-        return { id: c.id, component: c.component, frequency: c.frequency, startDate: c.start_date, completions: count, totalDays: 7 };
+        return { id: c.id, component: c.component, frequency: c.frequency, startDate: c.start_date, completions: count, totalDays: 7, selfAdded: c.priest_id == null };
       }));
       setCanons(enriched);
     }
@@ -223,7 +223,14 @@ export default function StudentScreen() {
                       return (
                         <View key={c.id} style={[styles.canonRow, i < canons.length - 1 && styles.canonBorder]}>
                           <View style={{ flex: 1 }}>
-                            <Text style={styles.canonComponent}>{c.component}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Text style={styles.canonComponent}>{c.component}</Text>
+                              {c.selfAdded && (
+                                <View style={styles.selfAddedBadge}>
+                                  <Text style={styles.selfAddedBadgeText}>ADDED BY STUDENT</Text>
+                                </View>
+                              )}
+                            </View>
                             <Text style={styles.canonMeta}>{c.frequency} · since {c.startDate}</Text>
                             <View style={styles.progressRow}>
                               <View style={styles.progressTrack}>
@@ -234,9 +241,11 @@ export default function StudentScreen() {
                               </Text>
                             </View>
                           </View>
-                          <TouchableOpacity style={styles.removeBtn} onPress={() => handleDeactivateCanon(c.id)}>
-                            <Text style={styles.removeBtnText}>Remove</Text>
-                          </TouchableOpacity>
+                          {!c.selfAdded && (
+                            <TouchableOpacity style={styles.removeBtn} onPress={() => handleDeactivateCanon(c.id)}>
+                              <Text style={styles.removeBtnText}>Remove</Text>
+                            </TouchableOpacity>
+                          )}
                         </View>
                       );
                     })
@@ -389,6 +398,8 @@ const styles = StyleSheet.create({
   progressPct: { fontFamily: fonts.latoBold, fontSize: 11, flexShrink: 0 },
   removeBtn: { borderWidth: 1, borderColor: 'rgba(192,57,43,0.3)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   removeBtnText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.red, letterSpacing: 0.5 },
+  selfAddedBadge: { backgroundColor: 'rgba(201,168,76,0.12)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.25)', borderRadius: 20, paddingHorizontal: 6, paddingVertical: 2 },
+  selfAddedBadgeText: { fontFamily: fonts.latoBold, fontSize: 8, letterSpacing: 0.6, color: colors.gold },
 
   privacyNote: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 12, opacity: 0.7 },
   noteCard: { backgroundColor: 'rgba(10,16,30,0.4)', borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 10 },

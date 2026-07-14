@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
-  Animated, PanResponder,
+  Animated, PanResponder, Modal, TextInput, Alert,
 } from 'react-native';
 import * as H from '@/lib/haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,10 +35,10 @@ function ProgressRing({ pct }: { pct: number }) {
 
 // ── Demo data ────────────────────────────────────────────────
 const DEMO_COMPONENTS = [
-  { id: 'c1', icon: '📖', name: 'Daily Psalm Reading', freq: 'DAILY', desc: 'Read one Psalm slowly, with reflection. Today: Psalm 18.', done: true },
-  { id: 'c2', icon: '🙏', name: 'Morning Prostrations', freq: 'DAILY', desc: '12 prostrations upon waking, with the prayer of St. Ephrem.', done: true },
-  { id: 'c3', icon: '✝', name: 'Psalm 50 Before Sleep', freq: 'DAILY', desc: 'Recite Psalm 50 as the last prayer before sleeping.', done: false },
-  { id: 'c4', icon: '🕯', name: 'Vespers Attendance', freq: 'WEEKLY', desc: 'Attend Saturday Vespers or Tasbeha when available.', done: false },
+  { id: 'c1', icon: '📖', name: 'Daily Psalm Reading', freq: 'DAILY', desc: 'Read one Psalm slowly, with reflection. Today: Psalm 18.', done: true, priest_id: 'demo-priest' },
+  { id: 'c2', icon: '🙏', name: 'Morning Prostrations', freq: 'DAILY', desc: '12 prostrations upon waking, with the prayer of St. Ephrem.', done: true, priest_id: 'demo-priest' },
+  { id: 'c3', icon: '✝', name: 'Psalm 50 Before Sleep', freq: 'DAILY', desc: 'Recite Psalm 50 as the last prayer before sleeping.', done: false, priest_id: 'demo-priest' },
+  { id: 'c4', icon: '🕯', name: 'Vespers Attendance', freq: 'WEEKLY', desc: 'Attend Saturday Vespers or Tasbeha when available.', done: false, priest_id: 'demo-priest' },
 ];
 
 const DEMO_HISTORY = [
@@ -50,8 +50,8 @@ const DEMO_HISTORY = [
 const REVEAL_W = 72;
 const THRESHOLD = REVEAL_W * 0.55;
 
-function SwipeableCanonRow({ comp, done, onToggle }: {
-  comp: any; done: boolean; onToggle: () => void;
+function SwipeableCanonRow({ comp, done, onToggle, onDelete }: {
+  comp: any; done: boolean; onToggle: () => void; onDelete?: () => void;
 }) {
   const tx = useRef(new Animated.Value(0)).current;
   const doneRef = useRef(done);
@@ -103,7 +103,14 @@ function SwipeableCanonRow({ comp, done, onToggle }: {
             <Text style={styles.compIconEmoji}>{comp.icon ?? '📜'}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.compName, done && styles.compNameDone]}>{comp.name ?? comp.component}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[styles.compName, done && styles.compNameDone]}>{comp.name ?? comp.component}</Text>
+              {onDelete && (
+                <View style={styles.yoursBadge}>
+                  <Text style={styles.yoursBadgeText}>YOURS</Text>
+                </View>
+              )}
+            </View>
             <View style={styles.compMeta}>
               <Text style={[styles.compFreq, isWeekly ? { color: colors.green } : { color: colors.blue }]}>
                 {(comp.freq ?? comp.frequency ?? 'DAILY').toUpperCase()}
@@ -115,6 +122,11 @@ function SwipeableCanonRow({ comp, done, onToggle }: {
             <Text style={styles.compDesc} numberOfLines={2}>{comp.desc ?? comp.reflection_prompt}</Text>
           ) : null}
         </TouchableOpacity>
+        {onDelete && (
+          <TouchableOpacity style={styles.compDeleteBtn} onPress={onDelete}>
+            <Text style={styles.compDeleteBtnText}>Remove</Text>
+          </TouchableOpacity>
+        )}
       </Animated.View>
     </View>
   );
@@ -147,6 +159,12 @@ export default function CanonScreen() {
   const [history, setHistory] = useState<any[]>([]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(!demoMode);
+
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newComponent, setNewComponent] = useState('');
+  const [newFreq, setNewFreq] = useState<'Daily' | '3x/week' | 'Weekly' | 'Custom'>('Daily');
+  const [newReflection, setNewReflection] = useState('');
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     if (demoMode) {
@@ -190,14 +208,66 @@ export default function CanonScreen() {
     }
   }
 
+  async function addComponent() {
+    if (!newComponent.trim() || adding) return;
+    setAdding(true);
+    const comp = {
+      id: Date.now().toString(),
+      icon: '📜',
+      name: newComponent.trim(),
+      freq: newFreq,
+      desc: newReflection.trim() || undefined,
+      done: false,
+      priest_id: null,
+    };
+    if (demoMode) {
+      setComponents(prev => [...prev, comp]);
+    } else if (user) {
+      const { error } = await db.insertCanon({
+        congregant_id: user.id,
+        priest_id: null,
+        component: newComponent.trim(),
+        frequency: newFreq,
+        reflection_prompt: newReflection.trim() || null,
+        active: true,
+      });
+      if (!error) await load();
+    }
+    setAdding(false);
+    setNewComponent(''); setNewFreq('Daily'); setNewReflection('');
+    setShowAddModal(false);
+  }
+
+  function removeComponent(comp: any) {
+    Alert.alert('Remove Canon Item', `Remove "${comp.name ?? comp.component}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: async () => {
+        if (demoMode) {
+          setComponents(prev => prev.filter(c => c.id !== comp.id));
+          return;
+        }
+        await db.deactivateCanon(comp.id);
+        await load();
+      }},
+    ]);
+  }
+
   const completedCount = checked.size;
   const total = components.length || 1;
   const pct = Math.round((completedCount / total) * 100);
 
+  const hasAssigned = components.some(c => c.priest_id != null);
+  const hasSelfAdded = components.some(c => c.priest_id == null);
+  const ownerMeta = hasAssigned && hasSelfAdded
+    ? 'From your Father of Confession, plus items you added'
+    : hasAssigned
+    ? 'Assigned by your Father of Confession'
+    : 'Added by you';
+
   const activeCanon = demoMode
     ? { label: 'ACTIVE CANON · ASSIGNED MAY 21', title: '40-Day Psalm & Prostration Plan', meta: 'Assigned after Holy Confession · Fr. Bishoy Marcos · Day 18 of 40' }
     : components.length > 0
-    ? { label: `ACTIVE CANON · ${components.length} COMPONENT${components.length !== 1 ? 'S' : ''}`, title: 'Spiritual Canon', meta: 'Assigned by your Father of Confession' }
+    ? { label: `ACTIVE CANON · ${components.length} COMPONENT${components.length !== 1 ? 'S' : ''}`, title: 'Spiritual Canon', meta: ownerMeta }
     : null;
 
   return (
@@ -222,19 +292,27 @@ export default function CanonScreen() {
         ) : !demoMode ? (
           <View style={styles.emptyBanner}>
             <Text style={styles.emptyBannerTitle}>No active canon yet</Text>
-            <Text style={styles.emptyBannerBody}>Your Father of Confession will assign a spiritual canon after your next confession. It will appear here.</Text>
+            <Text style={styles.emptyBannerBody}>Your Father of Confession may assign a spiritual canon after your next confession — or add your own practices below.</Text>
           </View>
         ) : null}
 
         {/* Today's Canon */}
-        <Card title="Today's Canon" flat>
+        <Card
+          title="Today's Canon"
+          flat
+          action={
+            <TouchableOpacity style={styles.btnGold} onPress={() => setShowAddModal(true)}>
+              <Text style={styles.btnGoldText}>+ ADD</Text>
+            </TouchableOpacity>
+          }
+        >
           {loading ? (
             <ActivityIndicator color={colors.gold} style={{ paddingVertical: 20 }} />
           ) : components.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>📜</Text>
               <Text style={styles.emptyTitle}>No canon components yet</Text>
-              <Text style={styles.emptyBody}>Your Father of Confession will assign components after your next meeting.</Text>
+              <Text style={styles.emptyBody}>Your Father of Confession may assign components after your next meeting, or add your own below.</Text>
             </View>
           ) : (
             components.map((comp, i) => (
@@ -243,6 +321,7 @@ export default function CanonScreen() {
                   comp={comp}
                   done={checked.has(comp.id)}
                   onToggle={() => toggleCheck(comp.id)}
+                  onDelete={comp.priest_id == null ? () => removeComponent(comp) : undefined}
                 />
               </View>
             ))
@@ -282,6 +361,57 @@ export default function CanonScreen() {
         )}
 
       </ScrollView>
+
+      {/* Add Canon Item Modal */}
+      <Modal visible={showAddModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Add to My Canon</Text>
+
+            <Text style={styles.formLabel}>PRACTICE</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="e.g. Evening Agpeya"
+              placeholderTextColor="rgba(245,240,232,0.22)"
+              value={newComponent}
+              onChangeText={setNewComponent}
+              autoFocus
+            />
+
+            <Text style={[styles.formLabel, { marginTop: 14 }]}>FREQUENCY</Text>
+            <View style={styles.freqRow}>
+              {(['Daily', '3x/week', 'Weekly', 'Custom'] as const).map(f => (
+                <TouchableOpacity key={f} style={[styles.freqPill, newFreq === f && styles.freqPillActive]} onPress={() => setNewFreq(f)}>
+                  <Text style={[styles.freqPillText, newFreq === f && styles.freqPillTextActive]}>{f}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={[styles.formLabel, { marginTop: 14 }]}>NOTE (OPTIONAL)</Text>
+            <TextInput
+              style={[styles.textInput, { minHeight: 70, textAlignVertical: 'top' }]}
+              placeholder="A short reminder for yourself..."
+              placeholderTextColor="rgba(245,240,232,0.22)"
+              multiline
+              value={newReflection}
+              onChangeText={setNewReflection}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.btnGhost} onPress={() => setShowAddModal(false)}>
+                <Text style={styles.btnGhostText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnGoldFull, { flex: 1, marginTop: 0 }, (!newComponent.trim() || adding) && styles.btnDisabled]}
+                onPress={addComponent}
+                disabled={!newComponent.trim() || adding}
+              >
+                {adding ? <ActivityIndicator color={colors.navy} /> : <Text style={styles.btnGoldFullText}>ADD</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -344,4 +474,29 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 28, color: colors.muted, opacity: 0.4 },
   emptyTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.muted },
   emptyBody: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, textAlign: 'center', lineHeight: 17, opacity: 0.7 },
+
+  yoursBadge: { backgroundColor: 'rgba(201,168,76,0.12)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.25)', borderRadius: 20, paddingHorizontal: 6, paddingVertical: 2 },
+  yoursBadgeText: { fontFamily: fonts.latoBold, fontSize: 8, letterSpacing: 0.6, color: colors.gold },
+  compDeleteBtn: { alignSelf: 'flex-end', paddingHorizontal: 13, paddingBottom: 10, marginTop: -6 },
+  compDeleteBtnText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.red, letterSpacing: 0.5 },
+
+  btnGold: { backgroundColor: colors.gold, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  btnGoldText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.navy, letterSpacing: 0.8 },
+  btnGhost: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
+  btnGhostText: { fontFamily: fonts.lato, fontSize: 11, color: colors.muted },
+  btnGoldFull: { backgroundColor: colors.gold, borderRadius: 8, padding: 12, alignItems: 'center', marginTop: 14 },
+  btnGoldFullText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.navy, letterSpacing: 0.8 },
+  btnDisabled: { opacity: 0.35 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: colors.navyMid, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 24, paddingBottom: 40 },
+  modalTitle: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 16 },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
+  formLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.8, marginBottom: 8 },
+  textInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12 },
+  freqRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  freqPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colors.border },
+  freqPillActive: { backgroundColor: colors.goldDim, borderColor: colors.gold },
+  freqPillText: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: colors.muted },
+  freqPillTextActive: { color: colors.goldLight },
 });

@@ -229,7 +229,7 @@ export default function MemberScreen() {
     }
 
     if (canonData) {
-      setCanons(canonData.map(c => ({ id: c.id, component: c.component, frequency: c.frequency, startDate: c.start_date, pct: 0 })));
+      setCanons(canonData.map(c => ({ id: c.id, component: c.component, frequency: c.frequency, startDate: c.start_date, pct: 0, selfAdded: c.priest_id == null })));
     }
 
     setNotes(notesData);
@@ -423,13 +423,20 @@ export default function MemberScreen() {
 
             {/* ── Canon ── */}
             {tab === 'canon' && (
-              <Card title="Assigned Canon" flat>
+              <Card title="Canon" flat>
                 {canons.length === 0 ? (
-                  <Text style={styles.emptyText}>No canon assigned yet.</Text>
+                  <Text style={styles.emptyText}>No canon yet.</Text>
                 ) : canons.map((c, i) => (
                   <View key={c.id} style={[styles.canonRow, i < canons.length - 1 && styles.histBorder]}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.canonComponent}>{c.component}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.canonComponent}>{c.component}</Text>
+                        {c.selfAdded && (
+                          <View style={styles.selfAddedBadge}>
+                            <Text style={styles.selfAddedBadgeText}>ADDED BY MEMBER</Text>
+                          </View>
+                        )}
+                      </View>
                       <Text style={styles.canonMeta}>{c.frequency} · since {c.startDate}</Text>
                     </View>
                     {c.pct > 0 && (
@@ -707,6 +714,8 @@ const styles = StyleSheet.create({
   canonMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
   canonPill: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   canonPillText: { fontFamily: fonts.latoBold, fontSize: 12 },
+  selfAddedBadge: { backgroundColor: 'rgba(201,168,76,0.12)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.25)', borderRadius: 20, paddingHorizontal: 6, paddingVertical: 2 },
+  selfAddedBadgeText: { fontFamily: fonts.latoBold, fontSize: 8, letterSpacing: 0.6, color: colors.gold },
 
   emptyText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textAlign: 'center', paddingVertical: 16 },
 
