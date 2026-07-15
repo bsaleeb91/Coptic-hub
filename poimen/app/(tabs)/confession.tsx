@@ -10,7 +10,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform,
+  TextInput, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts } from '@/lib/theme';
@@ -19,6 +19,9 @@ import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 import { SIN_CATALOGUE } from '@/lib/confession/sinCatalogue';
+import { resetVitalsEpoch } from '@/lib/canon/history';
+import { confirmDestructive } from '@/lib/confirm';
+import { recordConfession, loadConfessionDates } from '@/lib/confession/dates';
 import type { SinCategory, SinFrequency, JournalCategory, JournalIncident, ExamChecks } from '@/lib/confession/types';
 import {
   loadIncidents, addIncident, deleteIncident, clearIncidents,
@@ -83,28 +86,33 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
   const [selfReportSaved, setSelfReportSaved] = useState(false);
   const [selfReportError, setSelfReportError] = useState('');
 
-  useEffect(() => {
-    if (demoMode) {
-      setHistory([
-        { id: 'd1', date: 'May 21, 2026', note: 'Fr. assigned: 40-day Psalm reading plan' },
-        { id: 'd2', date: 'Apr 20, 2026', note: 'Fr. assigned: Marriage prayer practice' },
-      ]);
-    } else {
-      loadHistory();
-    }
-  }, [user]);
+  useEffect(() => { loadHistory(); }, [user]);
 
+  // History = confessions recorded on this device (completion flow /
+  // self-report) merged with FOC-logged encounters (or demo data), one entry
+  // per calendar day — the FOC/demo entry wins because it carries a note.
   async function loadHistory() {
-    if (!user) return;
     setLoadingHistory(true);
-    const data = await db.getConfessionsForCongregant(user.id);
-    if (data) {
-      setHistory(data.map((enc: any) => ({
-        id: enc.id,
-        date: new Date(enc.encountered_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-        note: enc.member_note ?? '',
-      })));
+    const fmt = (k: string) => new Date(`${k}T12:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const entries = new Map<string, { id: string; dateKey: string; date: string; note: string }>();
+    for (const k of await loadConfessionDates()) {
+      entries.set(k, { id: `local_${k}`, dateKey: k, date: fmt(k), note: '' });
     }
+    if (demoMode) {
+      for (const e of [
+        { key: '2026-05-21', note: 'Fr. assigned: 40-day Psalm reading plan' },
+        { key: '2026-04-20', note: 'Fr. assigned: Marriage prayer practice' },
+      ]) entries.set(e.key, { id: `demo_${e.key}`, dateKey: e.key, date: fmt(e.key), note: e.note });
+    } else if (user) {
+      const data = await db.getConfessionsForCongregant(user.id);
+      for (const enc of data ?? []) {
+        const d = new Date(enc.encountered_at);
+        const p = (n: number) => String(n).padStart(2, '0');
+        const k = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+        entries.set(k, { id: enc.id, dateKey: k, date: fmt(k), note: enc.member_note ?? '' });
+      }
+    }
+    setHistory([...entries.values()].sort((a, b) => (a.dateKey < b.dateKey ? 1 : -1)));
     setLoadingHistory(false);
   }
 
@@ -117,8 +125,10 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
     }
     setSelfReportError('');
     setSelfReporting(true);
+    await recordConfession(parsedDate);
     await db.setLastConfession(user.id, parsedDate.toISOString());
     await refreshProfile();
+    await loadHistory();
     setSelfReporting(false);
     setSelfReportSaved(true);
     setTimeout(() => setSelfReportSaved(false), 2000);
@@ -157,7 +167,7 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
 
         {/* Self-report — hidden in demo mode */}
         {!demoMode && (
-          <Card title="Log My Last Confession" titleIcon="✝">
+          <Card title="Log My Last Confession" titleIcon="✝︎">
             {profile?.last_confession_at && (
               <Text style={styles.lastConfDate}>
                 Last recorded: {new Date(profile.last_confession_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
@@ -188,7 +198,7 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
         {/* Schedule */}
         <Card title="Schedule Confession" titleIcon="◈">
           <View style={styles.comingSoonCard}>
-            <Text style={styles.comingSoonIcon}>✝</Text>
+            <Text style={styles.comingSoonIcon}>✝︎</Text>
             <Text style={styles.comingSoonTitle}>Contact Your Father of Confession</Text>
             <Text style={styles.comingSoonBody}>
               Reach out to your Father of Confession directly to arrange your next confession.
@@ -203,7 +213,7 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
             <ActivityIndicator color={colors.gold} style={{ paddingVertical: 20 }} />
           ) : history.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>✝</Text>
+              <Text style={styles.emptyIcon}>✝︎</Text>
               <Text style={styles.emptyTitle}>No history yet</Text>
               <Text style={styles.emptyBody}>
                 Confession dates appear here after your Father of Confession logs your meeting, or when
@@ -217,7 +227,7 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
                   <Text style={styles.histDate}>{item.date}</Text>
                   <Text style={styles.histTitle}>Holy Confession</Text>
                   {item.note ? <Text style={styles.histNote}>{item.note}</Text> : null}
-                  <View style={styles.histTag}><Text style={styles.histTagText}>✝ Received</Text></View>
+                  <View style={styles.histTag}><Text style={styles.histTagText}>✝︎ Received</Text></View>
                 </View>
               ))}
               <Text style={styles.histFooter}>Dates only. Content protected by the holy seal.</Text>
@@ -258,10 +268,8 @@ function JournalView({ onBack }: { onBack: () => void }) {
   useEffect(() => { loadIncidents().then(list => { setIncidents(list); setLoaded(true); }); }, []);
 
   const remove = (id: string) => {
-    Alert.alert('Remove entry', 'Delete this journal entry?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => setIncidents(await deleteIncident(id)) },
-    ]);
+    confirmDestructive('Remove entry', 'Delete this journal entry?', 'Delete',
+      async () => setIncidents(await deleteIncident(id)));
   };
 
   if (adding) {
@@ -628,40 +636,47 @@ function SessionView({ onBack, onComplete }: { onBack: () => void; onComplete: (
 function CompleteView({ onBack }: { onBack: () => void }) {
   const { user, refreshProfile } = useSession();
   const { demoMode } = useDemoMode();
-  const [dateSaved, setDateSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [recorded, setRecorded] = useState(false);
+  const [vitalsReset, setVitalsReset] = useState(false);
+  const [notesDeleted, setNotesDeleted] = useState(false);
 
-  async function recordDate() {
-    if (demoMode || !user) { setDateSaved(true); return; }
-    setSaving(true);
-    await db.setLastConfession(user.id, new Date().toISOString());
-    await refreshProfile();
-    setSaving(false);
-    setDateSaved(true);
+  // Reaching this screen IS the confession — record today automatically
+  // (on-device always; mirrored to the profile when signed in). Same-day
+  // duplicates collapse in the store, so re-visits are harmless.
+  useEffect(() => {
+    (async () => {
+      await recordConfession();
+      if (!demoMode && user) {
+        await db.setLastConfession(user.id, new Date().toISOString());
+        await refreshProfile();
+      }
+      setRecorded(true);
+    })();
+  }, []);
+
+  // Start a fresh Spiritual Vitals window from today — adherence on the Home
+  // card then reads "since this confession".
+  async function resetVitals() {
+    await resetVitalsEpoch();
+    setVitalsReset(true);
   }
 
   function handleDelete() {
-    Alert.alert(
+    confirmDestructive(
       'Delete confession notes',
       'Your examination and journal entries for this period will be permanently deleted from this device. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete permanently', style: 'destructive',
-          onPress: async () => {
-            await Promise.all([clearIncidents(), clearExam()]);
-            Alert.alert('Deleted', 'Your notes have been permanently removed.');
-            onBack();
-          },
-        },
-      ],
+      'Delete permanently',
+      async () => {
+        await Promise.all([clearIncidents(), clearExam()]);
+        setNotesDeleted(true);
+      },
     );
   }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: '#0A2A22' }]}>
       <ScrollView contentContainerStyle={{ padding: 28, alignItems: 'center' }}>
-        <Text style={styles.completeCross}>✝</Text>
+        <Text style={styles.completeCross}>✝︎</Text>
         <Text style={styles.completeTitle}>Glory to God</Text>
         <Text style={styles.completeVerse}>
           "If we confess our sins, He is faithful and just to forgive us our sins and to cleanse us from all unrighteousness."
@@ -682,13 +697,26 @@ function CompleteView({ onBack }: { onBack: () => void }) {
           ))}
         </View>
 
-        {!demoMode && (
-          <TouchableOpacity style={[styles.bigBtn, { backgroundColor: colors.gold }]} onPress={recordDate} disabled={saving || dateSaved}>
-            <Text style={[styles.bigBtnText, { color: colors.navy }]}>{saving ? 'Saving…' : dateSaved ? '✓ Date recorded' : '✝  Record today as my confession'}</Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity style={[styles.bigBtn, { backgroundColor: colors.red }]} onPress={handleDelete}>
-          <Text style={[styles.bigBtnText, { color: colors.cream }]}>🗑  Delete my confession notes</Text>
+        <View style={[styles.bigBtn, { backgroundColor: 'rgba(93,202,135,0.12)', borderWidth: 1, borderColor: colors.green }]}>
+          <Text style={[styles.bigBtnText, { color: colors.green }]}>
+            {recorded
+              ? `✓ ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} recorded as your confession`
+              : 'Recording your confession date…'}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.bigBtn, { backgroundColor: 'rgba(201,168,76,0.15)', borderWidth: 1, borderColor: colors.gold }]}
+          onPress={resetVitals}
+          disabled={vitalsReset}
+        >
+          <Text style={[styles.bigBtnText, { color: colors.goldLight }]}>
+            {vitalsReset ? '✓ Vitals now track from today' : '↻  Reset my Spiritual Vitals'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.bigBtn, { backgroundColor: colors.red, opacity: notesDeleted ? 0.55 : 1 }]} onPress={handleDelete} disabled={notesDeleted}>
+          <Text style={[styles.bigBtnText, { color: colors.cream }]}>
+            {notesDeleted ? '✓ Notes permanently deleted' : '🗑  Delete my confession notes'}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.bigBtn, { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border }]} onPress={onBack}>
           <Text style={[styles.bigBtnText, { color: SECOND }]}>Return to confession</Text>

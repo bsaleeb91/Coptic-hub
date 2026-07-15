@@ -59,7 +59,7 @@ export default function SignInScreen() {
 
           {/* Brand */}
           <View style={styles.brand}>
-            <Text style={styles.brandCross}>✝</Text>
+            <Text style={styles.brandCross}>✝︎</Text>
             <Text style={styles.brandTitle}>Poimen</Text>
             <Text style={styles.brandSub}>Pastoral care, rooted in Tradition</Text>
           </View>

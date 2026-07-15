@@ -83,7 +83,7 @@ export const DUMMY_CANONS = [
   { id: 'canon-2', congregant_id: DEMO_IDS.cong1, priest_id: DEMO_IDS.priest, component: 'Psalm 50 Reading',      frequency: 'Daily',  active: true,  icon: '📖', start_date: daysAgo(40), end_date: null,     reflection_prompt: null },
   { id: 'canon-3', congregant_id: DEMO_IDS.cong1, priest_id: DEMO_IDS.priest, component: 'Almsgiving',            frequency: 'Weekly', active: true,  icon: '❤',  start_date: daysAgo(40), end_date: null,     reflection_prompt: null },
   // Michael Hanna — inactive
-  { id: 'canon-4', congregant_id: DEMO_IDS.cong1, priest_id: DEMO_IDS.priest, component: 'Divine Liturgy Attendance', frequency: 'Weekly', active: false, icon: '✝', start_date: daysAgo(120), end_date: daysAgo(50), reflection_prompt: null },
+  { id: 'canon-4', congregant_id: DEMO_IDS.cong1, priest_id: DEMO_IDS.priest, component: 'Divine Liturgy Attendance', frequency: 'Weekly', active: false, icon: '✝︎', start_date: daysAgo(120), end_date: daysAgo(50), reflection_prompt: null },
   // Sara Girgis
   { id: 'canon-5', congregant_id: DEMO_IDS.cong2, priest_id: DEMO_IDS.priest, component: 'Evening Agpeya',        frequency: 'Daily',  active: true,  icon: '🌙', start_date: daysAgo(18), end_date: null, reflection_prompt: null },
   { id: 'canon-6', congregant_id: DEMO_IDS.cong2, priest_id: DEMO_IDS.priest, component: 'Scripture Meditation',  frequency: 'Daily',  active: true,  icon: '📖', start_date: daysAgo(18), end_date: null, reflection_prompt: 'One verse that spoke to you today.' },
@@ -137,7 +137,7 @@ export const DUMMY_PROGRESS: Record<string, Record<string, any>> = {
       { id: 'disc-1', icon: '🙏', name: 'Morning Agpeya',       freq: 'daily',     streak: '5-day streak', shared: true,  done: true },
       { id: 'disc-2', icon: '📖', name: 'Bible Reading',        freq: 'daily',     streak: '5-day streak', shared: true,  done: false },
       { id: 'disc-3', icon: '🕯', name: 'Vespers',              freq: 'weekly',    streak: '3 this month', shared: true,  done: false },
-      { id: 'disc-4', icon: '✝', name: 'Divine Liturgy',       freq: 'weekly',    streak: '8/10 Sundays', shared: true,  done: true },
+      { id: 'disc-4', icon: '✝︎', name: 'Divine Liturgy',       freq: 'weekly',    streak: '8/10 Sundays', shared: true,  done: true },
       { id: 'disc-5', icon: '❤', name: 'Almsgiving',           freq: 'monthly',   streak: '',             shared: false, done: false },
       { id: 'disc-6', icon: '🌿', name: 'Day of Prayer',        freq: 'quarterly', streak: '',             shared: true,  done: false },
     ],
@@ -153,7 +153,7 @@ export const DUMMY_PROGRESS: Record<string, Record<string, any>> = {
     'journal-disciplines': [
       { id: 'disc-a', icon: '🙏', name: 'Evening Prayer',   freq: 'daily',  streak: '12-day streak', shared: true,  done: true },
       { id: 'disc-b', icon: '📖', name: 'Daily Scripture',  freq: 'daily',  streak: '12-day streak', shared: true,  done: true },
-      { id: 'disc-c', icon: '✝', name: 'Sunday Liturgy',   freq: 'weekly', streak: '10/10 Sundays', shared: true,  done: false },
+      { id: 'disc-c', icon: '✝︎', name: 'Sunday Liturgy',   freq: 'weekly', streak: '10/10 Sundays', shared: true,  done: false },
     ],
     'journal-entries': [],
   },

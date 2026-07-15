@@ -5,26 +5,68 @@
 
 import { RuleConfig, ReadMode, AGPEYA_HOURS, SERVICES } from './rule-store';
 import { isFastDay, prostrationsAllowed } from './fasting';
+import { localDateStr } from './postpone';
 
-export interface RuleItem { key: string; label: string; icon: string; }
+// `freq` is set only on Heart of Service items — it drives which postpone
+// options (if any) the Canon tab offers.
+export interface RuleItem { key: string; label: string; icon: string; freq?: string; }
 
 // Item icons: 📖 readings (Bible & spiritual book) · 🕯 quiet time ·
-// 🙏 Agpeya prayers & prostrations · ⛪ church services · ✝ fasting.
+// 🙏 Agpeya prayers & prostrations · ⛪ church services · ✝︎ fasting ·
+// 🤲 Heart of Service.
 const ICON_READING = '📖';
 const ICON_QUIET = '🕯';
 const ICON_PRAYER = '🙏';
 const ICON_CHURCH = '⛪';
-const ICON_FAST = '✝';
+const ICON_FAST = '✝︎';
+const ICON_SERVE = '🤲';
+
+// When a Heart of Service commitment is next due after being completed. The
+// cadence anchors to the last completion, so a service keeps showing on its
+// weekday until it's checked off, then rests for its frequency period.
+function nextDueAfter(freq: string, lastDone: Date): Date {
+  const next = new Date(lastDone);
+  if (freq === 'Every 2 weeks') next.setDate(next.getDate() + 14);
+  else if (freq === 'Monthly') next.setMonth(next.getMonth() + 1);
+  else if (freq === 'Every 2 months') next.setMonth(next.getMonth() + 2);
+  else if (freq === 'Quarterly') next.setMonth(next.getMonth() + 3);
+  else if (freq === 'Twice a year') next.setMonth(next.getMonth() + 6); // legacy saves
+  return next; // Weekly: due again immediately (every occurrence of its weekday)
+}
 
 const hourName = (k: string) => AGPEYA_HOURS.find(h => h.key === k)?.name ?? k;
 const serviceName = (k: string) => SERVICES.find(s => s.key === k)?.name ?? k;
 const readLabel = (mode: ReadMode, n: number) => `${n} ${mode === 'chapters' ? (n === 1 ? 'chapter' : 'chapters') : 'min'}`;
 
-export function todayItems(rule: RuleConfig, date: Date): RuleItem[] {
+// `postponed` (from loadPostponements) maps a serving item's key to the local
+// date it returns — it is hidden until then. `serviceDone` (loadServiceDone)
+// maps the key to its last completion date; a non-weekly service done within
+// its period is hidden (except on the completion day itself, so the checked
+// row stays visible).
+export function todayItems(
+  rule: RuleConfig,
+  date: Date,
+  postponed?: Record<string, string>,
+  serviceDone?: Record<string, string>,
+): RuleItem[] {
   const d = rule.days[date.getDay()];
   const items: RuleItem[] = [];
   for (const h of d.hours) items.push({ key: `hour_${h}`, label: `Pray the ${hourName(h)}`, icon: ICON_PRAYER });
   for (const sv of d.services) items.push({ key: `svc_${sv}`, label: `Attend ${serviceName(sv)}`, icon: ICON_CHURCH });
+  d.serving.forEach((sv, i) => {
+    if (!sv.text.trim()) return;
+    // Weekday-scoped key so postponements can't collide across days.
+    const key = `serve_${date.getDay()}_${i}`;
+    const todayStr = localDateStr(date);
+    const until = postponed?.[key];
+    if (until && todayStr < until) return;
+    const last = serviceDone?.[key];
+    if (last && last !== todayStr && sv.freq !== 'Weekly') {
+      const next = nextDueAfter(sv.freq, new Date(`${last}T12:00:00`));
+      if (todayStr < localDateStr(next)) return; // rested — done within its period
+    }
+    items.push({ key, label: sv.text.trim(), icon: ICON_SERVE, freq: sv.freq });
+  });
   if (isFastDay(date)) items.push({ key: 'fast', label: `Fast — abstain from food until ${rule.fastUntil}`, icon: ICON_FAST });
   if (rule.prostrations > 0 && prostrationsAllowed(date)) items.push({ key: 'prostrations', label: `${rule.prostrations} prostrations (metanias)`, icon: ICON_PRAYER });
   if (rule.quietMinutes > 0) items.push({ key: 'quiet', label: `${rule.quietMinutes} min of quiet time`, icon: ICON_QUIET });

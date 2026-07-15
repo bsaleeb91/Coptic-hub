@@ -476,7 +476,7 @@ export default function ProfileScreen() {
 
         {/* FOC linking — shown to congregants */}
         {(profile?.role === 'congregant' || !profile?.role) && (
-          <Card title="Father of Confession" titleIcon="✝">
+          <Card title="Father of Confession" titleIcon="✝︎">
             {profile?.foc_id ? (
               <>
                 <View style={styles.linkedRow}>

@@ -11,7 +11,7 @@ import { useDemoMode } from '@/lib/demo';
 type EncounterType = 'confession' | 'counseling' | 'advice' | 'visit' | 'phone' | 'group';
 
 const ENCOUNTER_TYPES: { value: EncounterType; label: string; desc: string }[] = [
-  { value: 'confession', label: '✝ Holy Confession', desc: 'Sacramental confession' },
+  { value: 'confession', label: '✝︎ Holy Confession', desc: 'Sacramental confession' },
   { value: 'counseling', label: '◎ Counseling Session', desc: 'In-person pastoral guidance' },
   { value: 'advice', label: '◇ Spiritual Advice', desc: 'Brief direction or answer' },
   { value: 'visit', label: '⊕ Pastoral Visit', desc: 'Home or hospital visit' },
@@ -220,7 +220,7 @@ export default function LogEncounterScreen() {
         {/* Confession-specific notice */}
         {encounterType === 'confession' && (
           <View style={styles.confessionNotice}>
-            <Text style={styles.confessionNoticeTitle}>✝ Sacramental Privacy</Text>
+            <Text style={styles.confessionNoticeTitle}>✝︎ Sacramental Privacy</Text>
             <Text style={styles.confessionNoticeBody}>
               Confession content is protected by holy seal. Only the date and encounter type are recorded. No content from the member's examination is stored or transmitted.
             </Text>

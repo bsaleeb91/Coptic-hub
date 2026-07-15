@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  Animated, PanResponder, Alert, ActivityIndicator, TextInput,
+  Animated, PanResponder, ActivityIndicator, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts } from '@/lib/theme';
+import { confirmDestructive } from '@/lib/confirm';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
@@ -19,21 +20,21 @@ const CATEGORY_OPTS: { value: Category; label: string; icon: string }[] = [
   { value: 'family', label: 'Family', icon: '◉' },
   { value: 'relationships', label: 'Relationships', icon: '◎' },
   { value: 'work', label: 'Work / School', icon: '◇' },
-  { value: 'faith', label: 'Faith Journey', icon: '✝' },
+  { value: 'faith', label: 'Faith Journey', icon: '✝︎' },
   { value: 'gratitude', label: 'Gratitude', icon: '◈' },
   { value: 'other', label: 'Other', icon: '⊕' },
 ];
 
 const VISIBILITY_OPTS: { value: Visibility; chipLabel: string; icon: string }[] = [
   { value: 'private', chipLabel: 'Private', icon: '🔒' },
-  { value: 'foc_only', chipLabel: 'Father of Confession', icon: '✝' },
+  { value: 'foc_only', chipLabel: 'Father of Confession', icon: '✝︎' },
   { value: 'foc_and_servant', chipLabel: 'FOC + Servant', icon: '◉' },
   { value: 'servant_only', chipLabel: 'Servant only', icon: '◎' },
 ];
 
 const VIS_DISPLAY: Record<Visibility, { icon: string; label: string }> = {
   private: { icon: '🔒', label: 'Private — only me' },
-  foc_only: { icon: '✝', label: 'Visible to your Father of Confession only' },
+  foc_only: { icon: '✝︎', label: 'Visible to your Father of Confession only' },
   foc_and_servant: { icon: '◉', label: 'Visible to your Father of Confession and Sunday school servant' },
   servant_only: { icon: '◎', label: 'Sunday school servant only' },
 };
@@ -203,15 +204,10 @@ export default function PrayerScreen() {
   }
 
   async function handleDelete(id: string) {
-    Alert.alert('Delete Request', 'Remove this prayer request?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          setActive(prev => prev.filter(r => r.id !== id));
-          if (!demoMode) await db.deletePrayerRequest(id);
-        },
-      },
-    ]);
+    confirmDestructive('Delete Request', 'Remove this prayer request?', 'Delete', async () => {
+      setActive(prev => prev.filter(r => r.id !== id));
+      if (!demoMode) await db.deletePrayerRequest(id);
+    });
   }
 
   async function handleMarkAnswered(id: string) {
@@ -226,15 +222,10 @@ export default function PrayerScreen() {
   }
 
   async function handleDeleteAnswered(id: string) {
-    Alert.alert('Delete', 'Remove this answered prayer?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          setAnswered(prev => prev.filter(r => r.id !== id));
-          if (!demoMode) await db.deletePrayerRequest(id);
-        },
-      },
-    ]);
+    confirmDestructive('Delete', 'Remove this answered prayer?', 'Delete', async () => {
+      setAnswered(prev => prev.filter(r => r.id !== id));
+      if (!demoMode) await db.deletePrayerRequest(id);
+    });
   }
 
   return (

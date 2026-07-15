@@ -16,7 +16,7 @@ const PORTALS = [
     accentBg: colors.goldDim,
   },
   {
-    icon: '✝',
+    icon: '✝︎',
     title: 'Priest',
     subtitle: 'Father of Confession portal',
     desc: 'Member roster · Pastoral encounter log · Canon assignment · Pastoral notes',

@@ -62,7 +62,7 @@ export function TutorialOverlay({ steps, currentIndex, onNext, onSkip, visible }
           </View>
 
           {/* Cross accent */}
-          <Text style={styles.crossAccent}>✝</Text>
+          <Text style={styles.crossAccent}>✝︎</Text>
 
           {/* Content */}
           <Text style={styles.title}>{step.title}</Text>

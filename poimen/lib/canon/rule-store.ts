@@ -33,6 +33,11 @@ export const CONFESSION_OPTIONS = [
   'Weekly', 'Every 2 weeks', 'Monthly', 'Every 2 months', 'Quarterly', 'Twice a year',
 ];
 
+// Heart of Service: how often a service commitment recurs on its weekday.
+export const SERVICE_FREQUENCY_OPTIONS = [
+  'Weekly', 'Every 2 weeks', 'Monthly', 'Every 2 months', 'Quarterly',
+];
+
 // On fasting days, abstain from food until this time of day — every half hour.
 function genTimeOptions(): string[] {
   const out: string[] = [];
@@ -53,9 +58,16 @@ export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday',
 
 export type ReadMode = 'chapters' | 'minutes';
 
+// A Heart of Service commitment (diakonia) — free text, attached to a weekday.
+export interface ServiceCommitment {
+  text: string;   // what the service is, in the user's own words
+  freq: string;   // one of SERVICE_FREQUENCY_OPTIONS
+}
+
 export interface DayPlan {
   hours: string[];      // agpeya hour keys prayed this weekday
   services: string[];   // church service keys this weekday
+  serving: ServiceCommitment[];  // Heart of Service commitments this weekday
 }
 
 export interface RuleConfig {
@@ -75,7 +87,7 @@ export const DEFAULT_RULE: RuleConfig = {
   bible: { mode: 'chapters', amount: 1 },
   book: null,
   confession: 'Monthly',
-  days: Array.from({ length: 7 }, () => ({ hours: [], services: [] })),
+  days: Array.from({ length: 7 }, () => ({ hours: [], services: [], serving: [] })),
 };
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
@@ -85,6 +97,9 @@ function normalize(parsed: any): RuleConfig {
   const days: DayPlan[] = Array.from({ length: 7 }, (_, i) => ({
     hours: parsed?.days?.[i]?.hours ?? [],
     services: parsed?.days?.[i]?.services ?? [],
+    serving: Array.isArray(parsed?.days?.[i]?.serving)
+      ? parsed.days[i].serving.map((e: any) => ({ text: String(e?.text ?? ''), freq: String(e?.freq ?? 'Weekly') }))
+      : [],
   }));
   return { ...DEFAULT_RULE, ...parsed, bible: { ...DEFAULT_RULE.bible, ...parsed?.bible }, days };
 }

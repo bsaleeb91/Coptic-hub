@@ -66,7 +66,7 @@ function PINModal() {
     <Modal visible={pinAction !== null} transparent animationType="fade">
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={pinStyles.overlay}>
         <View style={pinStyles.card}>
-          <Text style={pinStyles.cross}>✝</Text>
+          <Text style={pinStyles.cross}>✝︎</Text>
           <Text style={pinStyles.title}>{isSetup ? 'Set a Recovery PIN' : 'Enter Your Recovery PIN'}</Text>
           <Text style={pinStyles.body}>
             {isSetup

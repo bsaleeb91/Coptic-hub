@@ -1,11 +1,24 @@
 import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, fonts } from '@/lib/theme';
+import Harp from '@/components/ui/Harp';
 
-function TabIcon({ symbol, label, focused }: { symbol: string; label: string; focused: boolean }) {
+function TabIcon({
+  symbol,
+  icon,
+  label,
+  focused,
+}: {
+  symbol?: string;
+  icon?: React.ReactNode;
+  label: string;
+  focused: boolean;
+}) {
   return (
     <View style={styles.tabItem}>
-      <Text style={[styles.symbol, focused && styles.symbolActive]}>{symbol}</Text>
+      {icon ?? (
+        <Text style={[styles.symbol, focused && styles.symbolActive]}>{symbol}</Text>
+      )}
       <Text style={[styles.label, focused && styles.labelActive]} numberOfLines={1}>{label}</Text>
     </View>
   );
@@ -24,7 +37,7 @@ export default function TabLayout() {
         name="index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon symbol="◈" label="Home" focused={focused} />
+            <TabIcon symbol="🏠" label="Home" focused={focused} />
           ),
         }}
       />
@@ -32,7 +45,10 @@ export default function TabLayout() {
         name="confession"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon symbol="✝" label="Confess" focused={focused} />
+            // \uFE0E after the cross forces text presentation: iOS otherwise
+            // swaps in the color emoji cross (white on purple square), which
+            // ignores tinting.
+            <TabIcon symbol={'\u271D\uFE0E'} label="Confess" focused={focused} />
           ),
         }}
       />
@@ -40,7 +56,7 @@ export default function TabLayout() {
         name="journal"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon symbol="✦" label="Journal" focused={focused} />
+            <TabIcon symbol="🗒️" label="Journal" focused={focused} />
           ),
         }}
       />
@@ -48,7 +64,7 @@ export default function TabLayout() {
         name="prayer"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon symbol="◇" label="Prayer" focused={focused} />
+            <TabIcon symbol="🙏" label="Prayer" focused={focused} />
           ),
         }}
       />
@@ -56,7 +72,11 @@ export default function TabLayout() {
         name="psalms"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon symbol="♪" label="Psalms" focused={focused} />
+            <TabIcon
+              icon={<Harp size={20} color={focused ? colors.gold : colors.muted} />}
+              label="Psalms"
+              focused={focused}
+            />
           ),
         }}
       />
@@ -64,7 +84,7 @@ export default function TabLayout() {
         name="canon"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon symbol="📜" label="Canon" focused={focused} />
+            <TabIcon symbol="🕯️" label="Canon" focused={focused} />
           ),
         }}
       />

@@ -189,8 +189,8 @@ export default function FlockScreen() {
                   </View>
                   <View style={styles.memberMeta}>
                     {member.daysSince !== null
-                      ? <Text style={styles.metaItem}>✝ {member.daysSince}d ago</Text>
-                      : <Text style={styles.metaItem}>✝ No record</Text>
+                      ? <Text style={styles.metaItem}>✝︎ {member.daysSince}d ago</Text>
+                      : <Text style={styles.metaItem}>✝︎ No record</Text>
                     }
                     {member.stage ? (
                       <>
@@ -236,7 +236,7 @@ export default function FlockScreen() {
                   H.tap(); setContextMember(null);
                   router.push({ pathname: '/(priest)/log-encounter', params: { id: contextMember.id, name: contextMember.name } });
                 }}>
-                  <Text style={ctx.actionIcon}>✝</Text>
+                  <Text style={ctx.actionIcon}>✝︎</Text>
                   <Text style={ctx.actionLabel}>Log Encounter</Text>
                   <Text style={ctx.actionChevron}>›</Text>
                 </TouchableOpacity>

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  TextInput, Animated, PanResponder, Alert, ActivityIndicator,
+  TextInput, Animated, PanResponder, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts } from '@/lib/theme';
+import { confirmDestructive } from '@/lib/confirm';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
@@ -145,15 +146,12 @@ export default function JournalScreen() {
   }
 
   function deleteEntry(id: string) {
-    Alert.alert('Delete Entry', 'Delete this journal entry?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => {
-        const updated = entries.filter(e => e.id !== id);
-        setEntries(updated);
-        saveEntries(updated);
-        setViewEntry(null);
-      }},
-    ]);
+    confirmDestructive('Delete Entry', 'Delete this journal entry?', 'Delete', () => {
+      const updated = entries.filter(e => e.id !== id);
+      setEntries(updated);
+      saveEntries(updated);
+      setViewEntry(null);
+    });
   }
 
   const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });

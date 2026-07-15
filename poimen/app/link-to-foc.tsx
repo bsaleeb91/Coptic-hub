@@ -66,7 +66,7 @@ export default function LinkToFocScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.successContainer}>
-          <Text style={styles.successCross}>✝</Text>
+          <Text style={styles.successCross}>✝︎</Text>
           <Text style={styles.successTitle}>You're linked!</Text>
           <Text style={styles.successBody}>
             {found?.full_name ?? 'Your leader'} can now see your spiritual profile.
@@ -121,7 +121,7 @@ export default function LinkToFocScreen() {
 
           {found && (
             <View style={styles.foundCard}>
-              <Text style={styles.foundCross}>✝</Text>
+              <Text style={styles.foundCross}>✝︎</Text>
               <View style={{ flex: 1 }}>
                 <Text style={styles.foundName}>{found.full_name ?? 'Unknown'}</Text>
                 {found.church_name ? <Text style={styles.foundChurch}>{found.church_name}</Text> : null}

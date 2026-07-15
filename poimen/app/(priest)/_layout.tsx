@@ -48,7 +48,7 @@ export default function PriestLayout() {
         name="log-encounter"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon symbol="✝" label="Encounter" focused={focused} />
+            <TabIcon symbol="✝︎" label="Encounter" focused={focused} />
           ),
         }}
       />

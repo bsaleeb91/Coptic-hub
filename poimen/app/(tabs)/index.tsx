@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  Animated, PanResponder, Modal, Dimensions, AccessibilityInfo,
+  Animated, Modal, Dimensions, AccessibilityInfo,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -16,23 +16,18 @@ import * as H from '@/lib/haptics';
 import { loadRule } from '@/lib/canon/rule-store';
 import { todayItems } from '@/lib/canon/today';
 import { loadTodayChecks } from '@/lib/canon/checks';
+import { loadPostponements, loadServiceDone } from '@/lib/canon/postpone';
+import { recordCanonDay, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
+import { lastConfessionDate, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
 
 const { width: SW } = Dimensions.get('window');
 const TILE_W = (SW - 48) / 2;
 
 // ── Demo data ────────────────────────────────────────────────
-const DEMO_VITALS = [
-  { label: 'Daily Prayer (Agpeya)', pct: 65 },
-  { label: 'Scripture Reading', pct: 80 },
-  { label: 'Divine Liturgy', pct: 80 },
-  { label: 'Fasting', pct: 90 },
-  { label: 'Service / Diakonia', pct: 50 },
-];
-
 const DEMO_TIMELINE = [
-  { date: 'MAY 21, 2026', title: 'Holy Confession', body: 'Fr. Bishoy assigned a 40-day reading plan from the Psalms.', tag: '✝ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
+  { date: 'MAY 21, 2026', title: 'Holy Confession', body: 'Fr. Bishoy assigned a 40-day reading plan from the Psalms.', tag: '✝︎ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
   { date: 'MAY 4, 2026', title: 'Pastoral Visit — Home', body: 'Pastoral visit following the birth of your daughter.', tag: '◎ Pastoral Visit', tagBg: 'rgba(41,128,185,0.15)', tagColor: colors.blue },
-  { date: 'APR 20, 2026', title: 'Holy Week Confession', body: 'Guidance on marriage and family prayer practices.', tag: '✝ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
+  { date: 'APR 20, 2026', title: 'Holy Week Confession', body: 'Guidance on marriage and family prayer practices.', tag: '✝︎ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
   { date: 'MAR 12, 2026', title: 'Small Group Check-in', body: "Discussed the Book of Job with the young couples' group.", tag: '◇ Note', tagBg: 'rgba(245,240,232,0.07)', tagColor: colors.muted, dim: true },
 ];
 
@@ -41,9 +36,6 @@ const FEASTS = [
   { month: 'JUL', day: '19', title: 'Feast of Archangel Michael', desc: 'Monthly feast. Tasbeha at 11:00 PM the prior evening.' },
   { month: 'AUG', day: '7', title: 'Feast of the Transfiguration', desc: 'Feast of the Transfiguration of our Lord Jesus Christ.' },
 ];
-
-const VITAL_LABELS = ['Daily Prayer (Agpeya)', 'Scripture Reading', 'Divine Liturgy', 'Fasting', 'Service / Diakonia'];
-const VITAL_KEYS = ['prayer', 'scripture', 'liturgy', 'fasting', 'service'] as const;
 
 function getDashboardSubtitle(): string {
   const today = new Date();
@@ -64,46 +56,19 @@ function getDashboardSubtitle(): string {
   return dateStr;
 }
 
-// ── VitalRow with drag slider ─────────────────────────────────
-function VitalRow({ label, value, onChange, last }: { label: string; value: number; onChange: (v: number) => void; last: boolean }) {
-  const trackWidthRef = useRef(1);
-  const startValueRef = useRef(value);
-  const valueRef = useRef(value);
-  const onChangeRef = useRef(onChange);
-  useEffect(() => { valueRef.current = value; }, [value]);
-  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
-
-  const panResponder = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 4,
-    onPanResponderGrant: (evt) => {
-      startValueRef.current = valueRef.current;
-      const pct = Math.max(0, Math.min(100, (evt.nativeEvent.locationX / trackWidthRef.current) * 100));
-      onChangeRef.current(Math.round(pct / 5) * 5);
-    },
-    onPanResponderMove: (_, g) => {
-      const delta = (g.dx / trackWidthRef.current) * 100;
-      const raw = Math.max(0, Math.min(100, startValueRef.current + delta));
-      const snapped = Math.round(raw / 5) * 5;
-      if (snapped !== valueRef.current) {
-        if (snapped % 25 === 0) H.tap();
-        onChangeRef.current(snapped);
-      }
-    },
-  })).current;
-
+// ── VitalRow — canon adherence over the trailing window ──────
+// Read-only: values are computed from My Spiritual Canon check-off history
+// (lib/canon/history.ts), not self-reported.
+function VitalRow({ label, value, text, last }: { label: string; value: number | null; text?: string; last: boolean }) {
   return (
     <View style={[styles.vitalRow, !last && { marginBottom: 16 }]}>
       <Text style={styles.vitalLabel}>{label}</Text>
-      <View
-        style={styles.vitalTrack}
-        onLayout={e => { trackWidthRef.current = e.nativeEvent.layout.width; }}
-        {...panResponder.panHandlers}
-      >
-        <View style={[styles.vitalFill, { width: `${value}%` as any }]} />
-        <View style={[styles.vitalThumb, { left: `${Math.max(0, value)}%` as any, marginLeft: value > 0 ? -5 : 0 }]} />
+      <View style={styles.vitalTrack}>
+        <View style={[styles.vitalFill, { width: `${value ?? 0}%` as any }]} />
       </View>
-      <Text style={styles.vitalVal}>{value > 0 ? `${value}%` : '—'}</Text>
+      <Text style={[styles.vitalVal, text != null && { width: undefined, minWidth: 34 }]}>
+        {text ?? (value != null ? `${value}%` : '—')}
+      </Text>
     </View>
   );
 }
@@ -190,13 +155,14 @@ export default function DashboardScreen() {
   const { demoMode, demoRole } = useDemoMode();
   const firstName = profile?.full_name?.split(' ')[0] ?? 'friend';
 
-  const [vitals, setVitals] = useState<number[]>(VITAL_LABELS.map(() => 0));
+  const [vitalStats, setVitalStats] = useState<VitalStat[] | null>(null);
+  const [vitalsEpoch, setVitalsEpoch] = useState<string | null>(null);
+  const [lastConf, setLastConf] = useState<string | null>(null);
+  const [confFreqDays, setConfFreqDays] = useState(31);
   const [timeline, setTimeline] = useState<any[]>([]);
   const [focProfile, setFocProfile] = useState<any>(null);
   const [sections, setSections] = useState<SectionId[]>(DEFAULT_SECTIONS);
   const [customizing, setCustomizing] = useState(false);
-  const [savingVitals, setSavingVitals] = useState(false);
-  const [vitalsError, setVitalsError] = useState('');
   const [showVitalsConsent, setShowVitalsConsent] = useState(false);
   const [settingConsent, setSettingConsent] = useState(false);
 
@@ -229,50 +195,47 @@ export default function DashboardScreen() {
 
   // "Canon today" tile — tracks My Spiritual Canon (rule items + today's
   // check-offs). Reloaded on every focus so checking items on the Canon tab
-  // reflects here immediately.
+  // reflects here immediately. The same pass keeps the adherence history
+  // current and recomputes Spiritual Vitals from it; the computed vitals are
+  // mirrored to the 'vitals' agent_progress slug so the Father-of-Confession
+  // dashboards keep working (consent still gates visibility).
   const [canonToday, setCanonToday] = useState<{ done: number; total: number } | null>(null);
   useFocusEffect(useCallback(() => {
     (async () => {
-      const [rule, checks] = await Promise.all([loadRule(), loadTodayChecks()]);
-      const items = todayItems(rule, new Date());
+      const [rule, checks, postponed, serviceDone] = await Promise.all([
+        loadRule(), loadTodayChecks(), loadPostponements(), loadServiceDone(),
+      ]);
+      const items = todayItems(rule, new Date(), postponed, serviceDone);
       const done = items.filter(it => checks.has(`rule_${it.key}`)).length;
       setCanonToday({ done, total: items.length });
+      setConfFreqDays(confessionFrequencyDays(rule.confession));
+      setLastConf(await lastConfessionDate());
+
+      await recordCanonDay(items, checks);
+      const epoch = await loadVitalsEpoch();
+      setVitalsEpoch(epoch);
+      const stats = computeVitals(await loadCanonHistory(), epoch);
+      setVitalStats(stats);
+      if (user && !demoMode) {
+        db.upsertAgentProgress({
+          user_id: user.id,
+          agent_slug: 'vitals',
+          payload: Object.fromEntries(stats.map(s => [s.key, s.pct ?? 0])),
+          updated_at: new Date().toISOString(),
+        }).catch(() => {});
+      }
     })();
-  }, []));
+  }, [user, demoMode]));
 
   async function loadAll() {
     if (!user) return;
-    const [prog, enc, foc] = await Promise.all([
-      db.getAgentProgress(user.id, 'vitals'),
+    const [enc, foc] = await Promise.all([
       db.getRecentEncounters(user.id, 4),
       profile?.foc_id ? db.getFocProfile(profile.foc_id) : null,
     ]);
-    if (prog) setVitals(VITAL_KEYS.map(k => (prog as any)[k] ?? 0));
     if (enc) setTimeline(enc);
     if (foc) setFocProfile(foc);
   }
-
-  async function saveVitals() {
-    if (!user) return;
-    setSavingVitals(true);
-    setVitalsError('');
-    const { error } = await db.upsertAgentProgress({
-      user_id: user.id,
-      agent_slug: 'vitals',
-      payload: Object.fromEntries(VITAL_KEYS.map((k, i) => [k, vitals[i]])),
-      updated_at: new Date().toISOString(),
-    });
-    setSavingVitals(false);
-    if (error) {
-      setVitalsError('Failed to save — please try again.');
-    } else {
-      H.success();
-    }
-  }
-
-  const updateVital = useCallback((i: number, v: number) => {
-    setVitals(prev => { const next = [...prev]; next[i] = v; return next; });
-  }, []);
 
   function enterCustomize() {
     H.heavy();
@@ -298,7 +261,6 @@ export default function DashboardScreen() {
 
   const wiggleStyle = { transform: [{ rotate: wiggle.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-2.5deg', '0deg', '2.5deg'] }) }] };
 
-  const displayVitals = demoMode ? DEMO_VITALS.map(v => v.pct) : vitals;
   const displayTimeline = demoMode ? DEMO_TIMELINE : timeline;
 
   const role = demoMode ? demoRole : profile?.role;
@@ -308,15 +270,19 @@ export default function DashboardScreen() {
   const canonAllDone = canonToday != null && canonToday.total > 0 && canonToday.done === canonToday.total;
   const canonSet = canonToday != null && canonToday.total > 0;
 
-  const daysSinceConfession = demoMode
-    ? demoDaysSince
+  // Days since confession: the device-tracked record (completion flow /
+  // self-report) wins; profile date and demo fallback fill in behind it.
+  const daysSinceConfession = lastConf != null
+    ? daysSinceDate(lastConf)
     : profile?.last_confession_at
       ? Math.floor((Date.now() - new Date(profile.last_confession_at).getTime()) / 86400000)
-      : null;
+      : demoMode ? demoDaysSince : null;
 
+  // Status keys off the rule's confession frequency: within it = recent,
+  // past it = due, past twice it = overdue.
   const confessionStatus = daysSinceConfession === null ? null
-    : daysSinceConfession < 30 ? 'recent'
-    : daysSinceConfession < 60 ? 'due'
+    : daysSinceConfession <= confFreqDays ? 'recent'
+    : daysSinceConfession <= confFreqDays * 2 ? 'due'
     : 'overdue';
   const statusColor = confessionStatus === 'recent' ? colors.green : confessionStatus === 'overdue' ? colors.red : colors.yellow;
   const statusLabel = confessionStatus === 'recent' ? '✓ Recent'
@@ -325,7 +291,7 @@ export default function DashboardScreen() {
     : '— log it';
 
   const encounterTagMap: Record<string, any> = {
-    confession: { tag: '✝ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
+    confession: { tag: '✝︎ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
     counseling: { tag: '◎ Counseling', tagBg: 'rgba(41,128,185,0.15)', tagColor: colors.blue },
     visit: { tag: '⊕ Pastoral Visit', tagBg: 'rgba(41,128,185,0.15)', tagColor: colors.blue },
     advice: { tag: '◇ Advice', tagBg: 'rgba(245,240,232,0.07)', tagColor: colors.muted },
@@ -372,7 +338,7 @@ export default function DashboardScreen() {
             onLongPress={enterCustomize}
             activeOpacity={0.8}
           >
-            <Text style={styles.tileIcon}>✝</Text>
+            <Text style={styles.tileIcon}>✝︎</Text>
             <Text style={styles.tileBigNum}>{daysSinceConfession ?? '—'}</Text>
             <Text style={styles.tileSubLabel}>days since confession</Text>
             <View style={[styles.tileStatus, { backgroundColor: confessionStatus ? `${statusColor}20` : 'transparent' }]}>
@@ -425,7 +391,7 @@ export default function DashboardScreen() {
             onPress={() => { H.tap(); router.push('/(tabs)/confession'); }}
             activeOpacity={0.85}
           >
-            <Text style={styles.bannerCross}>✝</Text>
+            <Text style={styles.bannerCross}>✝︎</Text>
             <Text style={styles.bannerLabel}>PREPARE</Text>
             <Text style={styles.bannerTitle}>Examination of Conscience</Text>
             <Text style={styles.bannerBody}>
@@ -442,13 +408,11 @@ export default function DashboardScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Spiritual Vitals</Text>
-              {!demoMode && (
-                <TouchableOpacity onPress={saveVitals} disabled={savingVitals}>
-                  <Text style={[styles.sectionAction, vitalsError ? { color: colors.red } : {}]}>
-                    {savingVitals ? 'Saving…' : vitalsError ? 'Error — retry' : 'Save'}
-                  </Text>
-                </TouchableOpacity>
-              )}
+              <Text style={[styles.sectionAction, { color: colors.muted }]}>
+                {vitalsEpoch
+                  ? `Since ${new Date(`${vitalsEpoch}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                  : 'All time'}
+              </Text>
             </View>
             {!demoMode && profile?.foc_id && profile?.vitals_consent === false && (
               <TouchableOpacity style={styles.vitalNudge} onPress={() => setShowVitalsConsent(true)} activeOpacity={0.8}>
@@ -458,16 +422,16 @@ export default function DashboardScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-            {VITAL_LABELS.map((label, i) => (
+            {(vitalStats ?? []).map((s, i, rows) => (
               <VitalRow
-                key={i}
-                label={label}
-                value={displayVitals[i] ?? 0}
-                onChange={v => updateVital(i, v)}
-                last={i === VITAL_LABELS.length - 1}
+                key={s.key}
+                label={s.key === 'confession' ? 'Confession (days since)' : s.label}
+                value={s.pct}
+                text={s.key === 'confession' ? (daysSinceConfession != null ? `${daysSinceConfession}d` : '—') : undefined}
+                last={i === rows.length - 1}
               />
             ))}
-            <PrivacyNote text="Self-reported. Visible only to you and your Father of Confession." />
+            <PrivacyNote text="Computed from your canon check-offs. Visible only to you and your Father of Confession." />
           </View>
         )}
 
@@ -523,7 +487,7 @@ export default function DashboardScreen() {
                   </View>
                 </View>
                 <TouchableOpacity style={styles.scheduleChip} onPress={() => { H.tap(); router.push('/(tabs)/confession'); }} activeOpacity={0.8}>
-                  <Text style={styles.scheduleIcon}>✝</Text>
+                  <Text style={styles.scheduleIcon}>✝︎</Text>
                   <View>
                     <Text style={styles.scheduleText}>Request Confession Appointment</Text>
                     <Text style={styles.scheduleSub}>Next available: Sunday after Liturgy</Text>
@@ -544,7 +508,7 @@ export default function DashboardScreen() {
                   </View>
                 </View>
                 <TouchableOpacity style={styles.scheduleChip} onPress={() => { H.tap(); router.push('/(tabs)/confession'); }} activeOpacity={0.8}>
-                  <Text style={styles.scheduleIcon}>✝</Text>
+                  <Text style={styles.scheduleIcon}>✝︎</Text>
                   <View>
                     <Text style={styles.scheduleText}>Begin Confession Examination</Text>
                     <Text style={styles.scheduleSub}>Prepare before your next meeting</Text>
@@ -563,7 +527,7 @@ export default function DashboardScreen() {
       <Modal visible={showVitalsConsent} transparent animationType="fade" onRequestClose={() => {}}>
         <View style={styles.consentModalBg}>
           <View style={styles.consentModal}>
-            <Text style={styles.consentCross}>✝</Text>
+            <Text style={styles.consentCross}>✝︎</Text>
             <Text style={styles.consentTitle}>Share Your Vitals?</Text>
             <Text style={styles.consentSub}>with {focProfile?.full_name ?? 'your Father of Confession'}</Text>
             <Text style={styles.consentBody}>
@@ -648,11 +612,6 @@ const styles = StyleSheet.create({
   vitalLabel: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, flex: 1 },
   vitalTrack: { width: 80, height: 18, justifyContent: 'center', flexShrink: 0 },
   vitalFill: { height: 4, backgroundColor: colors.gold, borderRadius: 4 },
-  vitalThumb: {
-    position: 'absolute', width: 10, height: 10, borderRadius: 5,
-    backgroundColor: colors.gold, borderWidth: 2, borderColor: colors.navy,
-    top: 4,
-  },
   vitalVal: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream, width: 34, textAlign: 'right' },
 
   // Vitals nudge banner
