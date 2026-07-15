@@ -159,13 +159,13 @@ function RootLayoutNav() {
   if (!demoMode && !loading) {
     const onSignIn = segments[0] === 'sign-in';
     if (!session && !onSignIn) return <Redirect href="/sign-in" />;
-    if (session && onSignIn) return <Redirect href="/(tabs)" />;
+    if (session && onSignIn) return <Redirect href="/(drawer)/index" />;
   }
 
   return (
     <>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(drawer)" />
         <Stack.Screen name="(priest)" />
         <Stack.Screen name="(servant)" />
         <Stack.Screen name="profile" />

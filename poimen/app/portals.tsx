@@ -11,7 +11,7 @@ const PORTALS = [
     title: 'Congregant',
     subtitle: 'Your personal view',
     desc: 'Dashboard · Confession prep · Spiritual canon · Journal · Prayer requests',
-    route: '/(tabs)',
+    route: '/(drawer)/index',
     accentColor: colors.gold,
     accentBg: colors.goldDim,
   },

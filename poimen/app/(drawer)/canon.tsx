@@ -9,6 +9,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
+import { PrayerRuleCard } from '@/components/canon/PrayerRule';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
@@ -327,6 +328,9 @@ export default function CanonScreen() {
             ))
           )}
         </Card>
+
+        {/* My Prayer Rule — personal, on-device */}
+        <PrayerRuleCard />
 
         {/* Communion Readiness */}
         <Card title="Communion Readiness" titleIcon="✝">

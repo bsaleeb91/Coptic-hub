@@ -74,7 +74,7 @@ export default function ServantFlockScreen() {
             <Text style={styles.pageTitle}>My Students</Text>
             <Text style={styles.pageSubtitle}>{today} · {greeting}</Text>
           </View>
-          <TouchableOpacity style={styles.switchBtn} onPress={() => router.push('/(tabs)')}>
+          <TouchableOpacity style={styles.switchBtn} onPress={() => router.push('/(drawer)/index')}>
             <Text style={styles.switchBtnText}>MY VIEW</Text>
           </TouchableOpacity>
         </View>

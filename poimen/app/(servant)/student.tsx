@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { PsalmStatsCard, DEMO_PSALM_STATS } from '@/components/ui/PsalmStatsCard';
+import type { PsalmStatsSnapshot } from '@/lib/psalms/stats';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
@@ -50,6 +52,7 @@ export default function StudentScreen() {
 
   const demo = getDemoData(studentId ?? '');
   const [canons, setCanons] = useState<any[]>(demo.canons);
+  const [psalmStats, setPsalmStats] = useState<PsalmStatsSnapshot | null>(demoMode ? DEMO_PSALM_STATS : null);
   const [notes, setNotes] = useState<db.PastoralNote[]>(
     demo.note ? [{ id: 'demo-note-1', author_id: 'demo-servant', member_id: studentId ?? '', body: demo.note, created_at: new Date(Date.now() - 86400000 * 5).toISOString(), updated_at: new Date(Date.now() - 86400000 * 5).toISOString() }] : []
   );
@@ -72,6 +75,7 @@ export default function StudentScreen() {
     if (demoMode) {
       const d = getDemoData(studentId ?? '');
       setCanons(d.canons);
+      setPsalmStats(DEMO_PSALM_STATS);
       setNotes(d.note ? [{ id: 'demo-note-1', author_id: 'demo-servant', member_id: studentId ?? '', body: d.note, created_at: new Date(Date.now() - 86400000 * 5).toISOString(), updated_at: new Date(Date.now() - 86400000 * 5).toISOString() }] : []);
       setPrayer(d.prayer.map(p => ({ topic: p, date: '' })));
       setNewNoteText('');
@@ -84,10 +88,11 @@ export default function StudentScreen() {
     if (!user || !studentId) return;
     setLoading(true);
 
-    const [canonData, notesData, prayerData] = await Promise.all([
+    const [canonData, notesData, prayerData, psalmPayload] = await Promise.all([
       db.getStudentActiveCanons(studentId),
       db.getPastoralNotes(user.id, studentId),
       db.getServantSharedPrayer(studentId),
+      db.getAgentProgress(studentId, 'psalm-stats'),
     ]);
 
     if (canonData) {
@@ -108,6 +113,7 @@ export default function StudentScreen() {
       })));
       setPrayer(decryptedPrayer);
     }
+    setPsalmStats((psalmPayload as PsalmStatsSnapshot | null) ?? null);
 
     setLoading(false);
   }
@@ -251,6 +257,8 @@ export default function StudentScreen() {
                     })
                   )}
                 </Card>
+
+                <PsalmStatsCard stats={psalmStats} />
               </>
             )}
 

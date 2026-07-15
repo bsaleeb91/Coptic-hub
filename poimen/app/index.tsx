@@ -10,5 +10,5 @@ export default function Index() {
 
   if (role === 'priest' || role === 'admin') return <Redirect href="/(priest)" />;
   if (role === 'servant') return <Redirect href="/(servant)" />;
-  return <Redirect href="/(tabs)" />;
+  return <Redirect href="/(drawer)/index" />;
 }

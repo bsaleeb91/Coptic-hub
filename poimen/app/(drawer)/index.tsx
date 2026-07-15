@@ -13,6 +13,8 @@ import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 import { loadSections, saveSections, SECTION_DEFS, DEFAULT_SECTIONS, type SectionId } from '@/lib/dashboard-layout';
 import * as H from '@/lib/haptics';
+import { copticToday } from '@/lib/liturgical/copticDate';
+import { dayContext } from '@/lib/liturgical/season';
 
 const { width: SW } = Dimensions.get('window');
 const TILE_W = (SW - 48) / 2;
@@ -45,20 +47,10 @@ const VITAL_KEYS = ['prayer', 'scripture', 'liturgy', 'fasting', 'service'] as c
 function getDashboardSubtitle(): string {
   const today = new Date();
   const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  const apostlesStart = new Date(2026, 4, 25);
-  const apostlesEnd = new Date(2026, 6, 11);
-  if (today >= apostlesStart && today <= apostlesEnd) {
-    const day = Math.round((today.getTime() - apostlesStart.getTime()) / 86400000) + 1;
-    return `${dateStr} · Apostles' Fast · Day ${day}`;
-  }
-  const m = today.getMonth() + 1; const d = today.getDate();
-  if (m === 8 && d >= 1 && d <= 14) return `${dateStr} · St. Mary's Fast · Day ${d}`;
-  if ((m === 11 && d >= 25) || m === 12 || (m === 1 && d <= 6)) {
-    const y = m === 1 ? today.getFullYear() - 1 : today.getFullYear();
-    const day = Math.round((today.getTime() - new Date(y, 10, 25).getTime()) / 86400000) + 1;
-    return `${dateStr} · Advent Fast · Day ${day}`;
-  }
-  return dateStr;
+  const coptic = copticToday();
+  const base = `${dateStr} · ${coptic.label}, AM ${coptic.year}`;
+  const context = dayContext(today);
+  return context ? `${base} · ${context}` : base;
 }
 
 // ── VitalRow with drag slider ─────────────────────────────────
@@ -349,7 +341,7 @@ export default function DashboardScreen() {
           {/* Confession tile */}
           <TouchableOpacity
             style={[styles.tile, { borderColor: confessionStatus && confessionStatus !== 'recent' ? `${statusColor}50` : colors.border }]}
-            onPress={() => { H.tap(); router.push('/(tabs)/confession'); }}
+            onPress={() => { H.tap(); router.push('/(drawer)/confession'); }}
             onLongPress={enterCustomize}
             activeOpacity={0.8}
           >
@@ -364,7 +356,7 @@ export default function DashboardScreen() {
           {/* Canon tile */}
           <TouchableOpacity
             style={styles.tile}
-            onPress={() => { H.tap(); router.push('/(tabs)/canon'); }}
+            onPress={() => { H.tap(); router.push('/(drawer)/canon'); }}
             onLongPress={enterCustomize}
             activeOpacity={0.8}
           >
@@ -390,7 +382,7 @@ export default function DashboardScreen() {
         {(confessionStatus === 'due' || confessionStatus === 'overdue') && (
           <TouchableOpacity
             style={styles.banner}
-            onPress={() => { H.tap(); router.push('/(tabs)/confession'); }}
+            onPress={() => { H.tap(); router.push('/(drawer)/confession'); }}
             activeOpacity={0.85}
           >
             <Text style={styles.bannerCross}>✝</Text>
@@ -490,7 +482,7 @@ export default function DashboardScreen() {
                     <Text style={styles.focChurch}>St. Mary's Coptic Orthodox Church</Text>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.scheduleChip} onPress={() => { H.tap(); router.push('/(tabs)/confession'); }} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.scheduleChip} onPress={() => { H.tap(); router.push('/(drawer)/confession'); }} activeOpacity={0.8}>
                   <Text style={styles.scheduleIcon}>✝</Text>
                   <View>
                     <Text style={styles.scheduleText}>Request Confession Appointment</Text>
@@ -511,7 +503,7 @@ export default function DashboardScreen() {
                     <Text style={styles.focChurch}>{focProfile.church_name ?? ''}</Text>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.scheduleChip} onPress={() => { H.tap(); router.push('/(tabs)/confession'); }} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.scheduleChip} onPress={() => { H.tap(); router.push('/(drawer)/confession'); }} activeOpacity={0.8}>
                   <Text style={styles.scheduleIcon}>✝</Text>
                   <View>
                     <Text style={styles.scheduleText}>Begin Confession Examination</Text>

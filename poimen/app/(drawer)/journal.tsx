@@ -9,6 +9,8 @@ import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
+import { copticToday } from '@/lib/liturgical/copticDate';
+import { dayContext } from '@/lib/liturgical/season';
 
 const DEMO_ENTRIES = [
   { id: 'e1', created_at: '2026-06-04', title: 'Reflection on the fast', reflection: 'Felt a deepening sense of gratitude during the Agpeya today. The third hour prayer felt different — more present.' },
@@ -176,7 +178,7 @@ export default function JournalScreen() {
 
         {/* Today's Prompt — static liturgical, same in both modes */}
         <Card title="Today's Prompt" titleIcon="◇">
-          <Text style={styles.promptFast}>Apostles' Fast · Day 12</Text>
+          <Text style={styles.promptFast}>{dayContext(new Date()) ?? `${copticToday().label} · AM ${copticToday().year}`}</Text>
           <Text style={styles.promptQuote}>"Watch and pray that you may not enter into temptation. The spirit indeed is willing, but the flesh is weak."</Text>
           <Text style={styles.promptRef}>Matthew 26:41</Text>
           <View style={styles.divider} />

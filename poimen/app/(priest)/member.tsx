@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { colors, fonts } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { PsalmStatsCard, DEMO_PSALM_STATS } from '@/components/ui/PsalmStatsCard';
+import type { PsalmStatsSnapshot } from '@/lib/psalms/stats';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
@@ -132,6 +134,7 @@ export default function MemberScreen() {
   const [lifeStageData, setLifeStageData] = useState<any>(demoMode ? demo.life : null);
   const [memberChildren, setMemberChildren] = useState<any[]>(demoMode ? demo.children : []);
   const [vitals, setVitals] = useState<any[]>(demo.vitals);
+  const [psalmStats, setPsalmStats] = useState<PsalmStatsSnapshot | null>(demoMode ? DEMO_PSALM_STATS : null);
   const [confessions, setConfessions] = useState<any[]>(demo.confessions);
   const [prayerRequests, setPrayerRequests] = useState<any[]>(demo.prayer);
   const [canons, setCanons] = useState<any[]>(demo.canons);
@@ -162,6 +165,7 @@ export default function MemberScreen() {
         setLifeStageData(d.life);
         setMemberChildren(d.children);
         setVitals(d.vitals);
+        setPsalmStats(DEMO_PSALM_STATS);
         setConfessions(d.confessions);
         setPrayerRequests(d.prayer);
         setCanons(d.canons);
@@ -176,10 +180,11 @@ export default function MemberScreen() {
     if (!user || !memberId) return;
     setLoading(true);
 
-    const [profileData, vitalsPayload, confData, prayerData, canonData, notesData, contactData, lifeData, kidsData] =
+    const [profileData, vitalsPayload, psalmPayload, confData, prayerData, canonData, notesData, contactData, lifeData, kidsData] =
       await Promise.all([
         db.getMemberProfile(memberId),
         db.getAgentProgress(memberId, 'vitals'),
+        db.getAgentProgress(memberId, 'psalm-stats'),
         db.getConfessionsForCongregant(memberId),
         db.getFocPrayerRequests(memberId),
         db.getMemberActiveCanons(memberId),
@@ -209,6 +214,8 @@ export default function MemberScreen() {
     } else if (!demoMode) {
       setVitals([]);
     }
+
+    setPsalmStats((psalmPayload as PsalmStatsSnapshot | null) ?? null);
 
     if (confData) {
       setConfessions(confData.map(c => ({
@@ -403,6 +410,8 @@ export default function MemberScreen() {
                     </View>
                   ))}
                 </Card>
+
+                <PsalmStatsCard stats={psalmStats} />
 
                 <Card title="Confession History" flat>
                   <View style={styles.privacyNote}>
