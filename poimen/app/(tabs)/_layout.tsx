@@ -1,7 +1,8 @@
 import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import Harp from '@/components/ui/Harp';
+import { HouseIcon, NotepadIcon, PrayingHandsIcon, CandleIcon } from '@/components/ui/TabIcons';
 
 function TabIcon({
   symbol,
@@ -37,7 +38,11 @@ export default function TabLayout() {
         name="index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon symbol="🏠" label="Home" focused={focused} />
+            <TabIcon
+              icon={<HouseIcon size={20} color={focused ? colors.gold : colors.muted} />}
+              label="Home"
+              focused={focused}
+            />
           ),
         }}
       />
@@ -56,7 +61,11 @@ export default function TabLayout() {
         name="journal"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon symbol="🗒️" label="Journal" focused={focused} />
+            <TabIcon
+              icon={<NotepadIcon size={20} color={focused ? colors.gold : colors.muted} />}
+              label="Journal"
+              focused={focused}
+            />
           ),
         }}
       />
@@ -64,7 +73,11 @@ export default function TabLayout() {
         name="prayer"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon symbol="🙏" label="Prayer" focused={focused} />
+            <TabIcon
+              icon={<PrayingHandsIcon size={20} color={focused ? colors.gold : colors.muted} />}
+              label="Prayer"
+              focused={focused}
+            />
           ),
         }}
       />
@@ -84,7 +97,11 @@ export default function TabLayout() {
         name="canon"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon symbol="🕯️" label="Canon" focused={focused} />
+            <TabIcon
+              icon={<CandleIcon size={20} color={focused ? colors.gold : colors.muted} />}
+              label="Canon"
+              focused={focused}
+            />
           ),
         }}
       />
@@ -92,7 +109,7 @@ export default function TabLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   tabBar: {
     backgroundColor: colors.navyDark,
     borderTopWidth: 1,
@@ -124,4 +141,4 @@ const styles = StyleSheet.create({
     fontFamily: fonts.latoBold,
     color: colors.goldLight,
   },
-});
+}));

@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 
 type Mode = 'signin' | 'signup' | 'magic';
 
@@ -75,7 +75,7 @@ export default function SignInScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Full name"
-                placeholderTextColor="rgba(245,240,232,0.28)"
+                placeholderTextColor={colors.faint}
                 value={fullName}
                 onChangeText={setFullName}
                 autoCapitalize="words"
@@ -85,7 +85,7 @@ export default function SignInScreen() {
             <TextInput
               style={styles.input}
               placeholder="Email"
-              placeholderTextColor="rgba(245,240,232,0.28)"
+              placeholderTextColor={colors.faint}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -97,7 +97,7 @@ export default function SignInScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Password"
-                placeholderTextColor="rgba(245,240,232,0.28)"
+                placeholderTextColor={colors.faint}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
@@ -187,7 +187,7 @@ export default function SignInScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   content: { padding: 28, paddingTop: 52, flexGrow: 1 },
 
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
 
   form: { gap: 12 },
   input: {
-    backgroundColor: 'rgba(10,16,30,0.6)',
+    backgroundColor: colors.panel,
     borderWidth: 1,
     borderColor: 'rgba(201,168,76,0.18)',
     borderRadius: 10,
@@ -218,11 +218,11 @@ const styles = StyleSheet.create({
 
   linksRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 16, flexWrap: 'wrap' },
   link: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted },
-  linkSep: { fontFamily: fonts.latoLight, fontSize: 12, color: 'rgba(245,240,232,0.2)' },
+  linkSep: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.faint },
 
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 36, marginBottom: 20 },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
-  dividerText: { fontFamily: fonts.latoBold, fontSize: 8, color: 'rgba(245,240,232,0.25)', letterSpacing: 1.5 },
+  dividerText: { fontFamily: fonts.latoBold, fontSize: 8, color: colors.faint, letterSpacing: 1.5 },
 
   demoGrid: { flexDirection: 'row', gap: 8 },
   demoBtn: {
@@ -241,5 +241,5 @@ const styles = StyleSheet.create({
   demoBtnRole: { fontFamily: fonts.cormorantMedium, fontSize: 15, color: colors.cream },
   demoBtnDesc: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, textAlign: 'center' },
 
-  footer: { fontFamily: fonts.latoLight, fontSize: 10, color: 'rgba(245,240,232,0.18)', textAlign: 'center', lineHeight: 17, marginTop: 32 },
-});
+  footer: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.faint, textAlign: 'center', lineHeight: 17, marginTop: 32 },
+}));

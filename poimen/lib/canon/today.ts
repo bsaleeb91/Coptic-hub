@@ -11,15 +11,15 @@ import { localDateStr } from './postpone';
 // options (if any) the Canon tab offers.
 export interface RuleItem { key: string; label: string; icon: string; freq?: string; }
 
-// Item icons: 📖 readings (Bible & spiritual book) · 🕯 quiet time ·
-// 🙏 Agpeya prayers & prostrations · ⛪ church services · ✝︎ fasting ·
-// 🤲 Heart of Service.
-const ICON_READING = '📖';
-const ICON_QUIET = '🕯';
-const ICON_PRAYER = '🙏';
-const ICON_CHURCH = '⛪';
-const ICON_FAST = '✝︎';
-const ICON_SERVE = '🤲';
+// Item icons are semantic keys; the Canon tab maps them to the gold line
+// icons in components/ui/TabIcons.tsx (book, candle, praying hands, church,
+// cross, heart).
+const ICON_READING = 'reading';
+const ICON_QUIET = 'quiet';
+const ICON_PRAYER = 'prayer';
+const ICON_CHURCH = 'church';
+const ICON_FAST = 'fast';
+const ICON_SERVE = 'serve';
 
 // When a Heart of Service commitment is next due after being completed. The
 // cadence anchors to the last completion, so a service keeps showing on its

@@ -8,7 +8,7 @@ import {
   View, Text, ScrollView, StyleSheet,
   NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 
 interface Props {
   options: string[];
@@ -55,8 +55,8 @@ export default function ScrollPicker({ options, value, onChange, itemWidth = 96 
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   wrap:      { height: 52, justifyContent: 'center' },
   highlight: { position: 'absolute', left: '50%', height: 40, borderRadius: 10, borderWidth: 1.5 },
   item:      { height: 52, alignItems: 'center', justifyContent: 'center' },
-});
+}));

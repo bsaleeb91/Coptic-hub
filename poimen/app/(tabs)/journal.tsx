@@ -4,7 +4,7 @@ import {
   TextInput, Animated, PanResponder, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { confirmDestructive } from '@/lib/confirm';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
@@ -206,13 +206,13 @@ export default function JournalScreen() {
         {/* Today's Entry */}
         <Card title="Today's Entry" titleIcon="✦" action={<Text style={styles.dateLabel}>{todayStr}</Text>}>
           <Text style={styles.formLabel}>TITLE (optional)</Text>
-          <TextInput style={styles.input} placeholder="e.g. Reflection on the fast" placeholderTextColor="rgba(245,240,232,0.22)" value={entryTitle} onChangeText={setEntryTitle} />
+          <TextInput style={styles.input} placeholder="e.g. Reflection on the fast" placeholderTextColor={colors.faint} value={entryTitle} onChangeText={setEntryTitle} />
           <Text style={[styles.formLabel, { marginTop: 14 }]}>REFLECTION</Text>
-          <TextInput style={[styles.textarea, { minHeight: 110 }]} multiline placeholder="What is God saying to you today? What are you grateful for? What are you struggling with?" placeholderTextColor="rgba(245,240,232,0.22)" value={reflection} onChangeText={setReflection} />
+          <TextInput style={[styles.textarea, { minHeight: 110 }]} multiline placeholder="What is God saying to you today? What are you grateful for? What are you struggling with?" placeholderTextColor={colors.faint} value={reflection} onChangeText={setReflection} />
           <Text style={[styles.formLabel, { marginTop: 14 }]}>SCRIPTURE THAT SPOKE TO ME</Text>
-          <TextInput style={styles.input} placeholder="e.g. Psalm 63:1 — O God, You are my God..." placeholderTextColor="rgba(245,240,232,0.22)" value={scripture} onChangeText={setScripture} />
+          <TextInput style={styles.input} placeholder="e.g. Psalm 63:1 — O God, You are my God..." placeholderTextColor={colors.faint} value={scripture} onChangeText={setScripture} />
           <Text style={[styles.formLabel, { marginTop: 14 }]}>PRAYER INTENTION</Text>
-          <TextInput style={[styles.textarea, { minHeight: 56 }]} multiline placeholder="What are you bringing to God in prayer today?" placeholderTextColor="rgba(245,240,232,0.22)" value={prayerIntention} onChangeText={setPrayerIntention} />
+          <TextInput style={[styles.textarea, { minHeight: 56 }]} multiline placeholder="What are you bringing to God in prayer today?" placeholderTextColor={colors.faint} value={prayerIntention} onChangeText={setPrayerIntention} />
           <TouchableOpacity
             style={[styles.btnGoldFull, (!reflection.trim() || savingEntry) && styles.btnDisabled]}
             onPress={saveEntry}
@@ -260,7 +260,7 @@ export default function JournalScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
@@ -274,8 +274,8 @@ const styles = StyleSheet.create({
   swipeActionText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.cream, textAlign: 'center', letterSpacing: 0.5 },
 
   formLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.8, marginBottom: 8 },
-  textarea: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', lineHeight: 20 },
-  input: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12 },
+  textarea: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', lineHeight: 20 },
+  input: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12 },
   dateLabel: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
 
   btnGoldFull: { backgroundColor: colors.gold, borderRadius: 8, padding: 12, alignItems: 'center', marginTop: 14 },
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
 
   // Opaque background — the delete underlay sits behind this row and must not
   // show through until revealed by the swipe.
-  entryItem: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, backgroundColor: '#0d182e', borderWidth: 1, borderColor: colors.border, borderRadius: 10 },
+  entryItem: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 10 },
   entryDate: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.7, marginBottom: 3 },
   entryTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2 },
   entryPreview: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },
@@ -312,4 +312,4 @@ const styles = StyleSheet.create({
   detailBody: { fontFamily: fonts.latoLight, fontSize: 15, color: colors.cream, lineHeight: 24, marginBottom: 20 },
   detailScriptureCard: { backgroundColor: 'rgba(201,168,76,0.06)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)', borderRadius: 10, padding: 14, marginBottom: 20 },
   detailScripture: { fontFamily: fonts.cormorantItalic, fontSize: 16, color: colors.goldLight, lineHeight: 24 },
-});
+}));

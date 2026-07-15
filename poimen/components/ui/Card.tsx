@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 
 interface CardProps {
   title?: string;
@@ -45,7 +45,7 @@ export function Card({ title, titleIcon, action, children, style, bodyStyle, fla
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   card: {
     backgroundColor: colors.cardBg,
     borderWidth: 1,
@@ -100,4 +100,4 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     paddingTop: 4,
   },
-});
+}));

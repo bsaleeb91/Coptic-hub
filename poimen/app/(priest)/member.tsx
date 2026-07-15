@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
@@ -510,7 +510,7 @@ export default function MemberScreen() {
                           onChangeText={setEditText}
                           multiline
                           autoFocus
-                          placeholderTextColor="rgba(245,240,232,0.22)"
+                          placeholderTextColor={colors.faint}
                         />
                         {editError ? <Text style={styles.noteErrorText}>{editError}</Text> : null}
                         <View style={styles.editActions}>
@@ -536,7 +536,7 @@ export default function MemberScreen() {
                   <TextInput
                     style={styles.noteInput}
                     placeholder="Add a pastoral note…"
-                    placeholderTextColor="rgba(245,240,232,0.22)"
+                    placeholderTextColor={colors.faint}
                     multiline
                     numberOfLines={4}
                     value={newNoteText}
@@ -649,7 +649,7 @@ export default function MemberScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
@@ -680,7 +680,7 @@ const styles = StyleSheet.create({
   btnMenu: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 9, alignItems: 'center', justifyContent: 'center' },
   btnMenuText: { fontFamily: fonts.lato, fontSize: 16, color: colors.muted, letterSpacing: 2, lineHeight: 18 },
 
-  tabBar: { flexDirection: 'row', backgroundColor: 'rgba(10,16,30,0.6)', borderRadius: 10, padding: 4, marginBottom: 16, gap: 2 },
+  tabBar: { flexDirection: 'row', backgroundColor: colors.panel, borderRadius: 10, padding: 4, marginBottom: 16, gap: 2 },
   tabItem: { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center' },
   tabItemActive: { backgroundColor: colors.navyMid, borderWidth: 1, borderColor: colors.border },
   tabText: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.muted },
@@ -689,7 +689,7 @@ const styles = StyleSheet.create({
   vitalRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   vitalLabel: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, flex: 1 },
   vitalLabelDim: { opacity: 0.4 },
-  vitalTrack: { width: 80, height: 4, backgroundColor: 'rgba(245,240,232,0.08)', borderRadius: 4, overflow: 'hidden' },
+  vitalTrack: { width: 80, height: 4, backgroundColor: colors.creamDim, borderRadius: 4, overflow: 'hidden' },
   vitalFill: { height: '100%', backgroundColor: colors.gold, borderRadius: 4 },
   vitalVal: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream, width: 30, textAlign: 'right' },
 
@@ -710,8 +710,8 @@ const styles = StyleSheet.create({
 
   emptyText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textAlign: 'center', paddingVertical: 16 },
 
-  savedNoteText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20, marginBottom: 12, padding: 12, backgroundColor: 'rgba(10,16,30,0.4)', borderRadius: 8 },
-  noteCard: { backgroundColor: 'rgba(10,16,30,0.4)', borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 10 },
+  savedNoteText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20, marginBottom: 12, padding: 12, backgroundColor: colors.panel, borderRadius: 8 },
+  noteCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 10 },
   noteCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   noteCardDate: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1, color: colors.gold, opacity: 0.8 },
   noteCardBody: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20 },
@@ -722,7 +722,7 @@ const styles = StyleSheet.create({
   btnCancel: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
   btnCancelText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.muted, letterSpacing: 0.8 },
   addNoteSection: { marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
-  noteInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', minHeight: 90 },
+  noteInput: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', minHeight: 90 },
   noteErrorText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginTop: 6 },
 
   // ── Contact sheet ──
@@ -741,4 +741,4 @@ const styles = StyleSheet.create({
   sheetEmpty: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textAlign: 'center', paddingVertical: 28, lineHeight: 20 },
   sheetCloseBtn: { marginTop: 18, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
   sheetCloseBtnText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.muted, letterSpacing: 1 },
-});
+}));

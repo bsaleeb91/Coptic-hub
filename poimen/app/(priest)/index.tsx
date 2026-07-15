@@ -3,7 +3,7 @@ import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, Activi
 import * as H from '@/lib/haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
@@ -33,11 +33,11 @@ const FLOCK_DEMO: FlockMember[] = [
   { id: 'demo-cn', initials: 'CN', name: 'Christine Naguib', stage: 'Multiplying', daysSince: 35, canonPct: 92, flagged: false, status: 'due', note: '' },
 ];
 
-const STATUS_COLOR: Record<StatusType, string> = {
+const STATUS_COLOR: Record<StatusType, string> = lazyThemed(() => ({
   recent: colors.green,
   due: colors.yellow,
   overdue: colors.red,
-};
+}));
 
 const STATUS_LABEL: Record<StatusType, string> = {
   recent: '✓ Recent',
@@ -138,7 +138,7 @@ export default function FlockScreen() {
         <TextInput
           style={styles.search}
           placeholder="Search members..."
-          placeholderTextColor="rgba(245,240,232,0.22)"
+          placeholderTextColor={colors.faint}
           value={search}
           onChangeText={setSearch}
         />
@@ -269,22 +269,22 @@ export default function FlockScreen() {
   );
 }
 
-const ctx = StyleSheet.create({
+const ctx = lazyThemed(() => StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet: { backgroundColor: '#0b1423', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 24, paddingBottom: 36, paddingTop: 14 },
-  handle: { width: 36, height: 4, backgroundColor: 'rgba(245,240,232,0.15)', borderRadius: 2, alignSelf: 'center', marginBottom: 18 },
+  handle: { width: 36, height: 4, backgroundColor: colors.faint, borderRadius: 2, alignSelf: 'center', marginBottom: 18 },
   memberName: { fontFamily: fonts.cormorantMedium, fontSize: 20, color: colors.cream, marginBottom: 3 },
   memberMeta: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 16 },
-  divider: { height: 1, backgroundColor: 'rgba(245,240,232,0.08)', marginVertical: 8 },
+  divider: { height: 1, backgroundColor: colors.creamDim, marginVertical: 8 },
   action: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
   actionIcon: { width: 24, fontSize: 15, marginRight: 12 },
   actionLabel: { fontFamily: fonts.lato, fontSize: 15, color: colors.cream, flex: 1 },
   actionChevron: { fontFamily: fonts.lato, fontSize: 20, color: colors.muted },
   cancelBtn: { paddingVertical: 14, alignItems: 'center' },
   cancelText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.muted, letterSpacing: 0.5 },
-});
+}));
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
 
   flockMeta: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 18, marginTop: -12 },
 
-  search: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 11, marginBottom: 12 },
+  search: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 11, marginBottom: 12 },
 
   filterRow: { flexDirection: 'row', gap: 0, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
   filterTab: { paddingHorizontal: 16, paddingBottom: 10, position: 'relative' },
@@ -325,4 +325,4 @@ const styles = StyleSheet.create({
   flagBadge: { backgroundColor: 'rgba(192,57,43,0.12)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20, alignSelf: 'flex-start', marginTop: 5 },
   flagBadgeText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.red, letterSpacing: 0.5 },
   chevron: { fontFamily: fonts.lato, fontSize: 20, color: colors.muted, marginTop: 8 },
-});
+}));

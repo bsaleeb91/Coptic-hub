@@ -1,17 +1,18 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
+import { LockIcon } from '@/components/ui/TabIcons';
 
 export function PrivacyNote({ text }: { text: string }) {
   return (
     <View style={styles.container}>
-      <Text style={styles.icon}>🔒</Text>
+      <View style={styles.icon}><LockIcon size={13} color={colors.gold} /></View>
       <Text style={styles.text}>{text}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   container: {
     flexDirection: 'row',
     gap: 8,
@@ -24,9 +25,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   icon: {
-    fontSize: 13,
     flexShrink: 0,
-    marginTop: 1,
+    marginTop: 2,
   },
   text: {
     fontFamily: fonts.latoLight,
@@ -35,4 +35,4 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     flex: 1,
   },
-});
+}));

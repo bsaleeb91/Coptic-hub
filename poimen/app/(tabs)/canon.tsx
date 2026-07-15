@@ -5,7 +5,7 @@ import {
 import * as H from '@/lib/haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
@@ -22,6 +22,18 @@ import {
 } from '@/lib/canon/postpone';
 import { recordCanonDay } from '@/lib/canon/history';
 import { lastConfessionDate, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
+import { BookIcon, CandleIcon, PrayingHandsIcon, ChurchIcon, CrossIcon, HeartIcon } from '@/components/ui/TabIcons';
+
+// Canon item icons (always gold), keyed by the semantic names lib/canon/today
+// emits for each rule item.
+const CANON_ICONS: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
+  reading: BookIcon,
+  quiet: CandleIcon,
+  prayer: PrayingHandsIcon,
+  church: ChurchIcon,
+  fast: CrossIcon,
+  serve: HeartIcon,
+};
 
 // The canon shown here is the user's OWN spiritual canon (their rule of prayer,
 // set with their Father of Confession in the rule editor) — built per weekday
@@ -48,7 +60,10 @@ function CanonRow({ comp, done, onToggle, onPostpone }: {
             {done && <Text style={styles.compCheckMark}>✓</Text>}
           </View>
           <View style={styles.compIcon}>
-            <Text style={styles.compIconEmoji}>{comp.icon ?? '📜'}</Text>
+            {(() => {
+              const Icon = CANON_ICONS[comp.icon] ?? CandleIcon;
+              return <Icon size={18} color={colors.gold} />;
+            })()}
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.compName, done && styles.compNameDone]}>{comp.name}</Text>
@@ -203,7 +218,7 @@ export default function CanonScreen() {
             <ActivityIndicator color={colors.gold} style={{ paddingVertical: 20 }} />
           ) : items.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📜</Text>
+              <View style={{ opacity: 0.5 }}><CandleIcon size={30} color={colors.gold} /></View>
               <Text style={styles.emptyTitle}>No canon set yet</Text>
               <Text style={styles.emptyBody}>
                 Set your spiritual canon with your Father of Confession — Agpeya hours, church services,
@@ -283,7 +298,7 @@ export default function CanonScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
@@ -297,7 +312,7 @@ const styles = StyleSheet.create({
   fastBadge: { backgroundColor: 'rgba(201,168,76,0.15)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
   fastBadgeText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.goldLight },
 
-  compItem: { backgroundColor: '#0d182e', borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: 'hidden' },
+  compItem: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: 'hidden' },
   compItemDone: { opacity: 0.65 },
   compHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13 },
   compMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -336,4 +351,4 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 28, color: colors.muted, opacity: 0.4 },
   emptyTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.muted },
   emptyBody: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, textAlign: 'center', lineHeight: 17, opacity: 0.7 },
-});
+}));

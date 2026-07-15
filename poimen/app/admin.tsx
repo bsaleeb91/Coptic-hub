@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
@@ -10,13 +10,13 @@ import type { AdminSummary, MonthlyActivity, ChurchBreakdown } from '@/lib/db';
 
 type ChartMetric = 'signups' | 'prayers' | 'confessions' | 'canon_completions' | 'journal_active';
 
-const CHART_METRICS: { key: ChartMetric; label: string; color: string }[] = [
+const CHART_METRICS: { key: ChartMetric; label: string; color: string }[] = lazyThemed(() => [
   { key: 'signups',          label: 'Signups',     color: colors.gold },
   { key: 'prayers',          label: 'Prayers',     color: colors.blue },
   { key: 'confessions',      label: 'Confessions', color: colors.purple },
   { key: 'canon_completions',label: 'Canons',      color: colors.green },
   { key: 'journal_active',   label: 'Journal',     color: colors.cream },
-];
+]);
 
 function pct(value: number, total: number) {
   if (!total) return '0%';
@@ -240,7 +240,7 @@ export default function AdminScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 48 },
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
 
   // Health
   healthRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-  healthPill: { flex: 1, backgroundColor: 'rgba(10,16,30,0.5)', borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, alignItems: 'center' },
+  healthPill: { flex: 1, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, alignItems: 'center' },
   healthValue: { fontFamily: fonts.cormorantMedium, fontSize: 22, lineHeight: 26 },
   healthLabel: { fontFamily: fonts.latoBold, fontSize: 8, letterSpacing: 1, color: colors.muted, textTransform: 'uppercase', marginTop: 3, textAlign: 'center' },
   growthNote: { marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
   metricTabLine: { position: 'absolute', bottom: 0, left: 4, right: 4, height: 2, borderRadius: 1 },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   barMonth: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.muted, width: 42, letterSpacing: 0.4 },
-  barTrack: { flex: 1, height: 8, backgroundColor: 'rgba(245,240,232,0.07)', borderRadius: 4, overflow: 'hidden' },
+  barTrack: { flex: 1, height: 8, backgroundColor: colors.creamDim, borderRadius: 4, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 4 },
   barCount: { fontFamily: fonts.latoBold, fontSize: 12, width: 28, textAlign: 'right' },
 
@@ -291,4 +291,4 @@ const styles = StyleSheet.create({
   churchStat: { alignItems: 'center', gap: 4 },
   churchStatVal: { fontFamily: fonts.cormorantMedium, fontSize: 24 },
   churchStatLabel: { fontFamily: fonts.latoBold, fontSize: 8, letterSpacing: 1, color: colors.muted, textTransform: 'uppercase' },
-});
+}));

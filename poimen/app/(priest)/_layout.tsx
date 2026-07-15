@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 
 function TabIcon({ symbol, label, focused }: { symbol: string; label: string; focused: boolean }) {
   return (
@@ -56,9 +56,9 @@ export default function PriestLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   tabBar: {
-    backgroundColor: 'rgba(10,16,30,0.97)',
+    backgroundColor: colors.navyDark,
     borderTopWidth: 1,
     borderTopColor: 'rgba(201,168,76,0.3)',
     height: 72,
@@ -70,4 +70,4 @@ const styles = StyleSheet.create({
   symbolActive: { color: colors.gold },
   label: { fontFamily: fonts.latoLight, fontSize: 9, color: colors.muted, letterSpacing: 0.5, textTransform: 'uppercase' },
   labelActive: { fontFamily: fonts.latoBold, color: colors.goldLight },
-});
+}));

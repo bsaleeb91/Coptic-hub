@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 
 type LinkType = 'foc' | 'servant';
 
@@ -100,7 +100,7 @@ export default function LinkToFocScreen() {
               value={code}
               onChangeText={t => { setCode(t.toUpperCase()); setError(''); setFound(null); }}
               placeholder="A B C 1 2 3"
-              placeholderTextColor="rgba(245,240,232,0.22)"
+              placeholderTextColor={colors.faint}
               autoCapitalize="characters"
               maxLength={6}
               autoCorrect={false}
@@ -159,7 +159,7 @@ export default function LinkToFocScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   content: { padding: 24, paddingBottom: 48 },
 
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   inputRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   codeInput: {
     flex: 1,
-    backgroundColor: 'rgba(10,16,30,0.7)',
+    backgroundColor: colors.panel,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 10,
@@ -242,4 +242,4 @@ const styles = StyleSheet.create({
   successBody: { fontFamily: fonts.latoLight, fontSize: 14, color: colors.muted, textAlign: 'center', lineHeight: 22, marginBottom: 32 },
   doneBtn: { backgroundColor: colors.gold, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 40 },
   doneBtnText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.navy, letterSpacing: 1.2 },
-});
+}));

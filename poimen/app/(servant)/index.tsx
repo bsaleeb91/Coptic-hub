@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
@@ -89,7 +89,7 @@ export default function ServantFlockScreen() {
         <TextInput
           style={styles.search}
           placeholder="Search students..."
-          placeholderTextColor="rgba(245,240,232,0.22)"
+          placeholderTextColor={colors.faint}
           value={search}
           onChangeText={setSearch}
         />
@@ -146,7 +146,7 @@ export default function ServantFlockScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
 
   flockMeta: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 18, marginTop: -12 },
 
-  search: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 11, marginBottom: 16 },
+  search: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 11, marginBottom: 16 },
 
   emptyState: { alignItems: 'center', paddingVertical: 24, gap: 6 },
   emptyTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.muted },
@@ -177,4 +177,4 @@ const styles = StyleSheet.create({
 
   scopeNote: { backgroundColor: 'rgba(201,168,76,0.05)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)', borderRadius: 10, padding: 14, marginTop: 8 },
   scopeNoteText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 17, letterSpacing: 0.2 },
-});
+}));

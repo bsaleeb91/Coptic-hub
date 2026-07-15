@@ -11,7 +11,7 @@ import {
   NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
 import {
@@ -30,8 +30,6 @@ import { hydratePsalmsFromCloud, pushPsalmsToCloud } from '@/lib/psalms/sync';
 const SP = { xs: 6, sm: 10, md: 14, lg: 20, xl: 28 };
 const R = { md: 10, lg: 12, xl: 16, full: 999 };
 
-const SECOND = 'rgba(245,240,232,0.75)';
-const CARD_BG = 'rgba(10,16,30,0.5)';
 
 // Cloze deletion: show the opening, blank the completion (keep punctuation).
 function clozeText(text: string): string {
@@ -256,10 +254,10 @@ export default function PsalmsScreen() {
           <Text style={styles.readerHours}>{psalmHours(itemPsalm(reader)).map(hourName).join(' · ')}</Text>
           <Text style={styles.readerBlurb}>{meta.blurb}</Text>
           <TouchableOpacity
-            style={[styles.selBtn, { backgroundColor: selected ? CARD_BG : colors.gold, borderColor: selected ? colors.border : colors.gold }]}
+            style={[styles.selBtn, { backgroundColor: selected ? colors.panel : colors.gold, borderColor: selected ? colors.border : colors.gold }]}
             onPress={() => toggle(reader)}
           >
-            <Text style={[styles.selBtnText, { color: selected ? SECOND : colors.navy }]}>
+            <Text style={[styles.selBtnText, { color: selected ? colors.textSecond : colors.navy }]}>
               {selected ? '✓ In your list — remove' : '+ Add to my psalms'}
             </Text>
           </TouchableOpacity>
@@ -462,7 +460,7 @@ export default function PsalmsScreen() {
             </View>
 
             <View style={styles.statRow}>
-              <Stat label="New" value={stats.newCount} color={SECOND} />
+              <Stat label="New" value={stats.newCount} color={colors.textSecond} />
               <Stat label="Learning" value={stats.learning} color={colors.yellow} />
               <Stat label="Memorized" value={stats.mastered} color={colors.green} />
             </View>
@@ -474,7 +472,7 @@ export default function PsalmsScreen() {
             ) : (
               <View style={styles.actionRow}>
                 <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: dueCount ? colors.gold : CARD_BG }]}
+                  style={[styles.actionBtn, { backgroundColor: dueCount ? colors.gold : colors.panel }]}
                   onPress={() => startSession('review')}
                   disabled={dueCount === 0}
                 >
@@ -482,7 +480,7 @@ export default function PsalmsScreen() {
                   <Text style={[styles.actionBtnSub, { color: dueCount ? 'rgba(15,31,61,0.7)' : colors.muted }]}>due today</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: newAvailable ? colors.green : CARD_BG }]}
+                  style={[styles.actionBtn, { backgroundColor: newAvailable ? colors.green : colors.panel }]}
                   onPress={() => startSession('new')}
                   disabled={newAvailable === 0}
                 >
@@ -542,7 +540,7 @@ export default function PsalmsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.navy },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   muted:  { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, marginBottom: SP.sm },
@@ -563,16 +561,16 @@ const styles = StyleSheet.create({
   heroLabel:    { fontFamily: fonts.latoBold, color: colors.gold, fontSize: 11, letterSpacing: 1, marginBottom: 8 },
   heroBig:      { fontFamily: fonts.cormorantMedium, color: colors.goldLight, fontSize: 26 },
   heroOf:       { fontSize: 13, color: colors.muted, fontFamily: fonts.latoLight },
-  heroBarTrack: { height: 6, borderRadius: 3, backgroundColor: 'rgba(245,240,232,0.12)', overflow: 'hidden', marginTop: 12 },
+  heroBarTrack: { height: 6, borderRadius: 3, backgroundColor: colors.creamDim, overflow: 'hidden', marginTop: 12 },
   heroBarFill:  { height: '100%', borderRadius: 3, backgroundColor: colors.gold },
   heroStreak:   { fontFamily: fonts.latoBold, color: colors.goldLight, fontSize: 13, marginTop: 10 },
 
   statRow:   { flexDirection: 'row', gap: SP.sm, marginBottom: SP.md },
-  statCard:  { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: R.lg, paddingVertical: SP.md, alignItems: 'center', backgroundColor: CARD_BG },
+  statCard:  { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: R.lg, paddingVertical: SP.md, alignItems: 'center', backgroundColor: colors.panel },
   statValue: { fontFamily: fonts.cormorantMedium, fontSize: 24 },
   statLabel: { fontFamily: fonts.latoLight, fontSize: 11, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4, color: colors.muted },
 
-  caughtUp:     { paddingVertical: 16, borderRadius: R.md, alignItems: 'center', marginBottom: SP.lg, backgroundColor: CARD_BG, borderWidth: 1, borderColor: colors.border },
+  caughtUp:     { paddingVertical: 16, borderRadius: R.md, alignItems: 'center', marginBottom: SP.lg, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
   caughtUpText: { fontFamily: fonts.lato, fontSize: 15, color: colors.muted },
   actionRow:    { flexDirection: 'row', gap: SP.sm, marginBottom: SP.lg },
   actionBtn:    { flex: 1, paddingVertical: 14, borderRadius: R.md, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
@@ -584,9 +582,9 @@ const styles = StyleSheet.create({
   pickerItem:      { width: PICKER_ITEM, height: 56, alignItems: 'center', justifyContent: 'center' },
 
   listHead:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SP.sm },
-  sectionLabel: { fontFamily: fonts.latoBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: SECOND },
+  sectionLabel: { fontFamily: fonts.latoBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: colors.textSecond },
 
-  row:      { flexDirection: 'row', alignItems: 'center', gap: SP.sm, borderWidth: 1, borderColor: colors.border, borderRadius: R.lg, padding: SP.md, marginBottom: 6, backgroundColor: CARD_BG },
+  row:      { flexDirection: 'row', alignItems: 'center', gap: SP.sm, borderWidth: 1, borderColor: colors.border, borderRadius: R.lg, padding: SP.md, marginBottom: 6, backgroundColor: colors.panel },
   rowNum:   { fontFamily: fonts.latoBold, fontSize: 12, color: colors.muted, width: 20 },
   rowTitle: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.cream },
   rowSub:   { fontFamily: fonts.latoLight, fontSize: 11, marginTop: 2, color: colors.muted },
@@ -595,9 +593,9 @@ const styles = StyleSheet.create({
   remove:   { color: colors.red, fontSize: 14, paddingHorizontal: 4 },
   addPlus:  { fontSize: 18, width: 20, textAlign: 'center' },
 
-  empty:         { borderWidth: 1, borderColor: colors.border, borderRadius: R.lg, padding: SP.xl, alignItems: 'center', backgroundColor: CARD_BG },
+  empty:         { borderWidth: 1, borderColor: colors.border, borderRadius: R.lg, padding: SP.xl, alignItems: 'center', backgroundColor: colors.panel },
   emptyTitle:    { fontFamily: fonts.cormorantMedium, fontSize: 20, color: colors.cream, marginBottom: 8 },
-  emptyText:     { fontFamily: fonts.latoLight, fontSize: 13, lineHeight: 20, textAlign: 'center', marginBottom: SP.lg, color: SECOND },
+  emptyText:     { fontFamily: fonts.latoLight, fontSize: 13, lineHeight: 20, textAlign: 'center', marginBottom: SP.lg, color: colors.textSecond },
   primaryBtn:    { backgroundColor: colors.gold, paddingVertical: 12, paddingHorizontal: 28, borderRadius: R.md },
   primaryBtnText:{ fontFamily: fonts.latoBold, color: colors.navy, fontSize: 15, letterSpacing: 0.5 },
 
@@ -607,7 +605,7 @@ const styles = StyleSheet.create({
   readerHead:  { flexDirection: 'row', alignItems: 'center', gap: SP.sm, marginBottom: 2 },
   readerTitle: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream },
   readerHours: { fontFamily: fonts.latoLight, fontSize: 12, marginBottom: 6, color: colors.muted },
-  readerBlurb: { fontFamily: fonts.latoLight, fontSize: 13, lineHeight: 20, marginBottom: SP.md, color: SECOND },
+  readerBlurb: { fontFamily: fonts.latoLight, fontSize: 13, lineHeight: 20, marginBottom: SP.md, color: colors.textSecond },
   selBtn:      { paddingVertical: 11, borderRadius: R.md, alignItems: 'center', borderWidth: 1 },
   selBtnText:  { fontFamily: fonts.latoBold, fontSize: 14 },
   partLabel:   { fontFamily: fonts.latoBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 },
@@ -618,7 +616,7 @@ const styles = StyleSheet.create({
   sessionHead:    { paddingHorizontal: SP.lg, paddingTop: SP.sm },
   sessionTitle:   { fontFamily: fonts.cormorantMedium, fontSize: 18, color: colors.cream },
   newTag:         { fontFamily: fonts.latoBold, fontSize: 11, letterSpacing: 0.5, marginTop: 4 },
-  testPrompt:     { fontFamily: fonts.latoLight, fontSize: 15, lineHeight: 24, textAlign: 'center', paddingVertical: 40, paddingHorizontal: SP.md, color: SECOND },
+  testPrompt:     { fontFamily: fonts.latoLight, fontSize: 15, lineHeight: 24, textAlign: 'center', paddingVertical: 40, paddingHorizontal: SP.md, color: colors.textSecond },
   testBtn:        { backgroundColor: colors.gold, paddingHorizontal: 16, paddingVertical: 8, borderRadius: R.md },
   testBtnText:    { fontFamily: fonts.latoBold, color: colors.navy, fontSize: 13 },
   crown:          { color: colors.green, fontSize: 18, paddingHorizontal: 6 },
@@ -629,4 +627,4 @@ const styles = StyleSheet.create({
   gradeRow:       { flexDirection: 'row', gap: 6 },
   gradeBtn:       { flex: 1, paddingVertical: 13, borderRadius: R.md, alignItems: 'center' },
   gradeText:      { fontFamily: fonts.latoBold, color: colors.navy, fontSize: 14 },
-});
+}));

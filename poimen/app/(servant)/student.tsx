@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
@@ -274,7 +274,7 @@ export default function StudentScreen() {
                     </View>
                     {editingId === note.id ? (
                       <>
-                        <TextInput style={styles.noteInput} value={editText} onChangeText={setEditText} multiline autoFocus placeholderTextColor="rgba(245,240,232,0.22)" />
+                        <TextInput style={styles.noteInput} value={editText} onChangeText={setEditText} multiline autoFocus placeholderTextColor={colors.faint} />
                         {editError ? <Text style={styles.noteError}>{editError}</Text> : null}
                         <View style={styles.editActions}>
                           <TouchableOpacity style={[styles.btnGold, { opacity: (!editText.trim() || savingEdit) ? 0.4 : 1 }]} onPress={handleSaveEdit} disabled={!editText.trim() || savingEdit}>
@@ -295,7 +295,7 @@ export default function StudentScreen() {
                   <TextInput
                     style={styles.noteInput}
                     placeholder="Add a note from today's meeting or call…"
-                    placeholderTextColor="rgba(245,240,232,0.22)"
+                    placeholderTextColor={colors.faint}
                     multiline
                     numberOfLines={4}
                     value={newNoteText}
@@ -350,7 +350,7 @@ export default function StudentScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
   heroName: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 2 },
   heroMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
 
-  tabs: { flexDirection: 'row', backgroundColor: 'rgba(10,16,30,0.6)', borderRadius: 10, padding: 4, marginBottom: 16, gap: 2 },
+  tabs: { flexDirection: 'row', backgroundColor: colors.panel, borderRadius: 10, padding: 4, marginBottom: 16, gap: 2 },
   tab: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   tabActive: { backgroundColor: colors.navyMid, borderWidth: 1, borderColor: colors.border },
   tabText: { fontFamily: fonts.latoBold, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.muted },
@@ -384,14 +384,14 @@ const styles = StyleSheet.create({
   canonComponent: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2 },
   canonMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 8 },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  progressTrack: { flex: 1, height: 4, backgroundColor: 'rgba(245,240,232,0.08)', borderRadius: 4, overflow: 'hidden' },
+  progressTrack: { flex: 1, height: 4, backgroundColor: colors.creamDim, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: colors.gold, borderRadius: 4 },
   progressPct: { fontFamily: fonts.latoBold, fontSize: 11, flexShrink: 0 },
   removeBtn: { borderWidth: 1, borderColor: 'rgba(192,57,43,0.3)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   removeBtnText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.red, letterSpacing: 0.5 },
 
   privacyNote: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 12, opacity: 0.7 },
-  noteCard: { backgroundColor: 'rgba(10,16,30,0.4)', borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 10 },
+  noteCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 10 },
   noteCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   noteCardDate: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1, color: colors.gold, opacity: 0.8 },
   noteCardBody: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20 },
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
   btnCancel: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
   btnCancelText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.muted, letterSpacing: 0.8 },
   addNoteSection: { marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
-  noteInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', minHeight: 90 },
+  noteInput: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', minHeight: 90 },
   noteError: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginTop: 6 },
 
   prayerRow: { flexDirection: 'row', gap: 10, paddingVertical: 12, alignItems: 'flex-start' },
@@ -414,4 +414,4 @@ const styles = StyleSheet.create({
 
   scopeNote: { backgroundColor: 'rgba(201,168,76,0.05)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)', borderRadius: 10, padding: 14, marginTop: 8 },
   scopeNoteText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 17, letterSpacing: 0.2 },
-});
+}));

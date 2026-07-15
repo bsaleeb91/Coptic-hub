@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
@@ -19,23 +19,33 @@ import { loadTodayChecks } from '@/lib/canon/checks';
 import { loadPostponements, loadServiceDone } from '@/lib/canon/postpone';
 import { recordCanonDay, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
 import { lastConfessionDate, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
+import { upcomingFeasts } from '@/lib/feasts';
+import { upcomingCommemorations } from '@/lib/synaxarium';
+import Harp from '@/components/ui/Harp';
+import { CrossIcon, CandleIcon } from '@/components/ui/TabIcons';
 
 const { width: SW } = Dimensions.get('window');
 const TILE_W = (SW - 48) / 2;
 
 // ── Demo data ────────────────────────────────────────────────
-const DEMO_TIMELINE = [
+const DEMO_TIMELINE = lazyThemed(() => [
   { date: 'MAY 21, 2026', title: 'Holy Confession', body: 'Fr. Bishoy assigned a 40-day reading plan from the Psalms.', tag: '✝︎ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
   { date: 'MAY 4, 2026', title: 'Pastoral Visit — Home', body: 'Pastoral visit following the birth of your daughter.', tag: '◎ Pastoral Visit', tagBg: 'rgba(41,128,185,0.15)', tagColor: colors.blue },
   { date: 'APR 20, 2026', title: 'Holy Week Confession', body: 'Guidance on marriage and family prayer practices.', tag: '✝︎ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
-  { date: 'MAR 12, 2026', title: 'Small Group Check-in', body: "Discussed the Book of Job with the young couples' group.", tag: '◇ Note', tagBg: 'rgba(245,240,232,0.07)', tagColor: colors.muted, dim: true },
-];
+  { date: 'MAR 12, 2026', title: 'Small Group Check-in', body: "Discussed the Book of Job with the young couples' group.", tag: '◇ Note', tagBg: colors.creamDim, tagColor: colors.muted, dim: true },
+]);
 
-const FEASTS = [
-  { month: 'JUL', day: '12', title: 'Feast of the Apostles', desc: "End of Apostles' Fast. Breaking of fast after Divine Liturgy." },
-  { month: 'JUL', day: '19', title: 'Feast of Archangel Michael', desc: 'Monthly feast. Tasbeha at 11:00 PM the prior evening.' },
-  { month: 'AUG', day: '7', title: 'Feast of the Transfiguration', desc: 'Feast of the Transfiguration of our Lord Jesus Christ.' },
-];
+// Computed live from the Coptic liturgical calendar (lib/feasts.ts,
+// lib/synaxarium.ts) — movable feasts follow each year's Pascha, Coptic-dated
+// entries follow Nayrouz.
+const toDateRow = (e: { date: Date; title: string; desc: string }) => ({
+  month: e.date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+  day: String(e.date.getDate()),
+  title: e.title,
+  desc: e.desc,
+});
+const nextFeastRows = () => upcomingFeasts(new Date(), 4).map(toDateRow);
+const nextCommemRows = () => upcomingCommemorations(new Date(), 4).map(toDateRow);
 
 function getDashboardSubtitle(): string {
   const today = new Date();
@@ -112,7 +122,7 @@ function CustomizeSheet({ visible, active, onSave, onClose }: {
   );
 }
 
-const cs = StyleSheet.create({
+const cs = lazyThemed(() => StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet: { backgroundColor: '#0b1423', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 24, paddingBottom: 40, paddingTop: 16 },
   handle: { width: 36, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
@@ -126,7 +136,7 @@ const cs = StyleSheet.create({
   checkMark: { fontSize: 12, color: colors.navy, fontFamily: fonts.latoBold },
   saveBtn: { backgroundColor: colors.gold, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 24 },
   saveBtnText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.navy, letterSpacing: 1.5 },
-});
+}));
 
 // ── Timeline row ──────────────────────────────────────────────
 function TimelineRow({ item, last }: { item: any; last: boolean }) {
@@ -159,6 +169,8 @@ export default function DashboardScreen() {
   const [vitalsEpoch, setVitalsEpoch] = useState<string | null>(null);
   const [lastConf, setLastConf] = useState<string | null>(null);
   const [confFreqDays, setConfFreqDays] = useState(31);
+  const [feasts, setFeasts] = useState(nextFeastRows);
+  const [commems, setCommems] = useState(nextCommemRows);
   const [timeline, setTimeline] = useState<any[]>([]);
   const [focProfile, setFocProfile] = useState<any>(null);
   const [sections, setSections] = useState<SectionId[]>(DEFAULT_SECTIONS);
@@ -210,6 +222,9 @@ export default function DashboardScreen() {
       setCanonToday({ done, total: items.length });
       setConfFreqDays(confessionFrequencyDays(rule.confession));
       setLastConf(await lastConfessionDate());
+      setFeasts(nextFeastRows()); // stays current across midnights
+      setCommems(nextCommemRows());
+
 
       await recordCanonDay(items, checks);
       const epoch = await loadVitalsEpoch();
@@ -294,8 +309,8 @@ export default function DashboardScreen() {
     confession: { tag: '✝︎ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
     counseling: { tag: '◎ Counseling', tagBg: 'rgba(41,128,185,0.15)', tagColor: colors.blue },
     visit: { tag: '⊕ Pastoral Visit', tagBg: 'rgba(41,128,185,0.15)', tagColor: colors.blue },
-    advice: { tag: '◇ Advice', tagBg: 'rgba(245,240,232,0.07)', tagColor: colors.muted },
-    phone: { tag: '◈ Call', tagBg: 'rgba(245,240,232,0.07)', tagColor: colors.muted },
+    advice: { tag: '◇ Advice', tagBg: colors.creamDim, tagColor: colors.muted },
+    phone: { tag: '◈ Call', tagBg: colors.creamDim, tagColor: colors.muted },
     group: { tag: '◉ Group', tagBg: 'rgba(93,202,135,0.12)', tagColor: colors.green },
   };
 
@@ -338,7 +353,7 @@ export default function DashboardScreen() {
             onLongPress={enterCustomize}
             activeOpacity={0.8}
           >
-            <Text style={styles.tileIcon}>✝︎</Text>
+            <CrossIcon size={20} color={colors.gold} />
             <Text style={styles.tileBigNum}>{daysSinceConfession ?? '—'}</Text>
             <Text style={styles.tileSubLabel}>days since confession</Text>
             <View style={[styles.tileStatus, { backgroundColor: confessionStatus ? `${statusColor}20` : 'transparent' }]}>
@@ -353,7 +368,7 @@ export default function DashboardScreen() {
             onLongPress={enterCustomize}
             activeOpacity={0.8}
           >
-            <Text style={styles.tileIcon}>📜</Text>
+            <CandleIcon size={20} color={colors.gold} />
             <Text style={styles.tileBigNum}>
               {canonSet ? `${canonToday!.done}/${canonToday!.total}` : '—'}
             </Text>
@@ -376,7 +391,7 @@ export default function DashboardScreen() {
           onPress={() => { H.tap(); router.push('/psalms'); }}
           activeOpacity={0.85}
         >
-          <Text style={{ fontSize: 24 }}>📖</Text>
+          <Harp size={24} color={colors.gold} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={{ fontFamily: fonts.latoBold, fontSize: 14, color: colors.cream, marginBottom: 2, flexShrink: 1 }}>Memorize the Psalms</Text>
             <Text style={{ fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, flexShrink: 1 }}>Agpeya psalter · spaced repetition</Text>
@@ -459,20 +474,37 @@ export default function DashboardScreen() {
         )}
 
         {sections.includes('feasts') && (
-          <Card title="Upcoming Feasts" titleIcon="⊕">
-            {FEASTS.map((feast, i) => (
-              <View key={i} style={[styles.feastItem, i < FEASTS.length - 1 && styles.feastBorder]}>
-                <View style={styles.feastDate}>
-                  <Text style={styles.feastMonth}>{feast.month}</Text>
-                  <Text style={styles.feastDay}>{feast.day}</Text>
+          <>
+            <Card title="Upcoming Feasts" titleIcon="⊕">
+              {feasts.map((feast, i) => (
+                <View key={i} style={[styles.feastItem, i < feasts.length - 1 && styles.feastBorder]}>
+                  <View style={styles.feastDate}>
+                    <Text style={styles.feastMonth}>{feast.month}</Text>
+                    <Text style={styles.feastDay}>{feast.day}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.feastTitle}>{feast.title}</Text>
+                    <Text style={styles.feastDesc}>{feast.desc}</Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.feastTitle}>{feast.title}</Text>
-                  <Text style={styles.feastDesc}>{feast.desc}</Text>
+              ))}
+            </Card>
+
+            <Card title="Upcoming Commemorations" titleIcon="✦">
+              {commems.map((c, i) => (
+                <View key={i} style={[styles.feastItem, i < commems.length - 1 && styles.feastBorder]}>
+                  <View style={styles.feastDate}>
+                    <Text style={styles.feastMonth}>{c.month}</Text>
+                    <Text style={styles.feastDay}>{c.day}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.feastTitle}>{c.title}</Text>
+                    <Text style={styles.feastDesc}>{c.desc}</Text>
+                  </View>
                 </View>
-              </View>
-            ))}
-          </Card>
+              ))}
+            </Card>
+          </>
         )}
 
         {sections.includes('foc') && (
@@ -561,7 +593,7 @@ export default function DashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 48 },
@@ -678,4 +710,4 @@ const styles = StyleSheet.create({
   scheduleIcon: { fontSize: 18 },
   scheduleText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream },
   scheduleSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 1 },
-});
+}));

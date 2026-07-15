@@ -2,10 +2,10 @@ import React from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { useSession } from '@/lib/auth';
 
-const PORTALS = [
+const PORTALS = lazyThemed(() => [
   {
     icon: '◉',
     title: 'Congregant',
@@ -33,7 +33,7 @@ const PORTALS = [
     accentColor: colors.green,
     accentBg: colors.greenBg,
   },
-] as const;
+] as const);
 
 export default function PortalsScreen() {
   const router = useRouter();

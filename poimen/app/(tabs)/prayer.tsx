@@ -4,7 +4,7 @@ import {
   Animated, PanResponder, ActivityIndicator, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { confirmDestructive } from '@/lib/confirm';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
@@ -301,7 +301,7 @@ export default function PrayerScreen() {
             style={styles.bodyInput}
             multiline
             placeholder="Describe your request — this is encrypted and only readable by the recipient(s) you chose above."
-            placeholderTextColor="rgba(245,240,232,0.22)"
+            placeholderTextColor={colors.faint}
             value={body}
             onChangeText={setBody}
           />
@@ -337,7 +337,7 @@ export default function PrayerScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
@@ -354,14 +354,14 @@ const styles = StyleSheet.create({
 
   // Opaque background — the swipe actions sit behind this row and must not
   // show through until revealed by the swipe.
-  reqItem: { padding: 14, backgroundColor: '#0d182e', borderWidth: 1, borderColor: colors.border, borderRadius: 10 },
+  reqItem: { padding: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 10 },
   reqTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 5 },
   reqTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, flex: 1 },
   reqDate: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, flexShrink: 0 },
   reqBody: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, marginBottom: 6 },
   reqVis: { flexDirection: 'row', alignItems: 'center' },
   reqVisText: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted },
-  swipeHint: { fontFamily: fonts.latoLight, fontSize: 9, color: 'rgba(245,240,232,0.2)', marginTop: 6, letterSpacing: 0.3 },
+  swipeHint: { fontFamily: fonts.latoLight, fontSize: 9, color: colors.faint, marginTop: 6, letterSpacing: 0.3 },
 
   divider: { height: 1, backgroundColor: colors.border },
 
@@ -387,9 +387,9 @@ const styles = StyleSheet.create({
   visChipTextActive: { color: colors.goldLight },
   visDescription: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 6, paddingLeft: 2, lineHeight: 16 },
 
-  bodyInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, minHeight: 80, textAlignVertical: 'top', lineHeight: 20, marginBottom: 4 },
+  bodyInput: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, minHeight: 80, textAlignVertical: 'top', lineHeight: 20, marginBottom: 4 },
   submitError: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.red, marginTop: 8 },
   btnGoldFull: { backgroundColor: colors.gold, borderRadius: 8, padding: 13, alignItems: 'center', marginTop: 14 },
   btnDisabled: { opacity: 0.35 },
   btnGoldText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.navy, letterSpacing: 0.8 },
-});
+}));

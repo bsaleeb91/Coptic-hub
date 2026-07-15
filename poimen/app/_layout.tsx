@@ -22,7 +22,7 @@ import * as db from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { TutorialProvider } from '@/lib/tutorial-context';
 import { Modal, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView } from 'react-native';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts, applyTheme, loadThemeMode, ThemeMode } from '@/lib/theme';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -180,6 +180,15 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  // The theme must be applied BEFORE any route module loads: screen
+  // StyleSheets capture color values when their module first executes, and
+  // route modules execute lazily on first render — so gating render here is
+  // what makes the palette swap stick app-wide.
+  const [themeMode, setThemeMode] = useState<ThemeMode | null>(null);
+  useEffect(() => {
+    loadThemeMode().then(m => { applyTheme(m); setThemeMode(m); });
+  }, []);
+
   const [cormorantLoaded] = useCormorant({
     CormorantGaramond_300Light,
     CormorantGaramond_400Regular,
@@ -197,17 +206,17 @@ export default function RootLayout() {
   const fontsLoaded = Platform.OS === 'web' || (cormorantLoaded && latoLoaded);
 
   useEffect(() => {
-    if (fontsLoaded && Platform.OS !== 'web') SplashScreen.hideAsync();
-  }, [fontsLoaded]);
+    if (fontsLoaded && themeMode !== null && Platform.OS !== 'web') SplashScreen.hideAsync();
+  }, [fontsLoaded, themeMode]);
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded || themeMode === null) return null;
 
   return (
     <DemoProvider>
       <AuthProvider>
         <TutorialProvider>
           <RootLayoutNav />
-          <StatusBar style="light" />
+          <StatusBar style={themeMode === 'light' ? 'dark' : 'light'} />
         </TutorialProvider>
       </AuthProvider>
     </DemoProvider>

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
 import {
@@ -24,8 +24,6 @@ import ScrollPicker from '@/components/ui/ScrollPicker';
 
 const SP = { xs: 6, sm: 10, md: 14, lg: 20, xl: 28 };
 const R = { md: 10, lg: 12, full: 999 };
-const SECOND = 'rgba(245,240,232,0.75)';
-const CARD_BG = 'rgba(10,16,30,0.5)';
 
 // ─── Small controls ───────────────────────────────────────────────────────────
 
@@ -51,7 +49,7 @@ function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () 
       style={[s.chip, { borderColor: on ? colors.gold : colors.border, backgroundColor: on ? colors.gold : 'transparent' }]}
       onPress={onPress}
     >
-      <Text style={{ color: on ? colors.navy : SECOND, fontSize: 12, fontFamily: fonts.latoBold }}>{label}</Text>
+      <Text style={{ color: on ? colors.navy : colors.textSecond, fontSize: 12, fontFamily: fonts.latoBold }}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -279,7 +277,7 @@ export default function RuleScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const s = lazyThemed(() => StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.navy },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
@@ -287,11 +285,11 @@ const s = StyleSheet.create({
   headerBack: { fontFamily: fonts.lato, fontSize: 14, color: colors.gold, width: 54 },
   headerTitle: { fontFamily: fonts.cormorantMedium, fontSize: 20, color: colors.cream },
 
-  note:          { fontFamily: fonts.latoLight, fontSize: 12, lineHeight: 18, fontStyle: 'italic', marginBottom: SP.lg, color: SECOND },
-  sectionLabel:  { fontFamily: fonts.latoBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: SP.sm, color: SECOND },
-  subLabel:      { fontFamily: fonts.latoBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6, color: SECOND },
+  note:          { fontFamily: fonts.latoLight, fontSize: 12, lineHeight: 18, fontStyle: 'italic', marginBottom: SP.lg, color: colors.textSecond },
+  sectionLabel:  { fontFamily: fonts.latoBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: SP.sm, color: colors.textSecond },
+  subLabel:      { fontFamily: fonts.latoBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6, color: colors.textSecond },
 
-  fieldRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: R.lg, padding: SP.md, marginBottom: SP.sm, backgroundColor: CARD_BG },
+  fieldRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: R.lg, padding: SP.md, marginBottom: SP.sm, backgroundColor: colors.panel },
   fieldLabel:    { fontFamily: fonts.lato, fontSize: 14, flex: 1, color: colors.cream },
   fieldNote:     { fontFamily: fonts.latoLight, fontSize: 11, lineHeight: 16, marginBottom: SP.sm, marginTop: -2, color: colors.muted },
 
@@ -300,18 +298,18 @@ const s = StyleSheet.create({
   stepBtnText:   { fontSize: 20, fontFamily: fonts.latoBold, color: colors.gold },
   stepValue:     { fontFamily: fonts.latoBold, fontSize: 15, minWidth: 56, textAlign: 'center', color: colors.cream },
 
-  card:          { borderWidth: 1, borderColor: colors.border, borderRadius: R.lg, padding: SP.md, marginBottom: SP.sm, backgroundColor: CARD_BG },
+  card:          { borderWidth: 1, borderColor: colors.border, borderRadius: R.lg, padding: SP.md, marginBottom: SP.sm, backgroundColor: colors.panel },
   cardHead:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle:     { fontFamily: fonts.latoBold, fontSize: 14, marginBottom: SP.sm, color: colors.cream },
   chipRow:       { flexDirection: 'row', alignItems: 'center', gap: SP.xs },
   chip:          { borderWidth: 1, borderRadius: R.full, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6, marginBottom: 6 },
-  input:         { borderWidth: 1, borderColor: colors.border, borderRadius: R.md, padding: SP.sm, fontSize: 14, color: colors.cream, fontFamily: fonts.lato, backgroundColor: 'rgba(10,16,30,0.7)' },
+  input:         { borderWidth: 1, borderColor: colors.border, borderRadius: R.md, padding: SP.sm, fontSize: 14, color: colors.cream, fontFamily: fonts.lato, backgroundColor: colors.panel },
 
-  dayCard:       { borderWidth: 1, borderRadius: R.lg, padding: SP.md, marginBottom: SP.sm, backgroundColor: CARD_BG },
+  dayCard:       { borderWidth: 1, borderRadius: R.lg, padding: SP.md, marginBottom: SP.sm, backgroundColor: colors.panel },
   serveHead:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: SP.sm, marginBottom: 6 },
   serveEntry:    { borderWidth: 1, borderColor: colors.border, borderRadius: R.md, padding: SP.sm, marginBottom: 6 },
   dayHead:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   dayName:       { fontFamily: fonts.latoBold, fontSize: 14, color: colors.cream },
   daySummary:    { fontFamily: fonts.latoLight, fontSize: 12, marginTop: 2, color: colors.muted },
 
-});
+}));

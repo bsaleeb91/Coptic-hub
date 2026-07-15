@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
@@ -129,7 +129,7 @@ export default function LogEncounterScreen() {
             onChangeText={t => { setMemberSearch(t); setShowMemberList(true); setSelectedMemberId(''); }}
             onFocus={() => setShowMemberList(true)}
             placeholder="Search member..."
-            placeholderTextColor="rgba(245,240,232,0.22)"
+            placeholderTextColor={colors.faint}
           />
           {showMemberList && filteredMembers.length > 0 && (
             <View style={styles.memberDropdown}>
@@ -172,7 +172,7 @@ export default function LogEncounterScreen() {
             value={encounterDate}
             onChangeText={t => { setEncounterDate(t); setDateError(''); }}
             placeholder="E.g., Jun 7, 2026"
-            placeholderTextColor="rgba(245,240,232,0.22)"
+            placeholderTextColor={colors.faint}
           />
           {dateError ? <Text style={styles.errorText}>{dateError}</Text> : null}
         </Card>
@@ -182,7 +182,7 @@ export default function LogEncounterScreen() {
           <TextInput
             style={[styles.textInput, { minHeight: 90, textAlignVertical: 'top' }]}
             placeholder="E.g., We discussed the importance of the Agpeya as a rhythm of prayer..."
-            placeholderTextColor="rgba(245,240,232,0.22)"
+            placeholderTextColor={colors.faint}
             multiline
             value={memberNote}
             onChangeText={setMemberNote}
@@ -198,7 +198,7 @@ export default function LogEncounterScreen() {
           <TextInput
             style={[styles.textInput, { minHeight: 90, textAlignVertical: 'top' }]}
             placeholder="Your private observations and pastoral notes..."
-            placeholderTextColor="rgba(245,240,232,0.22)"
+            placeholderTextColor={colors.faint}
             multiline
             value={privateNote}
             onChangeText={setPrivateNote}
@@ -210,7 +210,7 @@ export default function LogEncounterScreen() {
           <TextInput
             style={styles.textInput}
             placeholder="E.g., Jun 29 after Feast of Peter & Paul Liturgy"
-            placeholderTextColor="rgba(245,240,232,0.22)"
+            placeholderTextColor={colors.faint}
             value={followUpDate}
             onChangeText={setFollowUpDate}
           />
@@ -248,7 +248,7 @@ function today(): string {
   return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 48 },
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
   pageTitle: { fontFamily: fonts.cormorantMedium, fontSize: 26, color: colors.cream, marginBottom: 4 },
   pageSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 20 },
 
-  textInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12 },
+  textInput: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12 },
   fieldHint: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, marginTop: 6, lineHeight: 15 },
   errorText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginTop: 6 },
 
@@ -292,4 +292,4 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: colors.gold, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   saveBtnDisabled: { opacity: 0.35 },
   saveBtnText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.navy, letterSpacing: 1 },
-});
+}));

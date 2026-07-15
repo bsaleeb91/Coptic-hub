@@ -13,7 +13,7 @@ import {
   TextInput, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
@@ -22,29 +22,38 @@ import { SIN_CATALOGUE } from '@/lib/confession/sinCatalogue';
 import { resetVitalsEpoch } from '@/lib/canon/history';
 import { confirmDestructive } from '@/lib/confirm';
 import { recordConfession, loadConfessionDates } from '@/lib/confession/dates';
+import {
+  NotepadIcon, ClipboardIcon, PrayingHandsIcon, LockIcon,
+  SpeechIcon, ThoughtIcon, EarIcon, EyeIcon, HandIcon, PrayerRopeIcon, PencilIcon,
+} from '@/components/ui/TabIcons';
 import type { SinCategory, SinFrequency, JournalCategory, JournalIncident, ExamChecks } from '@/lib/confession/types';
 import {
   loadIncidents, addIncident, deleteIncident, clearIncidents,
   loadExam, saveExam, clearExam,
 } from '@/lib/confession/store';
 
-const SECOND = 'rgba(245,240,232,0.75)';
-const CARD_BG = 'rgba(10,16,30,0.5)';
 
 const FREQ_LABEL: Record<SinFrequency, string> = { once: 'Once', few: 'A few times', often: 'Often' };
 
 // Dark-theme-friendly palette per examination domain (the Nepsis light-mode
 // colorLight values don't read on navy, so we map to Poimen's accents).
-type DomainMeta = { label: string; icon: string; color: string; bg: string };
-const DOMAIN_META: Record<JournalCategory, DomainMeta> = {
-  tongue:              { label: 'The Tongue',          icon: '🗣', color: '#e07a86',      bg: 'rgba(224,112,112,0.12)' },
-  thoughts:            { label: 'Thoughts',            icon: '💭', color: colors.blue,    bg: colors.blueBg },
-  hearing:             { label: 'Hearing',             icon: '👂', color: colors.goldLight,bg: colors.goldDim },
-  eyes:                { label: 'The Eyes',            icon: '👁', color: colors.green,    bg: colors.greenBg },
-  actions:             { label: 'Actions',             icon: '🤲', color: colors.purple,   bg: 'rgba(201,160,220,0.12)' },
-  neglected_practices: { label: 'Neglected Practices', icon: '📿', color: '#c2b199',      bg: 'rgba(194,177,153,0.12)' },
-  other:               { label: 'Other',               icon: '📝', color: colors.muted,    bg: colors.creamDim },
+// Each domain keeps its own accent color; the line icons (TabIcons.tsx) are
+// tinted with it at render time.
+type DomainMeta = {
+  label: string;
+  icon: React.ComponentType<{ size?: number; color?: string }>;
+  color: string;
+  bg: string;
 };
+const DOMAIN_META: Record<JournalCategory, DomainMeta> = lazyThemed(() => ({
+  tongue:              { label: 'The Tongue',          icon: SpeechIcon,     color: '#e07a86',       bg: 'rgba(224,112,112,0.12)' },
+  thoughts:            { label: 'Thoughts',            icon: ThoughtIcon,    color: colors.blue,     bg: colors.blueBg },
+  hearing:             { label: 'Hearing',             icon: EarIcon,        color: colors.goldLight, bg: colors.goldDim },
+  eyes:                { label: 'The Eyes',            icon: EyeIcon,        color: colors.green,     bg: colors.greenBg },
+  actions:             { label: 'Actions',             icon: HandIcon,       color: colors.purple,    bg: 'rgba(201,160,220,0.12)' },
+  neglected_practices: { label: 'Neglected Practices', icon: PrayerRopeIcon, color: '#c2b199',       bg: 'rgba(194,177,153,0.12)' },
+  other:               { label: 'Other',               icon: PencilIcon,     color: colors.muted,     bg: colors.creamDim },
+}));
 
 const CATEGORIES: SinCategory[] = ['tongue', 'thoughts', 'hearing', 'eyes', 'actions', 'neglected_practices'];
 const DOMAINS: JournalCategory[] = [...CATEGORIES, 'other'];
@@ -142,7 +151,7 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
 
         {/* Privacy banner */}
         <View style={styles.privacyBanner}>
-          <Text style={styles.privacyLock}>🔒</Text>
+          <View style={{ flexShrink: 0, marginTop: 1 }}><LockIcon size={18} color={colors.gold} /></View>
           <Text style={styles.privacyText}>
             <Text style={styles.strong}>Encrypted on your device. </Text>
             Your journal and examination are saved between confessions, encrypted with a key that never
@@ -152,16 +161,16 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
 
         {/* Prepare */}
         <Text style={styles.sectionLabel}>PREPARE</Text>
-        <ModuleCard icon="📓" title="Confession journal"
+        <ModuleCard icon={<NotepadIcon size={22} color={colors.gold} />} title="Confession journal"
           sub="Log incidents as they happen — waiting for you in your notes"
           onPress={() => onNav('journal')} />
-        <ModuleCard icon="📋" title="Examination of conscience"
+        <ModuleCard icon={<ClipboardIcon size={22} color={colors.gold} />} title="Examination of conscience"
           sub="Review each day and before confession — carries into your notes"
           onPress={() => onNav('examination')} />
 
         {/* During confession */}
         <Text style={styles.sectionLabel}>DURING CONFESSION</Text>
-        <ModuleCard icon="🙏" title="My confession notes"
+        <ModuleCard icon={<PrayingHandsIcon size={22} color={colors.gold} />} title="My confession notes"
           sub={"Tap each item as you speak it —\nnothing is sent anywhere"}
           onPress={() => onNav('session')} accent />
 
@@ -178,7 +187,7 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
               value={selfReportDate}
               onChangeText={t => { setSelfReportDate(t); setSelfReportError(''); }}
               placeholder="E.g., Jun 15, 2026"
-              placeholderTextColor="rgba(245,240,232,0.22)"
+              placeholderTextColor={colors.faint}
             />
             {selfReportError ? <Text style={styles.selfReportError}>{selfReportError}</Text> : null}
             <TouchableOpacity
@@ -240,11 +249,11 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
 }
 
 function ModuleCard({ icon, title, sub, onPress, accent }: {
-  icon: string; title: string; sub: string; onPress: () => void; accent?: boolean;
+  icon: React.ReactNode; title: string; sub: string; onPress: () => void; accent?: boolean;
 }) {
   return (
     <TouchableOpacity style={[styles.moduleCard, accent && { borderColor: colors.gold + '55' }]} onPress={onPress} activeOpacity={0.85}>
-      <View style={styles.moduleIcon}><Text style={{ fontSize: 20 }}>{icon}</Text></View>
+      <View style={styles.moduleIcon}>{icon}</View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.moduleTitle}>{title}</Text>
         {/* Each line as its own Text: works around an iOS paint bug where the
@@ -288,7 +297,7 @@ function JournalView({ onBack }: { onBack: () => void }) {
       <ScrollView contentContainerStyle={styles.content}>
         {loaded && incidents.length === 0 && (
           <View style={styles.emptyCard}>
-            <Text style={{ fontSize: 32, marginBottom: 10 }}>📓</Text>
+            <View style={{ marginBottom: 10, opacity: 0.6 }}><NotepadIcon size={32} color={colors.gold} /></View>
             <Text style={styles.emptyCardTitle}>Nothing logged yet</Text>
             <Text style={styles.emptyCardBody}>
               As things happen through the day, tap ＋ to note them under one of the six examination
@@ -320,7 +329,7 @@ function JournalView({ onBack }: { onBack: () => void }) {
               )}
               {!!inc.note && <Text style={styles.journalCardBody}>{inc.note}</Text>}
               <View style={[styles.domainTag, { backgroundColor: m.bg, borderColor: m.color + '44' }]}>
-                <Text style={{ fontSize: 12 }}>{m.icon}</Text>
+                <m.icon size={13} color={m.color} />
                 <Text style={[styles.domainTagText, { color: m.color }]}>{m.label}</Text>
               </View>
             </View>
@@ -374,7 +383,7 @@ function IncidentComposer({ onCancel, onSave }: {
                   style={[styles.domainChip, { borderColor: active ? m.color : colors.border, backgroundColor: active ? m.bg : 'transparent' }]}
                   onPress={() => { setCategory(cat); setSinId(null); }}
                 >
-                  <Text style={{ fontSize: 16 }}>{m.icon}</Text>
+                  <m.icon size={17} color={m.color} />
                   <Text style={[styles.domainChipText, { color: active ? m.color : colors.cream }]}>{m.label}</Text>
                 </TouchableOpacity>
               );
@@ -421,7 +430,7 @@ function IncidentComposer({ onCancel, onSave }: {
           <TextInput
             style={styles.noteInput}
             placeholder={category === 'other' ? 'Describe what you want to confess…' : 'Describe the moment in your own words…'}
-            placeholderTextColor="rgba(245,240,232,0.22)"
+            placeholderTextColor={colors.faint}
             multiline
             value={note}
             onChangeText={setNote}
@@ -483,7 +492,7 @@ function ExaminationView({ onBack }: { onBack: () => void }) {
           return (
             <TouchableOpacity key={cat} onPress={() => setCatIndex(i)}
               style={[styles.catPill, { borderColor: active ? m.color : 'transparent', backgroundColor: active ? m.bg : 'transparent' }]}>
-              <Text style={{ fontSize: 14 }}>{m.icon}</Text>
+              <m.icon size={15} color={m.color} />
               {cnt > 0 && <View style={[styles.catPillBadge, { backgroundColor: m.color }]}><Text style={styles.catPillBadgeText}>{cnt}</Text></View>}
             </TouchableOpacity>
           );
@@ -492,7 +501,7 @@ function ExaminationView({ onBack }: { onBack: () => void }) {
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.catHeaderCard, { backgroundColor: meta.bg, borderColor: meta.color + '44' }]}>
-          <Text style={{ fontSize: 28 }}>{meta.icon}</Text>
+          <meta.icon size={28} color={meta.color} />
           <View>
             <Text style={[styles.catHeaderTitle, { color: meta.color }]}>{meta.label}</Text>
             <Text style={[styles.catHeaderCount, { color: meta.color }]}>{catItems.length} items to consider</Text>
@@ -502,7 +511,7 @@ function ExaminationView({ onBack }: { onBack: () => void }) {
         {catItems.map(sin => {
           const currentFreq = checked.get(sin.id);
           return (
-            <View key={sin.id} style={[styles.sinCard, { borderColor: currentFreq ? meta.color + '55' : colors.border, backgroundColor: currentFreq ? meta.bg : CARD_BG }]}>
+            <View key={sin.id} style={[styles.sinCard, { borderColor: currentFreq ? meta.color + '55' : colors.border, backgroundColor: currentFreq ? meta.bg : colors.panel }]}>
               <Text style={styles.sinName}>{sin.name}</Text>
               <Text style={styles.sinDesc}>{sin.description}</Text>
               <Text style={[styles.sinScripture, { color: meta.color }]}>{sin.scripture}</Text>
@@ -513,7 +522,7 @@ function ExaminationView({ onBack }: { onBack: () => void }) {
                     <TouchableOpacity key={f.value}
                       style={[styles.freqBtn, { backgroundColor: active ? f.color : 'transparent', borderColor: active ? f.color : colors.border }]}
                       onPress={() => toggleFreq(sin.id, f.value)}>
-                      <Text style={[styles.freqBtnText, { color: active ? colors.navy : SECOND }]}>{f.label}</Text>
+                      <Text style={[styles.freqBtnText, { color: active ? colors.navy : colors.textSecond }]}>{f.label}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -599,7 +608,7 @@ function SessionView({ onBack, onComplete }: { onBack: () => void; onComplete: (
           return (
             <View key={cat} style={styles.catCard}>
               <View style={styles.sessionCatHead}>
-                <Text style={{ fontSize: 14 }}>{m.icon}</Text>
+                <m.icon size={15} color={m.color} />
                 <Text style={[styles.catLabel, { color: m.color }]}>{m.label}</Text>
               </View>
               {items.map(item => {
@@ -719,7 +728,7 @@ function CompleteView({ onBack }: { onBack: () => void }) {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.bigBtn, { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border }]} onPress={onBack}>
-          <Text style={[styles.bigBtnText, { color: SECOND }]}>Return to confession</Text>
+          <Text style={[styles.bigBtnText, { color: colors.textSecond }]}>Return to confession</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -737,7 +746,7 @@ export default function ConfessionScreen() {
   return <Hub onNav={setScreen} />;
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
@@ -756,10 +765,10 @@ const styles = StyleSheet.create({
   privacyText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, flex: 1 },
   strong: { fontFamily: fonts.latoBold, color: colors.cream },
 
-  sectionLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: SECOND, marginBottom: 8, marginTop: 6 },
+  sectionLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.textSecond, marginBottom: 8, marginTop: 6 },
   labelHint: { fontFamily: fonts.latoLight, letterSpacing: 0, textTransform: 'none', color: colors.muted },
 
-  moduleCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 12, marginBottom: 8, backgroundColor: CARD_BG },
+  moduleCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 12, marginBottom: 8, backgroundColor: colors.panel },
   moduleIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: colors.goldDim, alignItems: 'center', justifyContent: 'center' },
   moduleTitle: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.cream, flexShrink: 1 },
   moduleSub: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginTop: 2, lineHeight: 17, flexShrink: 1 },
@@ -767,7 +776,7 @@ const styles = StyleSheet.create({
 
   // Self-report
   lastConfDate: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.gold, marginBottom: 10, opacity: 0.85 },
-  dateInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, marginBottom: 10 },
+  dateInput: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, marginBottom: 10 },
   selfReportError: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginBottom: 8 },
   logBtn: { backgroundColor: colors.gold, borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginBottom: 10 },
   logBtnDisabled: { opacity: 0.5 },
@@ -793,14 +802,14 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.muted },
   emptyBody: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, textAlign: 'center', lineHeight: 17, opacity: 0.7 },
 
-  emptyCard: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 28, alignItems: 'center', marginTop: 8, backgroundColor: CARD_BG },
+  emptyCard: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 28, alignItems: 'center', marginTop: 8, backgroundColor: colors.panel },
   emptyCardTitle: { fontFamily: fonts.latoBold, fontSize: 15, color: colors.cream, marginBottom: 6 },
-  emptyCardBody: { fontFamily: fonts.latoLight, fontSize: 13, color: SECOND, lineHeight: 20, textAlign: 'center' },
+  emptyCardBody: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.textSecond, lineHeight: 20, textAlign: 'center' },
   emptyBtn: { marginTop: 16, backgroundColor: colors.gold, paddingVertical: 11, paddingHorizontal: 22, borderRadius: 10 },
   emptyBtnText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.navy },
 
   // Journal cards
-  journalCard: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, marginBottom: 8, backgroundColor: CARD_BG },
+  journalCard: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, marginBottom: 8, backgroundColor: colors.panel },
   journalCardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6 },
   journalCardTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream },
   journalCardDate: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 2 },
@@ -821,7 +830,7 @@ const styles = StyleSheet.create({
   pickCardDesc: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, marginTop: 4, marginBottom: 4 },
   pickCardRef: { fontFamily: fonts.latoBold, fontSize: 11 },
   noteLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, marginBottom: 8 },
-  noteInput: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, minHeight: 110, fontFamily: fonts.latoLight, fontSize: 14, lineHeight: 20, color: colors.cream, backgroundColor: 'rgba(10,16,30,0.7)' },
+  noteInput: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, minHeight: 110, fontFamily: fonts.latoLight, fontSize: 14, lineHeight: 20, color: colors.cream, backgroundColor: colors.panel },
   composerHint: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, marginTop: 12 },
 
   // Examination
@@ -846,16 +855,16 @@ const styles = StyleSheet.create({
 
   // Session
   sessionIntro: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 14, lineHeight: 18 },
-  catCard: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, marginBottom: 10, backgroundColor: CARD_BG },
+  catCard: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, marginBottom: 10, backgroundColor: colors.panel },
   sessionCatHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 8 },
   catLabel: { fontFamily: fonts.latoBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 },
-  sessionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(245,240,232,0.06)' },
+  sessionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.creamDim },
   sessionRowDone: { opacity: 0.4 },
   sessionDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
   sessionItemName: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream },
   sessionItemSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 2 },
   strikethrough: { textDecorationLine: 'line-through' },
-  sessionNote: { backgroundColor: CARD_BG, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginTop: 4 },
+  sessionNote: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginTop: 4 },
   sessionNoteText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },
   bigBtn: { width: '100%', paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 10 },
   bigBtnText: { fontFamily: fonts.latoBold, fontSize: 14, letterSpacing: 0.3 },
@@ -870,4 +879,4 @@ const styles = StyleSheet.create({
   stepNum: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.navyMid, alignItems: 'center', justifyContent: 'center' },
   stepNumText: { color: colors.goldLight, fontSize: 11, fontFamily: fonts.latoBold },
   afterStepText: { color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, lineHeight: 19, flex: 1 },
-});
+}));
