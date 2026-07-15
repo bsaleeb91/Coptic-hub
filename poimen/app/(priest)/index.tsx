@@ -124,7 +124,7 @@ export default function FlockScreen() {
             <Text style={styles.pageTitle}>My Flock</Text>
             <Text style={styles.pageSubtitle}>{today} · {greeting}</Text>
           </View>
-          <TouchableOpacity style={styles.switchBtn} onPress={() => router.push('/(drawer)/index')}>
+          <TouchableOpacity style={styles.switchBtn} onPress={() => router.push('/(drawer)')}>
             <Text style={styles.switchBtnText}>MY VIEW</Text>
           </TouchableOpacity>
         </View>

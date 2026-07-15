@@ -37,7 +37,7 @@ export default function SignInScreen() {
     if (mode === 'signin') {
       const { error } = await signInWithEmail(email.trim(), password);
       if (error) setError(error);
-      else router.replace('/(drawer)/index');
+      else router.replace('/(drawer)');
     } else if (mode === 'signup') {
       const { error } = await signUpWithEmail(email.trim(), password, fullName.trim());
       if (error) setError(error);
@@ -154,7 +154,7 @@ export default function SignInScreen() {
           <View style={styles.demoGrid}>
             <TouchableOpacity
               style={[styles.demoBtn, styles.demoBtnCong]}
-              onPress={() => { setDemoRole('congregant'); setDemoMode(true); router.replace('/(drawer)/index'); }}
+              onPress={() => { setDemoRole('congregant'); setDemoMode(true); router.replace('/(drawer)'); }}
             >
               <Text style={styles.demoBtnRole}>Congregant</Text>
               <Text style={styles.demoBtnDesc}>My spiritual life</Text>

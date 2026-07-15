@@ -159,7 +159,7 @@ function RootLayoutNav() {
   if (!demoMode && !loading) {
     const onSignIn = segments[0] === 'sign-in';
     if (!session && !onSignIn) return <Redirect href="/sign-in" />;
-    if (session && onSignIn) return <Redirect href="/(drawer)/index" />;
+    if (session && onSignIn) return <Redirect href="/(drawer)" />;
   }
 
   return (
