@@ -72,7 +72,10 @@ export async function insertCanon(row: Record<string, any>): Promise<{ error: st
 }
 
 export async function deactivateCanon(canonId: string): Promise<{ error: string | null }> {
-  const { error } = await supabase.from('spiritual_canons').update({ active: false }).eq('id', canonId);
+  const { error } = await supabase
+    .from('spiritual_canons')
+    .update({ active: false, end_date: new Date().toISOString().slice(0, 10) })
+    .eq('id', canonId);
   return { error: error?.message ?? null };
 }
 
