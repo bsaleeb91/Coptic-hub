@@ -482,8 +482,8 @@ export default function ProfileScreen() {
         <Card title="Appearance" titleIcon="◐">
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {([
-              { mode: 'dark' as ThemeMode, label: '🌙  Midnight' },
-              { mode: 'light' as ThemeMode, label: '📜  Parchment' },
+              { mode: 'dark' as ThemeMode, label: 'Dark Mode' },
+              { mode: 'light' as ThemeMode, label: 'Light Mode' },
             ]).map(opt => (
               <TouchableOpacity
                 key={opt.mode}
@@ -502,7 +502,7 @@ export default function ProfileScreen() {
             ))}
           </View>
           <Text style={{ fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 10, lineHeight: 16 }}>
-            Midnight is Poimen's navy and gold; Parchment is a bright Byzantine palette —
+            Dark mode is Poimen's navy and gold; light mode is a bright Byzantine palette —
             warm parchment, sepia ink, and liturgical crimson. Switching reloads the app.
           </Text>
         </Card>
