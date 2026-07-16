@@ -16,6 +16,7 @@ import {
   Lato_700Bold,
   useFonts as useLato,
 } from '@expo-google-fonts/lato';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, useSession } from '@/lib/auth';
 import { DemoProvider, useDemoMode } from '@/lib/demo';
 import * as db from '@/lib/db';
@@ -212,13 +213,15 @@ export default function RootLayout() {
   if (!fontsLoaded || themeMode === null) return null;
 
   return (
-    <DemoProvider>
-      <AuthProvider>
-        <TutorialProvider>
-          <RootLayoutNav />
-          <StatusBar style={themeMode === 'light' ? 'dark' : 'light'} />
-        </TutorialProvider>
-      </AuthProvider>
-    </DemoProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <DemoProvider>
+        <AuthProvider>
+          <TutorialProvider>
+            <RootLayoutNav />
+            <StatusBar style={themeMode === 'light' ? 'dark' : 'light'} />
+          </TutorialProvider>
+        </AuthProvider>
+      </DemoProvider>
+    </GestureHandlerRootView>
   );
 }

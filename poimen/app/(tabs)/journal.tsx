@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { confirmDestructive } from '@/lib/confirm';
+import { fetchDayGospel, gospelExcerpt, DayGospel } from '@/lib/lectionary';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
@@ -95,6 +96,12 @@ export default function JournalScreen() {
   const [loading, setLoading] = useState(!demoMode);
   const [savingEntry, setSavingEntry] = useState(false);
   const [viewEntry, setViewEntry] = useState<JournalEntry | null>(null);
+
+  // Today's Gospel from the Coptic lectionary (null = unavailable → static
+  // fallback prompt). Fetched once per mount; cached per-date on device.
+  const [gospel, setGospel] = useState<DayGospel | null>(null);
+  const [showFullGospel, setShowFullGospel] = useState(false);
+  useEffect(() => { fetchDayGospel().then(setGospel); }, []);
 
   // New entry form
   const [entryTitle, setEntryTitle] = useState('');
@@ -244,15 +251,50 @@ export default function JournalScreen() {
           )}
         </Card>
 
-        {/* Today's Prompt — static liturgical, same in both modes */}
+        {/* Today's Prompt — the Gospel of the day from the Coptic lectionary
+            (Katameros), with a static fallback when the reading can't load. */}
         <Card title="Today's Prompt" titleIcon="◇">
-          <Text style={styles.promptFast}>Apostles' Fast · Day 12</Text>
-          <Text style={styles.promptQuote}>"Watch and pray that you may not enter into temptation. The spirit indeed is willing, but the flesh is weak."</Text>
-          <Text style={styles.promptRef}>Matthew 26:41</Text>
-          <View style={styles.divider} />
-          <Text style={styles.promptReflection}>
-            Reflect on a moment this week when your spirit was willing but your flesh felt weak. What did you learn about yourself? What did you learn about God's grace?
-          </Text>
+          {gospel ? (() => {
+            const excerpt = gospelExcerpt(gospel);
+            return (
+              <>
+                <Text style={styles.promptFast}>From the Gospel of the day</Text>
+                <Text style={styles.promptQuote}>"{excerpt.text}"</Text>
+                <Text style={styles.promptRef}>{excerpt.ref}</Text>
+                <TouchableOpacity onPress={() => setShowFullGospel(v => !v)} hitSlop={6}>
+                  <Text style={styles.promptExpand}>
+                    {showFullGospel ? 'Hide the full reading ▴' : `Read the full Gospel — ${gospel.reference} ▾`}
+                  </Text>
+                </TouchableOpacity>
+                {showFullGospel && gospel.passages.map(p => (
+                  <View key={`${p.book}-${p.ref}`} style={styles.fullPassage}>
+                    <Text style={styles.fullPassageRef}>{p.book} {p.ref}</Text>
+                    <Text style={styles.fullPassageText}>
+                      {p.verses.map(v => (
+                        <Text key={v.number}>
+                          <Text style={styles.verseNum}>{v.number} </Text>{v.text}{' '}
+                        </Text>
+                      ))}
+                    </Text>
+                  </View>
+                ))}
+                <View style={styles.divider} />
+                <Text style={styles.promptReflection}>
+                  Sit with these words from today's liturgy. What is the Lord saying to you
+                  through them? Let your entry begin there.
+                </Text>
+              </>
+            );
+          })() : (
+            <>
+              <Text style={styles.promptQuote}>"Watch and pray that you may not enter into temptation. The spirit indeed is willing, but the flesh is weak."</Text>
+              <Text style={styles.promptRef}>Matthew 26:41</Text>
+              <View style={styles.divider} />
+              <Text style={styles.promptReflection}>
+                Reflect on a moment this week when your spirit was willing but your flesh felt weak. What did you learn about yourself? What did you learn about God's grace?
+              </Text>
+            </>
+          )}
         </Card>
 
       </ScrollView>
@@ -301,6 +343,11 @@ const styles = lazyThemed(() => StyleSheet.create({
   promptQuote: { fontFamily: fonts.cormorantItalic, fontSize: 17, color: colors.cream, lineHeight: 26, marginBottom: 8 },
   promptRef: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 10 },
   promptReflection: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 20 },
+  promptExpand: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.gold, marginBottom: 10 },
+  fullPassage: { marginBottom: 10 },
+  fullPassageRef: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: colors.muted, marginBottom: 4 },
+  fullPassageText: { fontFamily: fonts.cormorant, fontSize: 16, color: colors.cream, lineHeight: 25 },
+  verseNum: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.gold },
 
   // Entry detail
   detailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },

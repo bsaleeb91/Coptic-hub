@@ -23,9 +23,14 @@ export interface SinItem {
 // A journal incident sits under one of the six examination domains, or "other".
 export type JournalCategory = SinCategory | 'other';
 
+// Incidents may also be filed under the relational examination's categories
+// (Poimen's original style — see relationalExamination.ts).
+import type { RelationalCategory } from './relationalExamination';
+export type IncidentCategory = JournalCategory | RelationalCategory;
+
 export interface JournalIncident {
   id: string;
-  category: JournalCategory;
+  category: IncidentCategory;
   sinId?: string;              // optional specific item from the catalogue
   title: string;               // short label (sin name, or first words of the note)
   note: string;                // free-text explanation (encrypted at rest)

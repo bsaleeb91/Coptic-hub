@@ -8,7 +8,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { encryptNote, decryptNote } from '@/lib/crypto';
-import type { JournalIncident, JournalCategory, ExamChecks } from './types';
+import type { JournalIncident, IncidentCategory, ExamChecks } from './types';
 
 const K_INCIDENTS = 'poimen.confession.incidents';
 const K_EXAM      = 'poimen.confession.exam';
@@ -53,7 +53,7 @@ export async function loadIncidents(): Promise<JournalIncident[]> {
 }
 
 export async function addIncident(
-  input: { category: JournalCategory; sinId?: string; title: string; note: string },
+  input: { category: IncidentCategory; sinId?: string; title: string; note: string },
 ): Promise<JournalIncident[]> {
   const list = await loadIncidents();
   const incident: JournalIncident = {
@@ -93,4 +93,23 @@ export async function saveExam(checks: ExamChecks): Promise<void> {
 
 export async function clearExam(): Promise<void> {
   try { await AsyncStorage.removeItem(K_EXAM); } catch {}
+}
+
+// ─── Examination style ─────────────────────────────────────────────────────────
+// Which organization of the examination the user prefers: the Nepsis
+// senses-based sin catalogue, or Poimen's original relational questions
+// (Toward God / Others / Self / Omissions). A plain UI preference — not
+// encrypted. Checks from both styles share the exam store above.
+
+const K_EXAM_STYLE = 'poimen.confession.examStyle';
+export type ExamStyle = 'senses' | 'relational';
+
+export async function loadExamStyle(): Promise<ExamStyle> {
+  try {
+    return (await AsyncStorage.getItem(K_EXAM_STYLE)) === 'relational' ? 'relational' : 'senses';
+  } catch { return 'senses'; }
+}
+
+export async function saveExamStyle(style: ExamStyle): Promise<void> {
+  try { await AsyncStorage.setItem(K_EXAM_STYLE, style); } catch {}
 }

@@ -1,144 +1,88 @@
-import { Tabs } from 'expo-router';
+// app/(tabs)/_layout.tsx
+// Congregant navigation — a swipe-from-left drawer (the Nepsis pattern), which
+// replaced the bottom tab bar. Pull from the left edge (or tap ☰ on Home) to
+// open it. The folder keeps its historical "(tabs)" name so the many
+// router.push('/(tabs)/…') references across the app stay valid.
+
+import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, fonts , lazyThemed } from '@/lib/theme';
+import { Drawer } from 'expo-router/drawer';
+import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, fonts, lazyThemed } from '@/lib/theme';
 import Harp from '@/components/ui/Harp';
 import { HouseIcon, NotepadIcon, PrayingHandsIcon, CandleIcon } from '@/components/ui/TabIcons';
 
-function TabIcon({
-  symbol,
-  icon,
-  label,
-  focused,
-}: {
-  symbol?: string;
-  icon?: React.ReactNode;
-  label: string;
-  focused: boolean;
-}) {
+function DrawerHeader() {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.tabItem}>
-      {icon ?? (
-        <Text style={[styles.symbol, focused && styles.symbolActive]}>{symbol}</Text>
-      )}
-      <Text style={[styles.label, focused && styles.labelActive]} numberOfLines={1}>{label}</Text>
+    <View style={[styles.brand, { paddingTop: insets.top + 20 }]}>
+      <Text style={styles.brandCross}>✝︎</Text>
+      <Text style={styles.brandName}>Poimen</Text>
+      <Text style={styles.brandSub}>pastoral care, rooted in Tradition</Text>
     </View>
   );
 }
 
-export default function TabLayout() {
+function CustomDrawerContent(props: any) {
   return (
-    <Tabs
+    <View style={{ flex: 1, backgroundColor: colors.navy }}>
+      <DrawerHeader />
+      <DrawerContentScrollView {...props} contentContainerStyle={{ paddingTop: 8 }}>
+        <DrawerItemList {...props} />
+      </DrawerContentScrollView>
+    </View>
+  );
+}
+
+type IconProps = { color: string };
+
+export default function DrawerLayout() {
+  return (
+    <Drawer
+      drawerContent={CustomDrawerContent}
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarShowLabel: false,
+        swipeEnabled: true,
+        swipeEdgeWidth: 60,
+        drawerActiveTintColor: colors.gold,
+        drawerInactiveTintColor: colors.muted,
+        drawerActiveBackgroundColor: colors.goldDim,
+        drawerStyle: { backgroundColor: colors.navy },
+        drawerLabelStyle: { fontFamily: fonts.lato, fontSize: 15 },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon={<HouseIcon size={20} color={focused ? colors.gold : colors.muted} />}
-              label="Home"
-              focused={focused}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="confession"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            // \uFE0E after the cross forces text presentation: iOS otherwise
-            // swaps in the color emoji cross (white on purple square), which
-            // ignores tinting.
-            <TabIcon symbol={'\u271D\uFE0E'} label="Confess" focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="journal"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon={<NotepadIcon size={20} color={focused ? colors.gold : colors.muted} />}
-              label="Journal"
-              focused={focused}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="prayer"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon={<PrayingHandsIcon size={20} color={focused ? colors.gold : colors.muted} />}
-              label="Prayer"
-              focused={focused}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="psalms"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon={<Harp size={20} color={focused ? colors.gold : colors.muted} />}
-              label="Psalms"
-              focused={focused}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="canon"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon={<CandleIcon size={20} color={focused ? colors.gold : colors.muted} />}
-              label="Canon"
-              focused={focused}
-            />
-          ),
-        }}
-      />
-    </Tabs>
+      <Drawer.Screen name="index" options={{
+        title: 'Home',
+        drawerIcon: ({ color }: IconProps) => <HouseIcon size={20} color={color} />,
+      }} />
+      <Drawer.Screen name="confession" options={{
+        title: 'Confession',
+        drawerIcon: ({ color }: IconProps) => <Text style={{ fontSize: 18, color, width: 20, textAlign: 'center' }}>✝︎</Text>,
+      }} />
+      <Drawer.Screen name="journal" options={{
+        title: 'Journal',
+        drawerIcon: ({ color }: IconProps) => <NotepadIcon size={20} color={color} />,
+      }} />
+      <Drawer.Screen name="prayer" options={{
+        title: 'Prayer',
+        drawerIcon: ({ color }: IconProps) => <PrayingHandsIcon size={20} color={color} />,
+      }} />
+      <Drawer.Screen name="psalms" options={{
+        title: 'Psalms',
+        drawerIcon: ({ color }: IconProps) => <Harp size={20} color={color} />,
+      }} />
+      <Drawer.Screen name="canon" options={{
+        title: 'Canon',
+        drawerIcon: ({ color }: IconProps) => <CandleIcon size={20} color={color} />,
+      }} />
+    </Drawer>
   );
 }
 
 const styles = lazyThemed(() => StyleSheet.create({
-  tabBar: {
-    backgroundColor: colors.navyDark,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    height: 64,
-    paddingBottom: 6,
-    paddingTop: 6,
-  },
-  tabItem: {
-    alignItems: 'center',
-    gap: 2,
-    width: 56,
-  },
-  symbol: {
-    fontSize: 17,
-    color: colors.muted,
-  },
-  symbolActive: {
-    color: colors.gold,
-  },
-  label: {
-    fontFamily: fonts.latoLight,
-    fontSize: 9,
-    color: colors.muted,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  labelActive: {
-    fontFamily: fonts.latoBold,
-    color: colors.goldLight,
-  },
+  brand: { alignItems: 'center', paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: colors.border },
+  brandCross: { fontSize: 30, color: colors.gold },
+  brandName: { fontFamily: fonts.cormorantMedium, fontSize: 24, color: colors.cream, letterSpacing: 2, marginTop: 8 },
+  brandSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, fontStyle: 'italic', marginTop: 2 },
 }));

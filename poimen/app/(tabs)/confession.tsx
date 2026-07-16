@@ -23,14 +23,18 @@ import { resetVitalsEpoch } from '@/lib/canon/history';
 import { confirmDestructive } from '@/lib/confirm';
 import { recordConfession, loadConfessionDates } from '@/lib/confession/dates';
 import {
-  NotepadIcon, ClipboardIcon, PrayingHandsIcon, LockIcon,
+  NotepadIcon, ClipboardIcon, PrayingHandsIcon, LockIcon, CrossIcon, HeartIcon,
   SpeechIcon, ThoughtIcon, EarIcon, EyeIcon, HandIcon, PrayerRopeIcon, PencilIcon,
 } from '@/components/ui/TabIcons';
-import type { SinCategory, SinFrequency, JournalCategory, JournalIncident, ExamChecks } from '@/lib/confession/types';
+import type { SinCategory, SinFrequency, JournalCategory, IncidentCategory, JournalIncident, ExamChecks } from '@/lib/confession/types';
 import {
   loadIncidents, addIncident, deleteIncident, clearIncidents,
   loadExam, saveExam, clearExam,
+  ExamStyle, loadExamStyle, saveExamStyle,
 } from '@/lib/confession/store';
+import {
+  RELATIONAL_CATEGORIES, RELATIONAL_EXAMINATION, RelationalCategory,
+} from '@/lib/confession/relationalExamination';
 
 
 const FREQ_LABEL: Record<SinFrequency, string> = { once: 'Once', few: 'A few times', often: 'Often' };
@@ -57,6 +61,20 @@ const DOMAIN_META: Record<JournalCategory, DomainMeta> = lazyThemed(() => ({
 
 const CATEGORIES: SinCategory[] = ['tongue', 'thoughts', 'hearing', 'eyes', 'actions', 'neglected_practices'];
 const DOMAINS: JournalCategory[] = [...CATEGORIES, 'other'];
+
+// Section metadata for the relational (original Poimen) examination style.
+const RELATIONAL_META: Record<RelationalCategory, DomainMeta> = lazyThemed(() => ({
+  toward_god:    { label: 'Toward God',    icon: CrossIcon,     color: colors.goldLight, bg: colors.goldDim },
+  toward_others: { label: 'Toward Others', icon: HeartIcon,     color: '#e07a86',        bg: 'rgba(224,112,112,0.12)' },
+  toward_self:   { label: 'Toward Self',   icon: EyeIcon,       color: colors.blue,      bg: colors.blueBg },
+  omissions:     { label: 'Omissions',     icon: ClipboardIcon, color: colors.green,     bg: colors.greenBg },
+}));
+
+type ExamSectionKey = JournalCategory | RelationalCategory;
+const sectionMeta = (k: ExamSectionKey): DomainMeta =>
+  (RELATIONAL_CATEGORIES as string[]).includes(k)
+    ? RELATIONAL_META[k as RelationalCategory]
+    : DOMAIN_META[k as JournalCategory];
 
 function relTime(ms: number): string {
   const d = new Date(ms);
@@ -300,8 +318,8 @@ function JournalView({ onBack }: { onBack: () => void }) {
             <View style={{ marginBottom: 10, opacity: 0.6 }}><NotepadIcon size={32} color={colors.gold} /></View>
             <Text style={styles.emptyCardTitle}>Nothing logged yet</Text>
             <Text style={styles.emptyCardBody}>
-              As things happen through the day, tap ＋ to note them under one of the six examination
-              domains. Whatever you record here will be waiting in your confession notes.
+              As things happen through the day, tap ＋ to note them under an examination
+              domain. Whatever you record here will be waiting in your confession notes.
             </Text>
             <TouchableOpacity style={styles.emptyBtn} onPress={() => setAdding(true)}>
               <Text style={styles.emptyBtnText}>＋  Log an incident</Text>
@@ -311,8 +329,9 @@ function JournalView({ onBack }: { onBack: () => void }) {
 
         {incidents.length > 0 && <Text style={styles.sectionLabel}>SINCE YOUR LAST CONFESSION</Text>}
         {incidents.map(inc => {
-          const m = DOMAIN_META[inc.category];
+          const m = sectionMeta(inc.category);
           const sin = inc.sinId ? SIN_CATALOGUE.find(s => s.id === inc.sinId) : undefined;
+          const relQ = !sin && inc.sinId ? RELATIONAL_EXAMINATION.find(q => q.id === inc.sinId) : undefined;
           return (
             <View key={inc.id} style={styles.journalCard}>
               <View style={styles.journalCardHeader}>
@@ -327,6 +346,7 @@ function JournalView({ onBack }: { onBack: () => void }) {
                   {sin.description}  <Text style={{ color: m.color }}>{sin.scripture}</Text>
                 </Text>
               )}
+              {!!relQ?.note && <Text style={styles.journalCardExplain}>{relQ.note}</Text>}
               {!!inc.note && <Text style={styles.journalCardBody}>{inc.note}</Text>}
               <View style={[styles.domainTag, { backgroundColor: m.bg, borderColor: m.color + '44' }]}>
                 <m.icon size={13} color={m.color} />
@@ -344,20 +364,39 @@ function JournalView({ onBack }: { onBack: () => void }) {
 
 function IncidentComposer({ onCancel, onSave }: {
   onCancel: () => void;
-  onSave: (input: { category: JournalCategory; sinId?: string; title: string; note: string }) => void;
+  onSave: (input: { category: IncidentCategory; sinId?: string; title: string; note: string }) => void;
 }) {
-  const [category, setCategory] = useState<JournalCategory | null>(null);
+  const [category, setCategory] = useState<IncidentCategory | null>(null);
   const [sinId, setSinId] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [noteFocused, setNoteFocused] = useState(false);
+  // Same style choice as the examination (shared preference): file the
+  // incident under a senses domain or a relational category.
+  const [entryStyle, setEntryStyle] = useState<ExamStyle>('senses');
+  useEffect(() => { loadExamStyle().then(setEntryStyle); }, []);
 
-  const catItems = category && category !== 'other' ? SIN_CATALOGUE.filter(s => s.category === category) : [];
-  const selectedSin = SIN_CATALOGUE.find(s => s.id === sinId);
+  const senseMode = entryStyle === 'senses';
+  const switchStyle = (s: ExamStyle) => {
+    if (s === entryStyle) return;
+    setEntryStyle(s);
+    setCategory(null);
+    setSinId(null);
+    saveExamStyle(s);
+  };
+
+  const domainList: IncidentCategory[] = senseMode ? DOMAINS : [...RELATIONAL_CATEGORIES, 'other'];
+  const catItems = !category || category === 'other' ? []
+    : senseMode
+      ? SIN_CATALOGUE.filter(s => s.category === category).map(s => ({ id: s.id, name: s.name, description: s.description as string | undefined, scripture: s.scripture as string | undefined }))
+      : RELATIONAL_EXAMINATION.filter(q => q.category === category).map(q => ({ id: q.id, name: q.text, description: q.note, scripture: undefined }));
+  const selectedName = sinId
+    ? (SIN_CATALOGUE.find(s => s.id === sinId)?.name ?? RELATIONAL_EXAMINATION.find(q => q.id === sinId)?.text)
+    : undefined;
   const canSave = !!category && (!!sinId || note.trim().length > 0);
 
   const save = () => {
     if (!category) return;
-    const title = selectedSin?.name || note.trim().split('\n')[0].slice(0, 60) || DOMAIN_META[category].label;
+    const title = selectedName || note.trim().split('\n')[0].slice(0, 60) || sectionMeta(category).label;
     onSave({ category, sinId: sinId ?? undefined, title, note });
   };
 
@@ -372,10 +411,25 @@ function IncidentComposer({ onCancel, onSave }: {
       </View>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+          <View style={[styles.styleToggleRow, { paddingHorizontal: 0, paddingTop: 0, marginBottom: 14 }]}>
+            {([
+              { value: 'senses' as ExamStyle, label: 'By the Senses' },
+              { value: 'relational' as ExamStyle, label: 'Toward God & Others' },
+            ]).map(opt => {
+              const active = entryStyle === opt.value;
+              return (
+                <TouchableOpacity key={opt.value} onPress={() => switchStyle(opt.value)}
+                  style={[styles.styleToggleBtn, { borderColor: active ? colors.gold : colors.border, backgroundColor: active ? colors.goldDim : 'transparent' }]}>
+                  <Text style={[styles.styleToggleText, { color: active ? colors.goldLight : colors.muted }]}>{opt.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           <Text style={styles.sectionLabel}>WHICH DOMAIN?</Text>
           <View style={styles.domainGrid}>
-            {DOMAINS.map(cat => {
-              const m = DOMAIN_META[cat];
+            {domainList.map(cat => {
+              const m = sectionMeta(cat);
               const active = category === cat;
               return (
                 <TouchableOpacity
@@ -397,7 +451,7 @@ function IncidentComposer({ onCancel, onSave }: {
               </Text>
               {catItems.map(s => {
                 const active = sinId === s.id;
-                const m = DOMAIN_META[category];
+                const m = sectionMeta(category!);
                 return (
                   <TouchableOpacity
                     key={s.id}
@@ -411,8 +465,8 @@ function IncidentComposer({ onCancel, onSave }: {
                         {active && <Text style={styles.pickRadioTick}>✓</Text>}
                       </View>
                     </View>
-                    <Text style={styles.pickCardDesc}>{s.description}</Text>
-                    <Text style={[styles.pickCardRef, { color: m.color }]}>{s.scripture}</Text>
+                    {!!s.description && <Text style={styles.pickCardDesc}>{s.description}</Text>}
+                    {!!s.scripture && <Text style={[styles.pickCardRef, { color: m.color }]}>{s.scripture}</Text>}
                   </TouchableOpacity>
                 );
               })}
@@ -453,12 +507,33 @@ function IncidentComposer({ onCancel, onSave }: {
 function ExaminationView({ onBack }: { onBack: () => void }) {
   const [checked, setChecked] = useState<Map<string, SinFrequency>>(new Map());
   const [catIndex, setCatIndex] = useState(0);
+  // Two examination styles: the Nepsis senses-based catalogue, or Poimen's
+  // original relational questions. The choice persists; checks from both
+  // styles share the store and merge in the confession notes.
+  const [examStyle, setExamStyle] = useState<ExamStyle>('senses');
 
-  useEffect(() => { loadExam().then(obj => setChecked(new Map(Object.entries(obj) as [string, SinFrequency][]))); }, []);
+  useEffect(() => {
+    loadExamStyle().then(setExamStyle);
+    loadExam().then(obj => setChecked(new Map(Object.entries(obj) as [string, SinFrequency][])));
+  }, []);
 
-  const currentCat = CATEGORIES[catIndex];
-  const catItems = SIN_CATALOGUE.filter(s => s.category === currentCat);
-  const meta = DOMAIN_META[currentCat];
+  const senseMode = examStyle === 'senses';
+  const switchStyle = (s: ExamStyle) => {
+    if (s === examStyle) return;
+    setExamStyle(s);
+    setCatIndex(0);
+    saveExamStyle(s);
+  };
+
+  const cats: ExamSectionKey[] = senseMode ? CATEGORIES : RELATIONAL_CATEGORIES;
+  const currentCat = cats[catIndex];
+  const meta = sectionMeta(currentCat);
+  const itemsFor = (cat: ExamSectionKey) => senseMode
+    ? SIN_CATALOGUE.filter(s => s.category === cat).map(s => ({ id: s.id, name: s.name, description: s.description as string | undefined, scripture: s.scripture as string | undefined }))
+    : RELATIONAL_EXAMINATION.filter(q => q.category === cat).map(q => ({ id: q.id, name: q.text, description: q.note, scripture: undefined }));
+  const catItems = itemsFor(currentCat);
+  const styleIds = new Set((senseMode ? SIN_CATALOGUE.map(s => s.id) : RELATIONAL_EXAMINATION.map(q => q.id)));
+  const notedCount = [...checked.keys()].filter(id => styleIds.has(id)).length;
 
   const FREQ_OPTIONS: { label: string; value: SinFrequency; color: string }[] = [
     { label: 'Once', value: 'once', color: colors.muted },
@@ -476,18 +551,34 @@ function ExaminationView({ onBack }: { onBack: () => void }) {
   };
 
   const isFirst = catIndex === 0;
-  const isLast = catIndex === CATEGORIES.length - 1;
+  const isLast = catIndex === cats.length - 1;
 
   return (
     <SafeAreaView style={styles.safe}>
       <SubHeader title="Examination" onBack={onBack}
-        right={<Text style={styles.headerCount}>{checked.size} noted</Text>} />
+        right={<Text style={styles.headerCount}>{notedCount} noted</Text>} />
+
+      {/* Style toggle — senses (Nepsis) vs relational (original Poimen) */}
+      <View style={styles.styleToggleRow}>
+        {([
+          { value: 'senses' as ExamStyle, label: 'By the Senses' },
+          { value: 'relational' as ExamStyle, label: 'Toward God & Others' },
+        ]).map(opt => {
+          const active = examStyle === opt.value;
+          return (
+            <TouchableOpacity key={opt.value} onPress={() => switchStyle(opt.value)}
+              style={[styles.styleToggleBtn, { borderColor: active ? colors.gold : colors.border, backgroundColor: active ? colors.goldDim : 'transparent' }]}>
+              <Text style={[styles.styleToggleText, { color: active ? colors.goldLight : colors.muted }]}>{opt.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
       {/* Category pills */}
       <View style={styles.catPills}>
-        {CATEGORIES.map((cat, i) => {
-          const m = DOMAIN_META[cat];
-          const cnt = SIN_CATALOGUE.filter(s => s.category === cat && checked.has(s.id)).length;
+        {cats.map((cat, i) => {
+          const m = sectionMeta(cat);
+          const cnt = itemsFor(cat).filter(it => checked.has(it.id)).length;
           const active = i === catIndex;
           return (
             <TouchableOpacity key={cat} onPress={() => setCatIndex(i)}
@@ -513,8 +604,8 @@ function ExaminationView({ onBack }: { onBack: () => void }) {
           return (
             <View key={sin.id} style={[styles.sinCard, { borderColor: currentFreq ? meta.color + '55' : colors.border, backgroundColor: currentFreq ? meta.bg : colors.panel }]}>
               <Text style={styles.sinName}>{sin.name}</Text>
-              <Text style={styles.sinDesc}>{sin.description}</Text>
-              <Text style={[styles.sinScripture, { color: meta.color }]}>{sin.scripture}</Text>
+              {!!sin.description && <Text style={styles.sinDesc}>{sin.description}</Text>}
+              {!!sin.scripture && <Text style={[styles.sinScripture, { color: meta.color }]}>{sin.scripture}</Text>}
               <View style={styles.freqBtns}>
                 {FREQ_OPTIONS.map(f => {
                   const active = currentFreq === f.value;
@@ -545,7 +636,7 @@ function ExaminationView({ onBack }: { onBack: () => void }) {
             </TouchableOpacity>
           )}
         </View>
-        <Text style={styles.catProgress}>Category {catIndex + 1} of {CATEGORIES.length}</Text>
+        <Text style={styles.catProgress}>Category {catIndex + 1} of {cats.length}</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -569,18 +660,21 @@ function SessionView({ onBack, onComplete }: { onBack: () => void; onComplete: (
     const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next;
   });
 
-  type NoteItem = { id: string; category: JournalCategory; title: string; detail?: string };
+  type NoteItem = { id: string; category: ExamSectionKey; title: string; detail?: string };
   const examItems: NoteItem[] = Object.entries(exam)
-    .map(([sinId, freq]): NoteItem | null => {
-      const sin = SIN_CATALOGUE.find(s => s.id === sinId);
-      if (!sin) return null;
-      return { id: `exam:${sinId}`, category: sin.category, title: sin.name, detail: `${FREQ_LABEL[freq]} · ${sin.scripture}` };
+    .map(([id, freq]): NoteItem | null => {
+      const sin = SIN_CATALOGUE.find(s => s.id === id);
+      if (sin) return { id: `exam:${id}`, category: sin.category, title: sin.name, detail: `${FREQ_LABEL[freq]} · ${sin.scripture}` };
+      const q = RELATIONAL_EXAMINATION.find(r => r.id === id);
+      if (q) return { id: `exam:${id}`, category: q.category, title: q.text, detail: FREQ_LABEL[freq] };
+      return null;
     })
     .filter((x): x is NoteItem => x !== null);
   const journalItems: NoteItem[] = incidents.map(inc => ({ id: inc.id, category: inc.category, title: inc.title, detail: inc.note || undefined }));
   const allItems = [...examItems, ...journalItems];
   const remaining = allItems.length - spoken.size;
-  const grouped = DOMAINS.map(cat => ({ cat, items: allItems.filter(i => i.category === cat) })).filter(g => g.items.length > 0);
+  const sections: ExamSectionKey[] = [...DOMAINS, ...RELATIONAL_CATEGORIES];
+  const grouped = sections.map(cat => ({ cat, items: allItems.filter(i => i.category === cat) })).filter(g => g.items.length > 0);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -604,7 +698,7 @@ function SessionView({ onBack, onComplete }: { onBack: () => void; onComplete: (
         )}
 
         {grouped.map(({ cat, items }) => {
-          const m = DOMAIN_META[cat];
+          const m = sectionMeta(cat);
           return (
             <View key={cat} style={styles.catCard}>
               <View style={styles.sessionCatHead}>
@@ -762,6 +856,10 @@ const styles = lazyThemed(() => StyleSheet.create({
 
   privacyBanner: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', backgroundColor: 'rgba(201,168,76,0.05)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)', borderRadius: 12, padding: 16, marginBottom: 16 },
   privacyLock: { fontSize: 18, flexShrink: 0 },
+
+  styleToggleRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingTop: 12 },
+  styleToggleBtn: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 999, borderWidth: 1 },
+  styleToggleText: { fontFamily: fonts.latoBold, fontSize: 12 },
   privacyText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, flex: 1 },
   strong: { fontFamily: fonts.latoBold, color: colors.cream },
 

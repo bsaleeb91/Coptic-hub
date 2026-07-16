@@ -4,7 +4,8 @@ import {
   Animated, Modal, Dimensions, AccessibilityInfo,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useNavigation } from 'expo-router';
+import { DrawerActions } from '@react-navigation/native';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
@@ -161,6 +162,7 @@ function TimelineRow({ item, last }: { item: any; last: boolean }) {
 // ── Main screen ───────────────────────────────────────────────
 export default function DashboardScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { profile, user, refreshProfile } = useSession();
   const { demoMode, demoRole } = useDemoMode();
   const firstName = profile?.full_name?.split(' ')[0] ?? 'friend';
@@ -320,6 +322,13 @@ export default function DashboardScreen() {
 
         {/* Header */}
         <View style={styles.topbar}>
+          <TouchableOpacity
+            style={[styles.chipBtn, { marginRight: 12 }]}
+            onPress={() => { H.tap(); navigation.dispatch(DrawerActions.openDrawer()); }}
+            hitSlop={8}
+          >
+            <Text style={styles.chipBtnText}>☰</Text>
+          </TouchableOpacity>
           <View style={{ flex: 1, marginRight: 12 }}>
             <Text style={styles.subtitle}>{getDashboardSubtitle()}</Text>
             <Text style={styles.greeting}>{firstName}</Text>
