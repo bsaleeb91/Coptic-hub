@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Modal } from 'react-native';
 import * as H from '@/lib/haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
+import { DrawerActions } from '@react-navigation/native';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { CrossIcon, CandleIcon, PersonIcon } from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
@@ -54,6 +56,7 @@ const FILTER_OPTS: { value: FilterType; label: string }[] = [
 
 export default function FlockScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { user, profile } = useSession();
   const { demoMode } = useDemoMode();
   const [filter, setFilter] = useState<FilterType>('all');
@@ -120,9 +123,18 @@ export default function FlockScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
 
         <View style={styles.topbar}>
-          <View>
-            <Text style={styles.pageTitle}>My Flock</Text>
-            <Text style={styles.pageSubtitle}>{today} · {greeting}</Text>
+          <View style={styles.topbarLeft}>
+            <TouchableOpacity
+              style={styles.menuBtn}
+              onPress={() => { H.tap(); navigation.dispatch(DrawerActions.openDrawer()); }}
+              hitSlop={8}
+            >
+              <Text style={styles.menuBtnText}>☰</Text>
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.pageTitle}>My Flock</Text>
+              <Text style={styles.pageSubtitle}>{today} · {greeting}</Text>
+            </View>
           </View>
           <TouchableOpacity style={styles.switchBtn} onPress={() => router.push('/(tabs)')}>
             <Text style={styles.switchBtnText}>MY VIEW</Text>
@@ -188,9 +200,10 @@ export default function FlockScreen() {
                     </View>
                   </View>
                   <View style={styles.memberMeta}>
+                    <CrossIcon size={12} color={colors.muted} />
                     {member.daysSince !== null
-                      ? <Text style={styles.metaItem}>✝︎ {member.daysSince}d ago</Text>
-                      : <Text style={styles.metaItem}>✝︎ No record</Text>
+                      ? <Text style={styles.metaItem}>{member.daysSince}d ago</Text>
+                      : <Text style={styles.metaItem}>No record</Text>
                     }
                     {member.stage ? (
                       <>
@@ -236,7 +249,7 @@ export default function FlockScreen() {
                   H.tap(); setContextMember(null);
                   router.push({ pathname: '/(priest)/log-encounter', params: { id: contextMember.id, name: contextMember.name } });
                 }}>
-                  <Text style={ctx.actionIcon}>✝︎</Text>
+                  <View style={ctx.actionIcon}><CrossIcon size={18} color={colors.gold} /></View>
                   <Text style={ctx.actionLabel}>Log Encounter</Text>
                   <Text style={ctx.actionChevron}>›</Text>
                 </TouchableOpacity>
@@ -244,7 +257,7 @@ export default function FlockScreen() {
                   H.tap(); setContextMember(null);
                   router.push({ pathname: '/(priest)/assign-canon', params: { id: contextMember.id, name: contextMember.name } });
                 }}>
-                  <Text style={ctx.actionIcon}>📜</Text>
+                  <View style={ctx.actionIcon}><CandleIcon size={18} color={colors.gold} /></View>
                   <Text style={ctx.actionLabel}>Assign Canon</Text>
                   <Text style={ctx.actionChevron}>›</Text>
                 </TouchableOpacity>
@@ -252,7 +265,7 @@ export default function FlockScreen() {
                   H.tap(); setContextMember(null);
                   router.push({ pathname: '/(priest)/member', params: { id: contextMember.id, name: contextMember.name } });
                 }}>
-                  <Text style={ctx.actionIcon}>◉</Text>
+                  <View style={ctx.actionIcon}><PersonIcon size={18} color={colors.gold} /></View>
                   <Text style={ctx.actionLabel}>View Profile</Text>
                   <Text style={ctx.actionChevron}>›</Text>
                 </TouchableOpacity>
@@ -277,7 +290,7 @@ const ctx = lazyThemed(() => StyleSheet.create({
   memberMeta: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 16 },
   divider: { height: 1, backgroundColor: colors.creamDim, marginVertical: 8 },
   action: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
-  actionIcon: { width: 24, fontSize: 15, marginRight: 12 },
+  actionIcon: { width: 24, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   actionLabel: { fontFamily: fonts.lato, fontSize: 15, color: colors.cream, flex: 1 },
   actionChevron: { fontFamily: fonts.lato, fontSize: 20, color: colors.muted },
   cancelBtn: { paddingVertical: 14, alignItems: 'center' },
@@ -290,6 +303,9 @@ const styles = lazyThemed(() => StyleSheet.create({
   content: { padding: 20, paddingBottom: 40 },
 
   topbar: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 },
+  topbarLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 12 },
+  menuBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 11, paddingVertical: 6 },
+  menuBtnText: { fontFamily: fonts.lato, fontSize: 16, color: colors.gold },
   pageTitle: { fontFamily: fonts.cormorantMedium, fontSize: 28, color: colors.cream },
   pageSubtitle: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 4 },
   switchBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },

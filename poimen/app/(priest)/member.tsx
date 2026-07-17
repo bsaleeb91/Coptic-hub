@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { CandleIcon } from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
@@ -579,7 +580,7 @@ export default function MemberScreen() {
               style={styles.sheetRow}
               onPress={() => { setShowContactSheet(false); router.push({ pathname: '/(priest)/assign-canon', params: { memberId: memberId ?? '', memberName: memberName ?? memberInfo?.name ?? '' } }); }}
             >
-              <Text style={styles.sheetRowIcon}>📜</Text>
+              <View style={styles.sheetRowIcon}><CandleIcon size={18} color={colors.gold} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.sheetRowLabel}>Assign Canon</Text>
                 <Text style={styles.sheetRowValue}>Add a spiritual practice</Text>
@@ -734,7 +735,7 @@ const styles = lazyThemed(() => StyleSheet.create({
   sheetHandle: { width: 36, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 18 },
   sheetTitle: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 18 },
   sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
-  sheetRowIcon: { fontSize: 18, width: 26, textAlign: 'center', color: colors.gold },
+  sheetRowIcon: { width: 26, alignItems: 'center', justifyContent: 'center' },
   sheetRowLabel: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.muted, marginBottom: 2 },
   sheetRowValue: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.cream },
   sheetRowAction: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1, color: colors.gold, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 },

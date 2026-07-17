@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { CandleIcon, PencilIcon, PrayingHandsIcon } from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
@@ -211,7 +212,7 @@ export default function StudentScreen() {
                     <Text style={styles.btnGoldText}>+ ASSIGN CANON</Text>
                   </TouchableOpacity>
                 </View>
-                <Card title={`Assigned Canons (${canons.length})`} titleIcon="📜">
+                <Card title={`Assigned Canons (${canons.length})`} titleIconNode={<CandleIcon size={16} color={colors.gold} />}>
                   {canons.length === 0 ? (
                     <View style={styles.emptyState}>
                       <Text style={styles.emptyTitle}>No canons assigned yet</Text>
@@ -247,7 +248,7 @@ export default function StudentScreen() {
 
             {/* ── My Notes ── */}
             {tab === 'notes' && (
-              <Card title="My Notes" titleIcon="✎">
+              <Card title="My Notes" titleIconNode={<PencilIcon size={16} color={colors.gold} />}>
                 <Text style={styles.privacyNote}>✦ Private to you — not visible to the student or their FOC.</Text>
 
                 {notes.length === 0 && (
@@ -315,7 +316,7 @@ export default function StudentScreen() {
 
             {/* ── Prayer Requests ── */}
             {tab === 'prayer' && (
-              <Card title="Prayer Requests" titleIcon="◇">
+              <Card title="Prayer Requests" titleIconNode={<PrayingHandsIcon size={16} color={colors.gold} />}>
                 <Text style={styles.privacyNote}>✦ Requests {displayName.split(' ')[0]} has explicitly shared with their Sunday school servant.</Text>
                 {prayer.length === 0 ? (
                   <View style={styles.emptyState}>

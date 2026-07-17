@@ -20,6 +20,19 @@ export interface CategoryMeta {
   blurb: string;
 }
 
+// Kinds for the non-psalm Agpeya items (Gospels, litanies, absolutions, and
+// the fixed prayers of the hours), with the same tag/blurb treatment.
+export type PrayerKind = 'gospel' | 'litany' | 'absolution' | 'prayer' | 'creed' | 'epistle';
+
+export const PRAYER_KIND_META: Record<PrayerKind, CategoryMeta> = {
+  gospel:     { label: 'Gospel',     color: '#A8842C', blurb: 'The Gospel reading of this hour, as prayed in the Agpeya.' },
+  litany:     { label: 'Litany',     color: '#1F4E8C', blurb: 'A litany of the hour — prayed after the Gospel.' },
+  absolution: { label: 'Absolution', color: '#1D7A5C', blurb: 'The absolution that concludes this hour.' },
+  prayer:     { label: 'Prayer',     color: '#6A3D8F', blurb: 'A fixed prayer of the hour.' },
+  creed:      { label: 'Creed',      color: '#7A1F2B', blurb: 'The confession of the faith of the Church.' },
+  epistle:    { label: 'Epistle',    color: '#993C1D', blurb: 'The reading from the epistles of St. Paul.' },
+};
+
 export const CATEGORY_META: Record<PsalmCategory, CategoryMeta> = {
   repentance:   { label: 'Repentance',      color: '#7A1F2B', blurb: 'Penitential — sorrow for sin and a plea for mercy.' },
   praise:       { label: 'Praise',          color: '#A8842C', blurb: 'Glorifying God for who He is.' },

@@ -5,6 +5,7 @@ import { colors, fonts , lazyThemed } from '@/lib/theme';
 interface CardProps {
   title?: string;
   titleIcon?: string;
+  titleIconNode?: React.ReactNode;   // a drawn line-icon shown before the title
   action?: React.ReactNode;
   children: React.ReactNode;
   style?: ViewStyle;
@@ -12,7 +13,7 @@ interface CardProps {
   flat?: boolean;
 }
 
-export function Card({ title, titleIcon, action, children, style, bodyStyle, flat }: CardProps) {
+export function Card({ title, titleIcon, titleIconNode, action, children, style, bodyStyle, flat }: CardProps) {
   if (flat) {
     return (
       <View style={[styles.flat, style]}>
@@ -31,12 +32,15 @@ export function Card({ title, titleIcon, action, children, style, bodyStyle, fla
     <View style={[styles.card, style]}>
       {title && (
         <View style={styles.header}>
-          <Text style={styles.title}>
-            {titleIcon ? (
-              <Text style={styles.titleIcon}>{titleIcon}{'  '}</Text>
-            ) : null}
-            {title}
-          </Text>
+          <View style={styles.titleWrap}>
+            {titleIconNode ? <View style={styles.titleIconNode}>{titleIconNode}</View> : null}
+            <Text style={styles.title}>
+              {titleIcon ? (
+                <Text style={styles.titleIcon}>{titleIcon}{'  '}</Text>
+              ) : null}
+              {title}
+            </Text>
+          </View>
           {action}
         </View>
       )}
@@ -63,6 +67,17 @@ const styles = lazyThemed(() => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  titleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  titleIconNode: {
+    width: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontFamily: fonts.cormorantMedium,

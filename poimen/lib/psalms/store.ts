@@ -172,27 +172,45 @@ export function learningItem(selection: string[], cardMap: Record<string, PartCa
   return null;
 }
 
-// Due review cards, from every learned item (capped).
+// Every portion of an item has reached the mature interval — the item graduates
+// from portion review to whole-passage recitation.
+export function isFullyMature(item: string, cardMap: Record<string, PartCard>): boolean {
+  const { mature, total } = portionsMature(item, cardMap);
+  return total > 0 && mature === total;
+}
+
+// Due portion reviews. A portion is reviewable only once it has been *learned*
+// (answered correctly at least once, reps >= 1) and its scheduled date has
+// arrived — so a portion learned today (due tomorrow at the earliest) is never
+// reviewed the same day, and a portion still being learned (no card, or graded
+// "Wrong" so reps is still 0) stays in the learning queue, not here. Fully
+// mature passages are excluded: they are reviewed as a whole recitation instead.
 export function dueQueue(selection: string[], cardMap: Record<string, PartCard>): { item: string; part: number }[] {
   const due: { item: string; part: number }[] = [];
   for (const it of selection) {
+    if (isFullyMature(it, cardMap)) continue;
     const parts = unitCount(it);
     for (let i = 0; i < parts; i++) {
       const c = cardMap[cardId(it, i)];
-      if (c && isDue(c)) due.push({ item: it, part: i });
+      if (c && c.reps >= 1 && isDue(c)) due.push({ item: it, part: i });
     }
   }
   return due.slice(0, MAX_REVIEWS_PER_SESSION);
 }
 
-// Brand-new cards, only from the item currently being learned, in order.
+// Brand-new cards, only from the one item currently being learned, in order, up
+// to the daily budget — you learn one passage at a time. A portion counts as
+// still-to-learn until it has been answered correctly once (no card, or reps <
+// 1 after a "Wrong"), so a passage isn't finished — and the next one doesn't
+// begin — until every portion has been graded Hard/Good/Easy at least once.
 export function newQueue(selection: string[], cardMap: Record<string, PartCard>, newLimit: number = NEW_PER_SESSION): { item: string; part: number }[] {
   const fresh: { item: string; part: number }[] = [];
   const lp = learningItem(selection, cardMap);
   if (lp != null) {
     const parts = unitCount(lp);
     for (let i = 0; i < parts && fresh.length < newLimit; i++) {
-      if (!cardMap[cardId(lp, i)]) fresh.push({ item: lp, part: i });
+      const c = cardMap[cardId(lp, i)];
+      if (!c || c.reps < 1) fresh.push({ item: lp, part: i });
     }
   }
   return fresh;
@@ -257,6 +275,36 @@ export async function reviewRecite(item: string, existing: ReciteCard | undefine
   map[item] = card;
   await writeJSON(K_RECITE, map);
   return card;
+}
+
+// ─── Unified review queue (portion clozes + whole-passage recitations) ────────
+// A review unit is either a single due portion (cloze) of a passage still being
+// matured, or a whole-passage recitation for a passage whose portions are all
+// mature (reviewed in full, not portion by portion). Passages are visited in
+// selection order so each one's review comes up as a unit in turn.
+
+export type ReviewUnit =
+  | { item: string; kind: 'portion'; part: number }
+  | { item: string; kind: 'recite' };
+
+export function reviewQueue(
+  selection: string[],
+  cardMap: Record<string, PartCard>,
+  reciteMap: Record<string, ReciteCard>,
+): ReviewUnit[] {
+  const units: ReviewUnit[] = [];
+  for (const it of selection) {
+    const st = reciteState(it, cardMap, reciteMap);
+    if (st === 'ready' || st === 'retest') {
+      units.push({ item: it, kind: 'recite' });          // recite the whole passage
+    } else if (st === 'learning') {
+      for (const { part } of dueQueue([it], cardMap)) {   // due portions only
+        units.push({ item: it, kind: 'portion', part });
+      }
+    }
+    // 'memorized' — recited recently, nothing due now
+  }
+  return units.slice(0, MAX_REVIEWS_PER_SESSION);
 }
 
 // ─── Streak ───────────────────────────────────────────────────────────────────

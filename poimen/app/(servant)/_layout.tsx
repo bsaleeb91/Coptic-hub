@@ -1,65 +1,74 @@
-import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
-import { colors, fonts , lazyThemed } from '@/lib/theme';
+// app/(servant)/_layout.tsx
+// Servant (Sunday-school / youth servant) navigation — the same swipe-from-left
+// drawer as the congregant view, replacing the old bottom tab bar. Pull from the
+// left edge (or tap ☰ on the Students screen) to open it. Shared drawn-line icons.
 
-function TabIcon({ symbol, label, focused }: { symbol: string; label: string; focused: boolean }) {
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { Drawer } from 'expo-router/drawer';
+import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, fonts, lazyThemed } from '@/lib/theme';
+import { CongregationIcon, PersonIcon, CandleIcon } from '@/components/ui/TabIcons';
+
+function DrawerHeader() {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.tabItem}>
-      <Text style={[styles.symbol, focused && styles.symbolActive]}>{symbol}</Text>
-      <Text style={[styles.label, focused && styles.labelActive]}>{label}</Text>
+    <View style={[styles.brand, { paddingTop: insets.top + 20 }]}>
+      <Text style={styles.brandCross}>✝︎</Text>
+      <Text style={styles.brandName}>Poimen</Text>
+      <Text style={styles.brandSub}>Servant of the class</Text>
     </View>
   );
 }
 
+function CustomDrawerContent(props: any) {
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.navy }}>
+      <DrawerHeader />
+      <DrawerContentScrollView {...props} contentContainerStyle={{ paddingTop: 8 }}>
+        <DrawerItemList {...props} />
+      </DrawerContentScrollView>
+    </View>
+  );
+}
+
+type IconProps = { color: string };
+
 export default function ServantLayout() {
   return (
-    <Tabs
+    <Drawer
+      drawerContent={CustomDrawerContent}
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarShowLabel: false,
+        swipeEnabled: true,
+        swipeEdgeWidth: 60,
+        drawerActiveTintColor: colors.gold,
+        drawerInactiveTintColor: colors.muted,
+        drawerActiveBackgroundColor: colors.goldDim,
+        drawerStyle: { backgroundColor: colors.navy },
+        drawerLabelStyle: { fontFamily: fonts.lato, fontSize: 15 },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon symbol="◉" label="Students" focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="student"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon symbol="📖" label="Student" focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="assign-canon"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon symbol="📜" label="Canon" focused={focused} />
-          ),
-        }}
-      />
-    </Tabs>
+      <Drawer.Screen name="index" options={{
+        title: 'Students',
+        drawerIcon: ({ color }: IconProps) => <CongregationIcon size={20} color={color} />,
+      }} />
+      <Drawer.Screen name="student" options={{
+        title: 'Student',
+        drawerIcon: ({ color }: IconProps) => <PersonIcon size={20} color={color} />,
+      }} />
+      <Drawer.Screen name="assign-canon" options={{
+        title: 'Canon',
+        drawerIcon: ({ color }: IconProps) => <CandleIcon size={20} color={color} />,
+      }} />
+    </Drawer>
   );
 }
 
 const styles = lazyThemed(() => StyleSheet.create({
-  tabBar: {
-    backgroundColor: colors.navyDark,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(201,168,76,0.3)',
-    height: 72,
-    paddingBottom: 8,
-    paddingTop: 6,
-  },
-  tabItem: { alignItems: 'center', gap: 3 },
-  symbol: { fontSize: 18, color: colors.muted },
-  symbolActive: { color: colors.gold },
-  label: { fontFamily: fonts.latoLight, fontSize: 9, color: colors.muted, letterSpacing: 0.5, textTransform: 'uppercase' },
-  labelActive: { fontFamily: fonts.latoBold, color: colors.goldLight },
+  brand: { alignItems: 'center', paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: colors.border },
+  brandCross: { fontSize: 30, color: colors.gold },
+  brandName: { fontFamily: fonts.cormorantMedium, fontSize: 24, color: colors.cream, letterSpacing: 2, marginTop: 8 },
+  brandSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, fontStyle: 'italic', marginTop: 2 },
 }));

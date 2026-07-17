@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { CandleIcon, ClipboardIcon } from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
@@ -99,7 +100,7 @@ export default function AssignCanonScreen() {
         <Text style={styles.pageSub}>{displayName}</Text>
 
         {existingCanons.length > 0 && (
-          <Card title="Current Canon" titleIcon="◈">
+          <Card title="Current Canon" titleIconNode={<CandleIcon size={16} color={colors.gold} />}>
             {existingCanons.map((c, i) => (
               <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 }}>
                 <Text style={styles.contextNote}>{c.component}</Text>
@@ -109,7 +110,7 @@ export default function AssignCanonScreen() {
           </Card>
         )}
 
-        <Card title="Choose Component" titleIcon="📜">
+        <Card title="Choose Component" titleIconNode={<ClipboardIcon size={16} color={colors.gold} />}>
           {PRESET_COMPONENTS.map(group => (
             <View key={group.group}>
               <TouchableOpacity

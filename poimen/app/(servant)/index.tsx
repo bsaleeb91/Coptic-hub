@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
+import { DrawerActions } from '@react-navigation/native';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { CandleIcon } from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
@@ -23,6 +25,7 @@ const DEMO_STUDENTS: Student[] = [
 
 export default function ServantFlockScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { user, profile } = useSession();
   const { demoMode } = useDemoMode();
   const [students, setStudents] = useState<Student[]>([]);
@@ -70,9 +73,18 @@ export default function ServantFlockScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
 
         <View style={styles.topbar}>
-          <View>
-            <Text style={styles.pageTitle}>My Students</Text>
-            <Text style={styles.pageSubtitle}>{today} · {greeting}</Text>
+          <View style={styles.topbarLeft}>
+            <TouchableOpacity
+              style={styles.menuBtn}
+              onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+              hitSlop={8}
+            >
+              <Text style={styles.menuBtnText}>☰</Text>
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.pageTitle}>My Students</Text>
+              <Text style={styles.pageSubtitle}>{today} · {greeting}</Text>
+            </View>
           </View>
           <TouchableOpacity style={styles.switchBtn} onPress={() => router.push('/(tabs)')}>
             <Text style={styles.switchBtnText}>MY VIEW</Text>
@@ -120,7 +132,8 @@ export default function ServantFlockScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.studentName}>{student.name}</Text>
                   <View style={styles.studentMeta}>
-                    <Text style={styles.metaItem}>📜 {student.canonCount} canon{student.canonCount !== 1 ? 's' : ''}</Text>
+                    <CandleIcon size={12} color={colors.muted} />
+                    <Text style={styles.metaItem}>{student.canonCount} canon{student.canonCount !== 1 ? 's' : ''}</Text>
                     {student.lastActivity && (
                       <>
                         <Text style={styles.metaDot}>·</Text>
@@ -152,6 +165,9 @@ const styles = lazyThemed(() => StyleSheet.create({
   content: { padding: 20, paddingBottom: 40 },
 
   topbar: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 },
+  topbarLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 12 },
+  menuBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 11, paddingVertical: 6 },
+  menuBtnText: { fontFamily: fonts.lato, fontSize: 16, color: colors.gold },
   pageTitle: { fontFamily: fonts.cormorantMedium, fontSize: 28, color: colors.cream },
   pageSubtitle: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 4 },
   switchBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },

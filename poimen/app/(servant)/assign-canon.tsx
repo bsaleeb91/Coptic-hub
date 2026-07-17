@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { ClipboardIcon, CalendarIcon, PencilIcon } from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
@@ -110,7 +111,7 @@ export default function ServantAssignCanonScreen() {
           </TouchableOpacity>
         </Modal>
 
-        <Card title="Choose Practice" titleIcon="📜">
+        <Card title="Choose Practice" titleIconNode={<ClipboardIcon size={16} color={colors.gold} />}>
           {PRESET_COMPONENTS.map(group => (
             <View key={group.group}>
               <TouchableOpacity
@@ -147,7 +148,7 @@ export default function ServantAssignCanonScreen() {
           />
         </Card>
 
-        <Card title="Frequency" titleIcon="◇">
+        <Card title="Frequency" titleIconNode={<CalendarIcon size={16} color={colors.gold} />}>
           <View style={styles.freqRow}>
             {FREQ_OPTS.map(opt => (
               <TouchableOpacity
@@ -170,7 +171,7 @@ export default function ServantAssignCanonScreen() {
           )}
         </Card>
 
-        <Card title="Start Date" titleIcon="⊕">
+        <Card title="Start Date" titleIconNode={<CalendarIcon size={16} color={colors.gold} />}>
           <TextInput
             style={styles.textInput}
             value={startDate}
@@ -180,7 +181,7 @@ export default function ServantAssignCanonScreen() {
           />
         </Card>
 
-        <Card title="Encouragement Note (Optional)" titleIcon="✎">
+        <Card title="Encouragement Note (Optional)" titleIconNode={<PencilIcon size={16} color={colors.gold} />}>
           <TextInput
             style={[styles.textInput, { minHeight: 70, textAlignVertical: 'top' }]}
             placeholder={`Leave an encouraging note for ${firstName}...`}

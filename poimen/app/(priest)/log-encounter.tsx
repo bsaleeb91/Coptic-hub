@@ -4,19 +4,25 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import {
+  CrossIcon, SpeechIcon, ThoughtIcon, HouseIcon, PhoneIcon, CongregationIcon,
+  PersonIcon, ClipboardIcon, CalendarIcon, NotepadIcon, PencilIcon,
+} from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 
 type EncounterType = 'confession' | 'counseling' | 'advice' | 'visit' | 'phone' | 'group';
 
-const ENCOUNTER_TYPES: { value: EncounterType; label: string; desc: string }[] = [
-  { value: 'confession', label: '✝︎ Holy Confession', desc: 'Sacramental confession' },
-  { value: 'counseling', label: '◎ Counseling Session', desc: 'In-person pastoral guidance' },
-  { value: 'advice', label: '◇ Spiritual Advice', desc: 'Brief direction or answer' },
-  { value: 'visit', label: '⊕ Pastoral Visit', desc: 'Home or hospital visit' },
-  { value: 'phone', label: '◈ Phone / Video Call', desc: 'Remote check-in' },
-  { value: 'group', label: '◉ Group Encounter', desc: 'Retreat, group study, etc.' },
+type IconComp = React.ComponentType<{ size?: number; color?: string }>;
+
+const ENCOUNTER_TYPES: { value: EncounterType; label: string; desc: string; Icon: IconComp }[] = [
+  { value: 'confession', label: 'Holy Confession',   desc: 'Sacramental confession',        Icon: CrossIcon },
+  { value: 'counseling', label: 'Counseling Session', desc: 'In-person pastoral guidance',    Icon: SpeechIcon },
+  { value: 'advice',     label: 'Spiritual Advice',   desc: 'Brief direction or answer',      Icon: ThoughtIcon },
+  { value: 'visit',      label: 'Pastoral Visit',     desc: 'Home or hospital visit',         Icon: HouseIcon },
+  { value: 'phone',      label: 'Phone / Video Call', desc: 'Remote check-in',                Icon: PhoneIcon },
+  { value: 'group',      label: 'Group Encounter',    desc: 'Retreat, group study, etc.',     Icon: CongregationIcon },
 ];
 
 const DEMO_MEMBERS = [
@@ -122,7 +128,7 @@ export default function LogEncounterScreen() {
         <Text style={styles.pageSub}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</Text>
 
         {/* Member */}
-        <Card title="Member" titleIcon="◉">
+        <Card title="Member" titleIconNode={<PersonIcon size={16} color={colors.gold} />}>
           <TextInput
             style={styles.textInput}
             value={memberSearch}
@@ -149,24 +155,30 @@ export default function LogEncounterScreen() {
         </Card>
 
         {/* Encounter type */}
-        <Card title="Encounter Type" titleIcon="◇">
-          {ENCOUNTER_TYPES.map(opt => (
-            <TouchableOpacity
-              key={opt.value}
-              style={[styles.typeRow, encounterType === opt.value && styles.typeRowActive]}
-              onPress={() => setEncounterType(opt.value)}
-            >
-              <View style={[styles.typeRadio, encounterType === opt.value && styles.typeRadioActive]} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.typeLabel, encounterType === opt.value && styles.typeLabelActive]}>{opt.label}</Text>
-                <Text style={styles.typeDesc}>{opt.desc}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+        <Card title="Encounter Type" titleIconNode={<ClipboardIcon size={16} color={colors.gold} />}>
+          {ENCOUNTER_TYPES.map(opt => {
+            const active = encounterType === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={[styles.typeRow, active && styles.typeRowActive]}
+                onPress={() => setEncounterType(opt.value)}
+              >
+                <View style={[styles.typeRadio, active && styles.typeRadioActive]} />
+                <View style={styles.typeIcon}>
+                  <opt.Icon size={20} color={active ? colors.goldLight : colors.muted} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.typeLabel, active && styles.typeLabelActive]}>{opt.label}</Text>
+                  <Text style={styles.typeDesc}>{opt.desc}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </Card>
 
         {/* Date */}
-        <Card title="Date" titleIcon="⊕">
+        <Card title="Date" titleIconNode={<CalendarIcon size={16} color={colors.gold} />}>
           <TextInput
             style={styles.textInput}
             value={encounterDate}
@@ -178,7 +190,7 @@ export default function LogEncounterScreen() {
         </Card>
 
         {/* Member-visible note */}
-        <Card title="Note to Member (Visible in their Timeline)" titleIcon="◈">
+        <Card title="Note to Member (Visible in their Timeline)" titleIconNode={<NotepadIcon size={16} color={colors.gold} />}>
           <TextInput
             style={[styles.textInput, { minHeight: 90, textAlignVertical: 'top' }]}
             placeholder="E.g., We discussed the importance of the Agpeya as a rhythm of prayer..."
@@ -191,7 +203,7 @@ export default function LogEncounterScreen() {
         </Card>
 
         {/* Private FOC note */}
-        <Card title="Private Pastoral Notes (FOC Only)" titleIcon="✎">
+        <Card title="Private Pastoral Notes (FOC Only)" titleIconNode={<PencilIcon size={16} color={colors.gold} />}>
           <View style={styles.privacyNote}>
             <Text style={styles.privacyNoteText}>✦ Never visible to the member.</Text>
           </View>
@@ -206,7 +218,7 @@ export default function LogEncounterScreen() {
         </Card>
 
         {/* Follow-up */}
-        <Card title="Schedule Follow-Up (Optional)" titleIcon="⊕">
+        <Card title="Schedule Follow-Up (Optional)" titleIconNode={<CalendarIcon size={16} color={colors.gold} />}>
           <TextInput
             style={styles.textInput}
             placeholder="E.g., Jun 29 after Feast of Peter & Paul Liturgy"
@@ -268,9 +280,10 @@ const styles = lazyThemed(() => StyleSheet.create({
   memberOptionText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted },
   memberOptionTextActive: { color: colors.goldLight, fontFamily: fonts.latoBold },
 
-  typeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 8 },
+  typeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 8 },
   typeRowActive: { backgroundColor: colors.goldDim },
-  typeRadio: { width: 16, height: 16, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginTop: 2 },
+  typeRadio: { width: 16, height: 16, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
+  typeIcon: { width: 24, alignItems: 'center', justifyContent: 'center' },
   typeRadioActive: { backgroundColor: colors.gold, borderColor: colors.gold },
   typeLabel: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.muted, marginBottom: 1 },
   typeLabelActive: { color: colors.cream },

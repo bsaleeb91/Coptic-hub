@@ -242,3 +242,57 @@ export function CandleIcon({ size = 20, color = colors.gold }: Props) {
     </Svg>
   );
 }
+
+// A single member — head and shoulders.
+export function PersonIcon({ size = 20, color = colors.gold }: Props) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+      {/* Head */}
+      <Circle cx={50} cy={34} r={16} stroke={color} strokeWidth={6} />
+      {/* Shoulders */}
+      <Path d="M22 84 C22 60, 78 60, 78 84" stroke={color} strokeWidth={6} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+// A calendar — for a date or scheduled follow-up.
+export function CalendarIcon({ size = 20, color = colors.gold }: Props) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+      <Rect x={18} y={24} width={64} height={60} rx={7} stroke={color} strokeWidth={6} />
+      <Line x1={18} y1={40} x2={82} y2={40} stroke={color} strokeWidth={5} />
+      <Line x1={34} y1={16} x2={34} y2={30} stroke={color} strokeWidth={5} strokeLinecap="round" />
+      <Line x1={66} y1={16} x2={66} y2={30} stroke={color} strokeWidth={5} strokeLinecap="round" />
+      <Line x1={32} y1={54} x2={46} y2={54} stroke={color} strokeWidth={4.5} strokeLinecap="round" opacity={0.8} />
+      <Line x1={54} y1={54} x2={68} y2={54} stroke={color} strokeWidth={4.5} strokeLinecap="round" opacity={0.8} />
+      <Line x1={32} y1={68} x2={46} y2={68} stroke={color} strokeWidth={4.5} strokeLinecap="round" opacity={0.8} />
+    </Svg>
+  );
+}
+
+// A phone handset — for a phone/video check-in.
+export function PhoneIcon({ size = 20, color = colors.gold }: Props) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+      <Path d="M30 18 C24 18, 18 24, 18 32 C18 58, 42 82, 68 82 C76 82, 82 76, 82 70 L82 62 L62 54 L54 64 C46 60, 40 54, 36 46 L46 38 L38 18 Z"
+        stroke={color} strokeWidth={6} strokeLinejoin="round" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+// A congregation — three figures, one behind and two before it.
+export function CongregationIcon({ size = 20, color = colors.gold }: Props) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+      {/* Center figure (behind) */}
+      <Circle cx={50} cy={26} r={12} stroke={color} strokeWidth={5.5} />
+      <Path d="M33 62 C33 45, 67 45, 67 62" stroke={color} strokeWidth={5.5} strokeLinecap="round" />
+      {/* Left figure */}
+      <Circle cx={23} cy={45} r={11} stroke={color} strokeWidth={5.5} />
+      <Path d="M8 86 C8 66, 38 66, 38 86" stroke={color} strokeWidth={5.5} strokeLinecap="round" />
+      {/* Right figure */}
+      <Circle cx={77} cy={45} r={11} stroke={color} strokeWidth={5.5} />
+      <Path d="M62 86 C62 66, 92 66, 92 86" stroke={color} strokeWidth={5.5} strokeLinecap="round" />
+    </Svg>
+  );
+}
