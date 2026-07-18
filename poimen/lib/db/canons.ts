@@ -23,14 +23,71 @@ export async function getInactiveCanons(congregantId: string): Promise<any[]> {
   return data ?? [];
 }
 
-// Active canons for a member (priest detail view).
+// Active canons for a member (priest detail view). Includes the structured
+// category/payload/created_at so the priest's editor can pre-fill what they've
+// already assigned and the member's app can merge it.
 export async function getMemberActiveCanons(memberId: string): Promise<any[]> {
   const { data } = await supabase
     .from('spiritual_canons')
-    .select('id, component, frequency, start_date')
+    .select('id, component, frequency, start_date, category, payload, created_at')
     .eq('congregant_id', memberId)
     .eq('active', true);
   return data ?? [];
+}
+
+// What a specific priest has assigned this member — used to pre-fill the
+// priest's own canon editor, so one FOC never edits/removes another's rows.
+export async function getMemberActiveCanonsByPriest(memberId: string, priestId: string): Promise<any[]> {
+  const { data } = await supabase
+    .from('spiritual_canons')
+    .select('id, component, frequency, start_date, category, payload, created_at')
+    .eq('congregant_id', memberId)
+    .eq('priest_id', priestId)
+    .eq('active', true);
+  return data ?? [];
+}
+
+// The member's own view of what their FOC has assigned (read on the member's
+// device to merge the priest-assigned, locked parts over their personal rule).
+export async function getAssignedCanonsForMember(memberId: string): Promise<any[]> {
+  const { data } = await supabase
+    .from('spiritual_canons')
+    .select('id, component, frequency, start_date, category, payload, created_at, priest_id')
+    .eq('congregant_id', memberId)
+    .eq('active', true)
+    .order('created_at', { ascending: true });
+  return data ?? [];
+}
+
+// Insert one structured/assigned canon component (priest → member).
+export async function insertAssignedCanon(row: {
+  congregant_id: string; priest_id: string; category: string;
+  component: string; payload: any; frequency?: string; start_date?: string;
+}): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('spiritual_canons').insert({
+    congregant_id: row.congregant_id,
+    priest_id: row.priest_id,
+    category: row.category,
+    component: row.component,
+    payload: row.payload ?? null,
+    frequency: row.frequency ?? 'Daily',
+    start_date: row.start_date ?? new Date().toISOString().slice(0, 10),
+    active: true,
+  });
+  return { error: error?.message ?? null };
+}
+
+// Deactivate a whole category's assignment(s) for a member (priest removal /
+// re-assign replaces the old rows for that category).
+export async function deactivateAssignedCategory(memberId: string, priestId: string, category: string): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('spiritual_canons')
+    .update({ active: false })
+    .eq('congregant_id', memberId)
+    .eq('priest_id', priestId)
+    .eq('category', category)
+    .eq('active', true);
+  return { error: error?.message ?? null };
 }
 
 // Active canons a servant assigned to a student.

@@ -21,7 +21,8 @@ import { useDemoMode } from '@/lib/demo';
 import { SIN_CATALOGUE } from '@/lib/confession/sinCatalogue';
 import { resetVitalsEpoch } from '@/lib/canon/history';
 import { confirmDestructive } from '@/lib/confirm';
-import { recordConfession, loadConfessionDates } from '@/lib/confession/dates';
+import { recordConfession, loadConfessionDates, lastConfessionDate } from '@/lib/confession/dates';
+import { foldOnConfession } from '@/lib/canon/assigned';
 import {
   NotepadIcon, ClipboardIcon, PrayingHandsIcon, LockIcon, CrossIcon, HeartIcon,
   SpeechIcon, ThoughtIcon, EarIcon, EyeIcon, HandIcon, PrayerRopeIcon, PencilIcon,
@@ -152,8 +153,11 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
     }
     setSelfReportError('');
     setSelfReporting(true);
+    const prevConfession = await lastConfessionDate();
     await recordConfession(parsedDate);
     await db.setLastConfession(user.id, parsedDate.toISOString());
+    // Release (fold in) any canon parts the FOC assigned since the last confession.
+    await foldOnConfession({ memberId: user.id, userId: user.id, demoMode, previousLastConfession: prevConfession, focId: profile?.foc_id });
     await refreshProfile();
     await loadHistory();
     setSelfReporting(false);
@@ -737,7 +741,7 @@ function SessionView({ onBack, onComplete }: { onBack: () => void; onComplete: (
 // ─── Complete ────────────────────────────────────────────────────────────────────
 
 function CompleteView({ onBack }: { onBack: () => void }) {
-  const { user, refreshProfile } = useSession();
+  const { user, profile, refreshProfile } = useSession();
   const { demoMode } = useDemoMode();
   const [recorded, setRecorded] = useState(false);
   const [vitalsReset, setVitalsReset] = useState(false);
@@ -748,11 +752,14 @@ function CompleteView({ onBack }: { onBack: () => void }) {
   // duplicates collapse in the store, so re-visits are harmless.
   useEffect(() => {
     (async () => {
+      const prevConfession = await lastConfessionDate();
       await recordConfession();
       if (!demoMode && user) {
         await db.setLastConfession(user.id, new Date().toISOString());
         await refreshProfile();
       }
+      // Release (fold in) any canon parts the FOC assigned since the last confession.
+      await foldOnConfession({ memberId: user?.id ?? '', userId: user?.id ?? null, demoMode, previousLastConfession: prevConfession, focId: profile?.foc_id });
       setRecorded(true);
     })();
   }, []);

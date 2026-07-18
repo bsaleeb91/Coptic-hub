@@ -12,18 +12,19 @@ import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 import { decryptFromSender } from '@/lib/crypto';
+import { VITAL_CATEGORIES } from '@/lib/canon/history';
 
 // ── Demo data ─────────────────────────────────────────────────
 const DEMO_DB: Record<string, {
   member: any; contact: any; life: any; children: any[];
-  vitals: any[]; confessions: any[]; prayer: any[]; canons: any[]; note: string;
+  vitals: Record<string, number | null>; confessions: any[]; prayer: any[]; canons: any[]; note: string;
 }> = {
   'demo-mh': {
     member: { initials: 'MH', name: 'Michael Hanna', stage: 'Growing', joined: 'September 2024', daysSince: 47, flagged: false, flagNote: '' },
     contact: { phone: '(614) 555-0214', email: 'mhanna@example.com', address_line1: '1190 Oak Hill Rd', address_line2: null, city: 'Columbus', state: 'OH', zip: '43235', country: 'US' },
     life: { life_stage: 'married', spouse_name: 'Nadia Hanna' },
     children: [{ id: 'dc1', name: 'Kyrillos', birth_year: 2024 }],
-    vitals: [{ label: 'Daily Prayer', pct: 75, shared: true }, { label: 'Scripture Reading', pct: 50, shared: true }, { label: 'Divine Liturgy', pct: 80, shared: true }, { label: 'Small Group', pct: 100, shared: true }, { label: 'Service', pct: 25, shared: false }],
+    vitals: { prayer: 75, quiet: 55, scripture: 50, book: null, liturgy: 80, fasting: 60, service: 25, confession: null },
     confessions: [{ date: 'APR 20, 2026', type: 'Holy Confession', note: 'Discussed new-father anxieties. Encouraged daily Agpeya.' }, { date: 'FEB 5, 2026', type: 'Holy Confession', note: 'Pre-birth spiritual preparation.' }],
     prayer: [{ date: 'MAY 4, 2026', topic: 'Gratitude for new baby — prayers of thanksgiving' }, { date: 'MAR 10, 2026', topic: 'Wisdom as a new father' }],
     canons: [{ id: 'c1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Apr 21, 2026', pct: 75 }, { id: 'c2', component: 'Psalm reading (1 chapter)', frequency: 'Daily', startDate: 'Apr 21, 2026', pct: 50 }],
@@ -34,7 +35,7 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0339', email: 'sgirgis@example.com', address_line1: '408 Granville St', address_line2: null, city: 'Columbus', state: 'OH', zip: '43215', country: 'US' },
     life: { life_stage: 'single', spouse_name: '' },
     children: [],
-    vitals: [{ label: 'Daily Prayer', pct: 90, shared: true }, { label: 'Scripture Reading', pct: 85, shared: true }, { label: 'Divine Liturgy', pct: 100, shared: true }, { label: 'Small Group', pct: 75, shared: true }, { label: 'Service', pct: 100, shared: true }],
+    vitals: { prayer: 90, quiet: 85, scripture: 85, book: 70, liturgy: 100, fasting: 88, service: 100, confession: null },
     confessions: [{ date: 'MAY 21, 2026', type: 'Holy Confession', note: 'Discussed vocation discernment. Encouraged continued prayer and patience.' }, { date: 'MAR 3, 2026', type: 'Holy Confession', note: 'Lenten preparation.' }, { date: 'JAN 8, 2026', type: 'Holy Confession', note: 'Start-of-year spiritual plan.' }],
     prayer: [{ date: 'MAY 20, 2026', topic: 'Discernment of vocation — monastery vs. marriage' }],
     canons: [{ id: 'c1', component: 'Complete Agpeya (all 7 hours)', frequency: 'Daily', startDate: 'Jan 9, 2026', pct: 88 }, { id: 'c2', component: 'Bible reading (2 chapters)', frequency: 'Daily', startDate: 'Jan 9, 2026', pct: 85 }],
@@ -45,7 +46,7 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0182', email: 'pbotros@example.com', address_line1: '2847 Riverside Dr', address_line2: null, city: 'Columbus', state: 'OH', zip: '43221', country: 'US' },
     life: { life_stage: 'married', spouse_name: 'Maria Botros' },
     children: [{ id: 'dc1', name: 'Anthony', birth_year: 2018 }, { id: 'dc2', name: 'Mary', birth_year: 2021 }],
-    vitals: [{ label: 'Daily Prayer', pct: 20, shared: true }, { label: 'Scripture Reading', pct: 30, shared: true }, { label: 'Divine Liturgy', pct: 45, shared: true }, { label: 'Small Group', pct: 0, shared: false }, { label: 'Service', pct: 0, shared: false }],
+    vitals: { prayer: 20, quiet: 10, scripture: 30, book: null, liturgy: 45, fasting: 20, service: 0, confession: null },
     confessions: [{ date: 'FEB 25, 2026', type: 'Holy Confession', note: 'Set spiritual goals.' }, { date: 'FEB 11, 2026', type: 'Introductory Meeting', note: 'Getting to know one another.' }],
     prayer: [{ date: 'MAY 28, 2026', topic: 'Job transition — feeling lost' }, { date: 'MAY 5, 2026', topic: 'Family reconciliation with brother' }],
     canons: [{ id: 'c1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 20 }, { id: 'c2', component: 'Gospel Reading (1 chapter)', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 30 }],
@@ -56,7 +57,7 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0471', email: 'mmkhail@example.com', address_line1: '93 Olentangy Blvd', address_line2: 'Apt 4B', city: 'Columbus', state: 'OH', zip: '43202', country: 'US' },
     life: { life_stage: 'married', spouse_name: 'Fady Mikhail' },
     children: [{ id: 'dc1', name: 'Bishoy', birth_year: 2020 }, { id: 'dc2', name: 'Irene', birth_year: 2023 }],
-    vitals: [{ label: 'Daily Prayer', pct: 65, shared: true }, { label: 'Scripture Reading', pct: 60, shared: true }, { label: 'Divine Liturgy', pct: 75, shared: true }, { label: 'Small Group', pct: 50, shared: true }, { label: 'Service', pct: 50, shared: true }],
+    vitals: { prayer: 65, quiet: 50, scripture: 60, book: null, liturgy: 75, fasting: 58, service: 50, confession: null },
     confessions: [{ date: 'MAY 10, 2026', type: 'Holy Confession', note: 'Marriage enrichment focus. Prayed together with Fady.' }, { date: 'FEB 28, 2026', type: 'Holy Confession', note: 'Lenten preparation. Addressed anxiety about second child.' }],
     prayer: [{ date: 'APR 30, 2026', topic: 'Peace in marriage — communication difficulties' }, { date: 'MAR 15, 2026', topic: 'Healing for mother-in-law' }],
     canons: [{ id: 'c1', component: 'Evening Prayer (Compline)', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 65 }, { id: 'c2', component: 'Bible reading (1 chapter)', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 60 }],
@@ -67,7 +68,7 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0598', email: 'ageorge@example.com', address_line1: '5120 Kenny Rd', address_line2: null, city: 'Columbus', state: 'OH', zip: '43220', country: 'US' },
     life: { life_stage: 'single', spouse_name: '' },
     children: [],
-    vitals: [{ label: 'Daily Prayer', pct: 0, shared: false }, { label: 'Scripture Reading', pct: 0, shared: false }, { label: 'Divine Liturgy', pct: 25, shared: true }, { label: 'Small Group', pct: 0, shared: false }, { label: 'Service', pct: 0, shared: false }],
+    vitals: { prayer: null, quiet: null, scripture: null, book: null, liturgy: 25, fasting: null, service: null, confession: null },
     confessions: [],
     prayer: [{ date: 'MAY 1, 2026', topic: 'Searching for meaning — career feels empty' }],
     canons: [],
@@ -78,7 +79,7 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0623', email: 'cnaguib@example.com', address_line1: '711 Worthington Ave', address_line2: null, city: 'Columbus', state: 'OH', zip: '43085', country: 'US' },
     life: { life_stage: 'married', spouse_name: 'Mina Naguib' },
     children: [{ id: 'dc1', name: 'Verena', birth_year: 2017 }, { id: 'dc2', name: 'Mark', birth_year: 2019 }, { id: 'dc3', name: 'Irini', birth_year: 2022 }],
-    vitals: [{ label: 'Daily Prayer', pct: 95, shared: true }, { label: 'Scripture Reading', pct: 90, shared: true }, { label: 'Divine Liturgy', pct: 100, shared: true }, { label: 'Small Group', pct: 75, shared: true }, { label: 'Service', pct: 100, shared: true }],
+    vitals: { prayer: 95, quiet: 90, scripture: 90, book: 85, liturgy: 100, fasting: 92, service: 100, confession: null },
     confessions: [{ date: 'MAY 5, 2026', type: 'Holy Confession', note: 'Strong spiritually. Discussed leading the women\'s Bible study.' }, { date: 'FEB 20, 2026', type: 'Holy Confession', note: 'Lenten reflection — themes of gratitude and service.' }, { date: 'NOV 10, 2025', type: 'Holy Confession', note: 'Pre-Advent preparation.' }],
     prayer: [{ date: 'APR 25, 2026', topic: 'Guidance for Verena\'s school transition' }],
     canons: [{ id: 'c1', component: 'Midnight Praise (Tasbeha)', frequency: 'Weekly', startDate: 'Jan 1, 2026', pct: 92 }, { id: 'c2', component: 'Bible reading (3 chapters)', frequency: 'Daily', startDate: 'Jan 1, 2026', pct: 90 }],
@@ -88,6 +89,18 @@ const DEMO_DB: Record<string, {
 
 function getDemoData(id: string) {
   return DEMO_DB[id] ?? DEMO_DB['demo-pb'];
+}
+
+// Render the member's eight vital categories from a stored payload (the same
+// map the member mirrors to agent_progress['vitals']). A key that's absent is
+// "not shared"; a key present but null had nothing ever due, so it reads "—".
+function vitalsFromPayload(payload: Record<string, number | null> | null | undefined) {
+  const v = payload ?? {};
+  return VITAL_CATEGORIES.map(c => ({
+    label: c.label,
+    pct: c.key in v ? v[c.key] : null,
+    shared: c.key in v,
+  }));
 }
 
 type TabType = 'overview' | 'canon' | 'prayer' | 'notes';
@@ -132,7 +145,7 @@ export default function MemberScreen() {
   const [contact, setContact] = useState<any>(demoMode ? demo.contact : null);
   const [lifeStageData, setLifeStageData] = useState<any>(demoMode ? demo.life : null);
   const [memberChildren, setMemberChildren] = useState<any[]>(demoMode ? demo.children : []);
-  const [vitals, setVitals] = useState<any[]>(demo.vitals);
+  const [vitals, setVitals] = useState<any[]>(vitalsFromPayload(demo.vitals));
   const [confessions, setConfessions] = useState<any[]>(demo.confessions);
   const [prayerRequests, setPrayerRequests] = useState<any[]>(demo.prayer);
   const [canons, setCanons] = useState<any[]>(demo.canons);
@@ -162,7 +175,7 @@ export default function MemberScreen() {
         setContact(d.contact);
         setLifeStageData(d.life);
         setMemberChildren(d.children);
-        setVitals(d.vitals);
+        setVitals(vitalsFromPayload(d.vitals));
         setConfessions(d.confessions);
         setPrayerRequests(d.prayer);
         setCanons(d.canons);
@@ -199,14 +212,9 @@ export default function MemberScreen() {
     }
 
     if (vitalsPayload) {
-      const v = vitalsPayload as any;
-      setVitals([
-        { label: 'Daily Prayer', pct: v.prayer ?? 0, shared: true },
-        { label: 'Scripture Reading', pct: v.scripture ?? 0, shared: true },
-        { label: 'Divine Liturgy', pct: v.liturgy ?? 0, shared: true },
-        { label: 'Fasting', pct: v.fasting ?? 0, shared: true },
-        { label: 'Service', pct: v.service ?? 0, shared: true },
-      ]);
+      // Mirror the member's own eight vital categories exactly (same keys/labels
+      // the member computes from their canon adherence).
+      setVitals(vitalsFromPayload(vitalsPayload as Record<string, number | null>));
     } else if (!demoMode) {
       setVitals([]);
     }
@@ -390,19 +398,22 @@ export default function MemberScreen() {
                 <Card title="Spiritual Vitals" flat>
                   {vitals.length === 0 ? (
                     <Text style={styles.emptyText}>Member hasn't shared any vitals yet.</Text>
-                  ) : vitals.map((v, i) => (
-                    <View key={i} style={[styles.vitalRow, i < vitals.length - 1 && { marginBottom: 10 }]}>
-                      <Text style={[styles.vitalLabel, !v.shared && styles.vitalLabelDim]}>
-                        {v.label}{!v.shared ? ' (not shared)' : ''}
-                      </Text>
-                      <View style={styles.vitalTrack}>
-                        {v.shared && <View style={[styles.vitalFill, { width: `${v.pct}%` as any }]} />}
+                  ) : vitals.map((v, i) => {
+                    const has = v.shared && v.pct !== null && v.pct !== undefined;
+                    return (
+                      <View key={i} style={[styles.vitalRow, i < vitals.length - 1 && { marginBottom: 10 }]}>
+                        <Text style={[styles.vitalLabel, !v.shared && styles.vitalLabelDim]}>
+                          {v.label}{!v.shared ? ' (not shared)' : ''}
+                        </Text>
+                        <View style={styles.vitalTrack}>
+                          {has && <View style={[styles.vitalFill, { width: `${v.pct}%` as any }]} />}
+                        </View>
+                        <Text style={[styles.vitalVal, !has && { color: colors.muted, opacity: 0.4 }]}>
+                          {has ? `${v.pct}%` : '—'}
+                        </Text>
                       </View>
-                      <Text style={[styles.vitalVal, !v.shared && { color: colors.muted, opacity: 0.4 }]}>
-                        {v.shared ? `${v.pct}%` : '—'}
-                      </Text>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </Card>
 
                 <Card title="Confession History" flat>

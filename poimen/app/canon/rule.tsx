@@ -20,6 +20,10 @@ import {
   FAST_UNTIL_OPTIONS, WEEKDAYS,
 } from '@/lib/canon/rule-store';
 import { hydrateRuleFromCloud, pushRuleToCloud } from '@/lib/canon/rule-sync';
+import {
+  AssignedCategory, CanonOverlay, loadAssignedForMember, applyOverlay,
+} from '@/lib/canon/assigned';
+import { lastConfessionDate } from '@/lib/confession/dates';
 import ScrollPicker from '@/components/ui/ScrollPicker';
 
 const SP = { xs: 6, sm: 10, md: 14, lg: 20, xl: 28 };
@@ -63,30 +67,66 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
   );
 }
 
+// A short note shown under any part the Father of Confession has assigned. That
+// part is read-only until the member's next confession, or until the FOC
+// changes/removes it.
+function LockNote() {
+  return (
+    <View style={s.lockNote}>
+      <Text style={s.lockNoteText}>
+        🔒 Set by your Father of Confession — you can't change this until your next confession,
+        or until he changes or removes it.
+      </Text>
+    </View>
+  );
+}
+
+// Read-only value pill for a locked "every day" field.
+function LockedValue({ text }: { text: string }) {
+  return <View style={s.lockedPill}><Text style={s.lockedPillText}>{text}</Text></View>;
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function RuleScreen() {
   const router = useRouter();
-  const { user } = useSession();
+  const { user, profile } = useSession();
   const { demoMode } = useDemoMode();
   const canSync = !!user && !demoMode;
 
   const [rule, setRule] = useState<RuleConfig | null>(null);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
+  // Parts the Father of Confession has assigned — locked (read-only) here.
+  const [lockedCats, setLockedCats] = useState<Set<AssignedCategory>>(new Set());
+  const [lockedDays, setLockedDays] = useState<CanonOverlay['lockedDays']>({ agpeya_hours: new Set(), services: new Set(), heart_of_service: new Set() });
+  const [effRule, setEffRule] = useState<RuleConfig | null>(null); // rule with locked values overlaid
 
   useEffect(() => {
     (async () => {
       if (canSync && user) await hydrateRuleFromCloud(user.id);
-      setRule(await loadRule());
+      const r = await loadRule();
+      const [assigned, last] = await Promise.all([
+        loadAssignedForMember(user?.id ?? '', demoMode, profile?.foc_id),
+        lastConfessionDate(),
+      ]);
+      const overlay = applyOverlay(r, assigned, last);
+      setRule(r);
+      setEffRule(overlay.rule);
+      setLockedCats(overlay.lockedCategories);
+      setLockedDays(overlay.lockedDays);
     })();
-  }, [canSync, user]);
+  }, [canSync, user, demoMode]);
+
+  const isLocked = (c: AssignedCategory) => lockedCats.has(c);
+  const isDayLocked = (c: 'agpeya_hours' | 'services' | 'heart_of_service', i: number) => lockedDays[c].has(i);
+  const anyLock = lockedCats.size > 0 || (['agpeya_hours', 'services', 'heart_of_service'] as const).some(c => lockedDays[c].size > 0);
 
   const update = useCallback((next: RuleConfig) => {
     setRule(next);
     saveRule(next).then(() => { if (canSync && user) pushRuleToCloud(user.id, next); });
   }, [canSync, user]);
 
-  if (!rule) {
+  if (!rule || !effRule) {
     return (
       <SafeAreaView style={s.safe}>
         <View style={s.center}><ActivityIndicator color={colors.gold} /></View>
@@ -121,50 +161,88 @@ export default function RuleScreen() {
           Set your rule together with your father of confession. Add only what you can keep faithfully.
         </Text>
 
+        {anyLock && (
+          <View style={s.banner}>
+            <Text style={s.bannerText}>
+              🔒 Some parts of your canon were set by your Father of Confession. Those are read-only until
+              your next confession, or until he changes them. You can still edit the rest.
+            </Text>
+          </View>
+        )}
+
         {/* Daily */}
         <Text style={s.sectionLabel}>Every day</Text>
-        <FieldRow label="Prostrations (metanias)">
-          <Stepper value={rule.prostrations} onChange={n => update({ ...rule, prostrations: n })} max={500} />
-        </FieldRow>
-        <Text style={s.fieldNote}>Not done on Saturdays, Sundays, or during the Holy Fifty.</Text>
-        <FieldRow label="Quiet time">
-          <Stepper value={rule.quietMinutes} onChange={n => update({ ...rule, quietMinutes: n })} step={5} max={180} unit="min" />
-        </FieldRow>
+        {isLocked('prostrations') ? (
+          <>
+            <FieldRow label="Prostrations (metanias)"><LockedValue text={`${effRule.prostrations}`} /></FieldRow>
+            <LockNote />
+          </>
+        ) : (
+          <>
+            <FieldRow label="Prostrations (metanias)">
+              <Stepper value={rule.prostrations} onChange={n => update({ ...rule, prostrations: n })} max={500} />
+            </FieldRow>
+            <Text style={s.fieldNote}>Not done on Saturdays, Sundays, or during the Holy Fifty.</Text>
+          </>
+        )}
+        {isLocked('quiet') ? (
+          <>
+            <FieldRow label="Quiet time"><LockedValue text={`${effRule.quietMinutes} min`} /></FieldRow>
+            <LockNote />
+          </>
+        ) : (
+          <FieldRow label="Quiet time">
+            <Stepper value={rule.quietMinutes} onChange={n => update({ ...rule, quietMinutes: n })} step={5} max={180} unit="min" />
+          </FieldRow>
+        )}
 
         {/* Fasting */}
         <View style={s.card}>
           <View style={s.cardHead}>
             <Text style={s.cardTitle}>Fast until (on fasting days)</Text>
-            <Text style={[s.cardTitle, { color: colors.goldLight }]}>{rule.fastUntil}</Text>
+            <Text style={[s.cardTitle, { color: colors.goldLight }]}>{isLocked('fasting') ? effRule.fastUntil : rule.fastUntil}</Text>
           </View>
-          <ScrollPicker options={FAST_UNTIL_OPTIONS} value={rule.fastUntil} onChange={v => update({ ...rule, fastUntil: v })} />
-          <Text style={[s.fieldNote, { marginTop: 4 }]}>
-            Wednesdays, Fridays, and the Church's fasting seasons are fasting days automatically, except during the Holy Fifty.
-          </Text>
+          {isLocked('fasting') ? (
+            <LockNote />
+          ) : (
+            <>
+              <ScrollPicker options={FAST_UNTIL_OPTIONS} value={rule.fastUntil} onChange={v => update({ ...rule, fastUntil: v })} />
+              <Text style={[s.fieldNote, { marginTop: 4 }]}>
+                Wednesdays, Fridays, and the Church's fasting seasons are fasting days automatically, except during the Holy Fifty.
+              </Text>
+            </>
+          )}
         </View>
 
         {/* Bible reading */}
         <View style={s.card}>
           <Text style={s.cardTitle}>Bible reading</Text>
-          <View style={s.chipRow}>
-            <Chip label="Chapters" on={rule.bible.mode === 'chapters'} onPress={() => update({ ...rule, bible: { ...rule.bible, mode: 'chapters' } })} />
-            <Chip label="Minutes"  on={rule.bible.mode === 'minutes'}  onPress={() => update({ ...rule, bible: { ...rule.bible, mode: 'minutes' } })} />
-            <View style={{ flex: 1 }} />
-            <Stepper value={rule.bible.amount} onChange={n => update({ ...rule, bible: { ...rule.bible, amount: n } })} step={rule.bible.mode === 'minutes' ? 5 : 1} max={180} />
-          </View>
+          {isLocked('bible') ? (
+            <><LockedValue text={`${effRule.bible.amount} ${effRule.bible.mode}`} /><LockNote /></>
+          ) : (
+            <View style={s.chipRow}>
+              <Chip label="Chapters" on={rule.bible.mode === 'chapters'} onPress={() => update({ ...rule, bible: { ...rule.bible, mode: 'chapters' } })} />
+              <Chip label="Minutes"  on={rule.bible.mode === 'minutes'}  onPress={() => update({ ...rule, bible: { ...rule.bible, mode: 'minutes' } })} />
+              <View style={{ flex: 1 }} />
+              <Stepper value={rule.bible.amount} onChange={n => update({ ...rule, bible: { ...rule.bible, amount: n } })} step={rule.bible.mode === 'minutes' ? 5 : 1} max={180} />
+            </View>
+          )}
         </View>
 
         {/* Spiritual book */}
         <View style={s.card}>
           <View style={s.cardHead}>
             <Text style={s.cardTitle}>Spiritual book</Text>
-            {rule.book ? (
+            {!isLocked('book') && (rule.book ? (
               <TouchableOpacity onPress={() => update({ ...rule, book: null })}><Text style={{ color: colors.red, fontSize: 12, fontFamily: fonts.lato }}>Remove</Text></TouchableOpacity>
             ) : (
               <TouchableOpacity onPress={() => update({ ...rule, book: { title: '', mode: 'chapters', amount: 1 } })}><Text style={{ color: colors.gold, fontSize: 12, fontFamily: fonts.latoBold }}>+ Add</Text></TouchableOpacity>
-            )}
+            ))}
           </View>
-          {rule.book && (
+          {isLocked('book') && (
+            <><LockedValue text={effRule.book ? `${effRule.book.title || 'A spiritual book'} · ${effRule.book.amount} ${effRule.book.mode}` : 'None'} /><LockNote /></>
+          )}
+          {!isLocked('book') && rule.book && (
             <>
               <TextInput
                 style={s.input}
@@ -186,23 +264,29 @@ export default function RuleScreen() {
         {/* Confession */}
         <View style={s.card}>
           <Text style={s.cardTitle}>Confession frequency</Text>
-          <View style={[s.chipRow, { flexWrap: 'wrap' }]}>
-            {CONFESSION_OPTIONS.map(opt => (
-              <Chip key={opt} label={opt} on={rule.confession === opt} onPress={() => update({ ...rule, confession: opt })} />
-            ))}
-          </View>
+          {isLocked('confession') ? (
+            <><LockedValue text={effRule.confession} /><LockNote /></>
+          ) : (
+            <View style={[s.chipRow, { flexWrap: 'wrap' }]}>
+              {CONFESSION_OPTIONS.map(opt => (
+                <Chip key={opt} label={opt} on={rule.confession === opt} onPress={() => update({ ...rule, confession: opt })} />
+              ))}
+            </View>
+          )}
         </View>
 
         {/* By day of week */}
         <Text style={[s.sectionLabel, { marginTop: SP.lg }]}>For each day of the week</Text>
         {WEEKDAYS.map((name, i) => {
           const d = rule.days[i];
+          const ed = effRule.days[i];   // effective (includes any FOC-locked parts) — for the summary
           const open = expandedDay === i;
           const autoFast = i === 3 || i === 5;
+          const serveCount = ed.serving.filter(x => x.text.trim()).length;
           const summary = [
-            d.hours.length ? `${d.hours.length} hours` : null,
-            d.services.length ? `${d.services.length} services` : null,
-            d.serving.length ? `${d.serving.length} serving` : null,
+            ed.hours.length ? `${ed.hours.length} hours` : null,
+            ed.services.length ? `${ed.services.length} services` : null,
+            serveCount ? `${serveCount} serving` : null,
             autoFast ? 'fast day' : null,
           ].filter(Boolean).join(' · ') || 'Nothing set';
           return (
@@ -217,51 +301,97 @@ export default function RuleScreen() {
 
               {open && (
                 <View style={{ paddingTop: SP.sm }}>
+                  {/* Agpeya hours */}
                   <Text style={s.subLabel}>Agpeya hours</Text>
-                  <View style={[s.chipRow, { flexWrap: 'wrap' }]}>
-                    {AGPEYA_HOURS.map(h => (
-                      <Chip key={h.key} label={h.name} on={d.hours.includes(h.key)} onPress={() => setDay(i, { hours: toggleIn(d.hours, h.key) })} />
-                    ))}
-                  </View>
+                  {isDayLocked('agpeya_hours', i) ? (
+                    <>
+                      <View style={[s.chipRow, { flexWrap: 'wrap' }]}>
+                        {effRule.days[i].hours.length === 0
+                          ? <Text style={s.mutedSmall}>None</Text>
+                          : AGPEYA_HOURS.filter(h => effRule.days[i].hours.includes(h.key)).map(h => (
+                              <View key={h.key} style={s.roChip}><Text style={s.roChipText}>{h.name}</Text></View>
+                            ))}
+                      </View>
+                      <LockNote />
+                    </>
+                  ) : (
+                    <View style={[s.chipRow, { flexWrap: 'wrap' }]}>
+                      {AGPEYA_HOURS.map(h => (
+                        <Chip key={h.key} label={h.name} on={d.hours.includes(h.key)} onPress={() => setDay(i, { hours: toggleIn(d.hours, h.key) })} />
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Church services */}
                   <Text style={[s.subLabel, { marginTop: SP.sm }]}>Church services</Text>
-                  <View style={[s.chipRow, { flexWrap: 'wrap' }]}>
-                    {SERVICES.map(sv => (
-                      <Chip key={sv.key} label={sv.name} on={d.services.includes(sv.key)} onPress={() => setDay(i, { services: toggleIn(d.services, sv.key) })} />
-                    ))}
-                  </View>
-                  <View style={s.serveHead}>
-                    <Text style={[s.subLabel, { marginBottom: 0 }]}>Heart of Service</Text>
-                    <TouchableOpacity onPress={() => setDay(i, { serving: [...d.serving, { text: '', freq: 'Weekly' }] })} hitSlop={8}>
-                      <Text style={{ color: colors.gold, fontSize: 12, fontFamily: fonts.latoBold }}>+ Add</Text>
-                    </TouchableOpacity>
-                  </View>
-                  {d.serving.map((sv, j) => (
-                    <View key={j} style={s.serveEntry}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <TextInput
-                          style={[s.input, { flex: 1 }]}
-                          placeholder="Your service (e.g. Sunday school, visiting the sick)"
-                          placeholderTextColor={colors.muted}
-                          value={sv.text}
-                          onChangeText={t => patchServing(i, j, { text: t })}
-                        />
-                        <TouchableOpacity onPress={() => setDay(i, { serving: d.serving.filter((_, idx) => idx !== j) })} hitSlop={8}>
-                          <Text style={{ color: colors.red, fontSize: 12, fontFamily: fonts.lato, marginLeft: SP.sm }}>Remove</Text>
+                  {isDayLocked('services', i) ? (
+                    <>
+                      <View style={[s.chipRow, { flexWrap: 'wrap' }]}>
+                        {effRule.days[i].services.length === 0
+                          ? <Text style={s.mutedSmall}>None</Text>
+                          : SERVICES.filter(sv => effRule.days[i].services.includes(sv.key)).map(sv => (
+                              <View key={sv.key} style={s.roChip}><Text style={s.roChipText}>{sv.name}</Text></View>
+                            ))}
+                      </View>
+                      <LockNote />
+                    </>
+                  ) : (
+                    <View style={[s.chipRow, { flexWrap: 'wrap' }]}>
+                      {SERVICES.map(sv => (
+                        <Chip key={sv.key} label={sv.name} on={d.services.includes(sv.key)} onPress={() => setDay(i, { services: toggleIn(d.services, sv.key) })} />
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Heart of Service */}
+                  {isDayLocked('heart_of_service', i) ? (
+                    <>
+                      <Text style={[s.subLabel, { marginTop: SP.sm }]}>Heart of Service</Text>
+                      {effRule.days[i].serving.filter(x => x.text.trim()).length === 0
+                        ? <Text style={s.mutedSmall}>None</Text>
+                        : effRule.days[i].serving.filter(x => x.text.trim()).map((sv, j) => (
+                            <View key={j} style={s.roChip}><Text style={s.roChipText}>{sv.text}{sv.freq ? ` · ${sv.freq}` : ''}</Text></View>
+                          ))}
+                      <LockNote />
+                    </>
+                  ) : (
+                    <>
+                      <View style={s.serveHead}>
+                        <Text style={[s.subLabel, { marginBottom: 0 }]}>Heart of Service</Text>
+                        <TouchableOpacity onPress={() => setDay(i, { serving: [...d.serving, { text: '', freq: 'Weekly' }] })} hitSlop={8}>
+                          <Text style={{ color: colors.gold, fontSize: 12, fontFamily: fonts.latoBold }}>+ Add</Text>
                         </TouchableOpacity>
                       </View>
-                      <View style={[s.chipRow, { flexWrap: 'wrap', marginTop: SP.sm }]}>
-                        {SERVICE_FREQUENCY_OPTIONS.map(opt => (
-                          <Chip key={opt} label={opt} on={sv.freq === opt} onPress={() => patchServing(i, j, { freq: opt })} />
-                        ))}
-                      </View>
-                    </View>
-                  ))}
-                  {d.serving.length > 0 && (
-                    <Text style={[s.fieldNote, { marginTop: 2, marginBottom: 0 }]}>
-                      A service appears each {name} until checked off, then rests for its
-                      frequency (a monthly service returns about a month after it's done).
-                    </Text>
+                      {d.serving.map((sv, j) => (
+                        <View key={j} style={s.serveEntry}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <TextInput
+                              style={[s.input, { flex: 1 }]}
+                              placeholder="Your service (e.g. Sunday school, visiting the sick)"
+                              placeholderTextColor={colors.muted}
+                              value={sv.text}
+                              onChangeText={t => patchServing(i, j, { text: t })}
+                            />
+                            <TouchableOpacity onPress={() => setDay(i, { serving: d.serving.filter((_, idx) => idx !== j) })} hitSlop={8}>
+                              <Text style={{ color: colors.red, fontSize: 12, fontFamily: fonts.lato, marginLeft: SP.sm }}>Remove</Text>
+                            </TouchableOpacity>
+                          </View>
+                          <View style={[s.chipRow, { flexWrap: 'wrap', marginTop: SP.sm }]}>
+                            {SERVICE_FREQUENCY_OPTIONS.map(opt => (
+                              <Chip key={opt} label={opt} on={sv.freq === opt} onPress={() => patchServing(i, j, { freq: opt })} />
+                            ))}
+                          </View>
+                        </View>
+                      ))}
+                      {d.serving.length > 0 && (
+                        <Text style={[s.fieldNote, { marginTop: 2, marginBottom: 0 }]}>
+                          A service appears each {name} until checked off, then rests for its
+                          frequency (a monthly service returns about a month after it's done).
+                        </Text>
+                      )}
+                    </>
                   )}
+
                   {autoFast && (
                     <Text style={[s.fieldNote, { marginTop: SP.sm }]}>
                       ✦ Automatically a fasting day (except during the Holy Fifty).
@@ -311,5 +441,15 @@ const s = lazyThemed(() => StyleSheet.create({
   dayHead:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   dayName:       { fontFamily: fonts.latoBold, fontSize: 14, color: colors.cream },
   daySummary:    { fontFamily: fonts.latoLight, fontSize: 12, marginTop: 2, color: colors.muted },
+
+  banner:        { borderWidth: 1, borderColor: colors.gold + '55', backgroundColor: colors.goldDim, borderRadius: R.md, padding: SP.md, marginBottom: SP.md },
+  bannerText:    { fontFamily: fonts.lato, fontSize: 12, lineHeight: 18, color: colors.goldLight },
+  lockNote:      { marginTop: 4, marginBottom: SP.sm },
+  lockNoteText:  { fontFamily: fonts.latoLight, fontSize: 11, lineHeight: 16, color: colors.muted, fontStyle: 'italic' },
+  lockedPill:    { alignSelf: 'flex-end', backgroundColor: colors.goldDim, borderWidth: 1, borderColor: colors.gold + '55', borderRadius: R.full, paddingHorizontal: 12, paddingVertical: 6 },
+  lockedPillText:{ fontFamily: fonts.latoBold, fontSize: 13, color: colors.goldLight },
+  roChip:        { borderWidth: 1, borderColor: colors.gold + '55', backgroundColor: colors.goldDim, borderRadius: R.full, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6, marginBottom: 6 },
+  roChipText:    { fontFamily: fonts.latoBold, fontSize: 12, color: colors.goldLight },
+  mutedSmall:    { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 6 },
 
 }));

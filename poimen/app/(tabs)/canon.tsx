@@ -22,6 +22,7 @@ import {
 } from '@/lib/canon/postpone';
 import { recordCanonDay } from '@/lib/canon/history';
 import { lastConfessionDate, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
+import { loadAssignedForMember, applyOverlay, categoryForItemKey } from '@/lib/canon/assigned';
 import { BookIcon, CandleIcon, PrayingHandsIcon, ChurchIcon, CrossIcon, HeartIcon } from '@/components/ui/TabIcons';
 
 // Canon item icons (always gold), keyed by the semantic names lib/canon/today
@@ -49,11 +50,11 @@ const DEMO_HISTORY = [
 // Heart of Service items also get a Postpone button: sometimes a due service
 // can't happen that day (a monthly service, say), so instead of leaving it
 // unchecked the user defers it to a chosen date.
-function CanonRow({ comp, done, onToggle, onPostpone }: {
-  comp: any; done: boolean; onToggle: () => void; onPostpone?: () => void;
+function CanonRow({ comp, done, assigned, onToggle, onPostpone }: {
+  comp: any; done: boolean; assigned?: boolean; onToggle: () => void; onPostpone?: () => void;
 }) {
   return (
-    <View style={[styles.compItem, done && styles.compItemDone]}>
+    <View style={[styles.compItem, done && styles.compItemDone, assigned && styles.compItemAssigned]}>
       <View style={styles.compHeader}>
         <TouchableOpacity style={styles.compMain} onPress={() => { done ? H.tap() : H.done(); onToggle(); }} activeOpacity={0.85}>
           <View style={[styles.compCheck, done && styles.compCheckDone]}>
@@ -67,6 +68,7 @@ function CanonRow({ comp, done, onToggle, onPostpone }: {
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.compName, done && styles.compNameDone]}>{comp.name}</Text>
+            {assigned && <Text style={styles.compAssignedTag}>🔒 Assigned by your Father of Confession</Text>}
             {done && <Text style={styles.compStatus}>✓ Done today</Text>}
           </View>
         </TouchableOpacity>
@@ -107,6 +109,7 @@ export default function CanonScreen() {
   const [history, setHistory] = useState<any[]>([]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [ruleItems, setRuleItems] = useState<RuleItem[] | null>(null); // null = loading
+  const [lockedKeys, setLockedKeys] = useState<Set<string>>(new Set()); // FOC-assigned item keys
   const [postponeFor, setPostponeFor] = useState<string | null>(null); // item key with open postpone options
   const [readiness, setReadiness] = useState<{ days: number; freqDays: number; freqLabel: string } | null>(null);
 
@@ -127,20 +130,45 @@ export default function CanonScreen() {
   async function loadCanon() {
     if (user && !demoMode) await hydrateRuleFromCloud(user.id);
     const rule = await loadRule();
+    const last = await lastConfessionDate();
+
+    // Merge in the parts the Father of Confession has assigned (locked over the
+    // member's own rule until their next confession or until the FOC changes it).
+    const assigned = await loadAssignedForMember(user?.id ?? '', demoMode, profile?.foc_id);
+    const overlay = applyOverlay(rule, assigned, last);
+
     const [postponed, serviceDone] = await Promise.all([loadPostponements(), loadServiceDone()]);
-    const items = todayItems(rule, new Date(), postponed, serviceDone);
+    const structured = todayItems(overlay.rule, new Date(), postponed, serviceDone);
+    // Priest-added free-text components appear as read-only canon rows.
+    const customItems: RuleItem[] = overlay.customComponents.map(c => ({
+      key: `assigned_${c.id}`, icon: 'quiet', label: c.frequency ? `${c.text} · ${c.frequency}` : c.text,
+    }));
+    const items = [...structured, ...customItems];
+
+    // Which of today's rows are FOC-assigned (locked) — badge them. Day-based
+    // categories are locked only on the specific weekdays the priest set.
+    const todayIdx = new Date().getDay();
+    const locked = new Set<string>();
+    for (const it of structured) {
+      const cat = categoryForItemKey(it.key);
+      if (!cat) continue;
+      if (overlay.lockedCategories.has(cat)) locked.add(it.key);
+      else if ((cat === 'agpeya_hours' || cat === 'services' || cat === 'heart_of_service') && overlay.lockedDays[cat].has(todayIdx)) locked.add(it.key);
+    }
+    overlay.customComponents.forEach(c => { if (c.locked) locked.add(`assigned_${c.id}`); });
+
     const checks = await loadTodayChecks();
     setRuleItems(items);
+    setLockedKeys(locked);
     setChecked(checks);
     recordCanonDay(items, checks); // keep the adherence history current
 
-    // Communion readiness: device-tracked confession date first, then the
-    // profile's, then the demo figure.
-    const last = await lastConfessionDate();
+    // Communion readiness measured against the effective confession frequency
+    // (a priest-assigned frequency takes precedence while it's locked).
     const days = last != null ? daysSinceDate(last)
       : profile?.last_confession_at ? Math.floor((Date.now() - new Date(profile.last_confession_at).getTime()) / 86400000)
       : demoMode ? 47 : null;
-    setReadiness(days == null ? null : { days, freqDays: confessionFrequencyDays(rule.confession), freqLabel: rule.confession });
+    setReadiness(days == null ? null : { days, freqDays: confessionFrequencyDays(overlay.rule.confession), freqLabel: overlay.rule.confession });
   }
 
   // Defer a Heart of Service item: it leaves today's list and returns on the
@@ -240,6 +268,7 @@ export default function CanonScreen() {
                     <CanonRow
                       comp={{ id: rk, icon: item.icon, name: item.label }}
                       done={checked.has(rk)}
+                      assigned={lockedKeys.has(item.key)}
                       onToggle={() => { setPostponeFor(null); toggleCheck(item); }}
                       onPostpone={options.length > 0 ? () => setPostponeFor(prev => (prev === item.key ? null : item.key)) : undefined}
                     />
@@ -314,6 +343,8 @@ const styles = lazyThemed(() => StyleSheet.create({
 
   compItem: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: 'hidden' },
   compItemDone: { opacity: 0.65 },
+  compItemAssigned: { borderColor: colors.gold + '66' },
+  compAssignedTag: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.goldLight, marginTop: 2, letterSpacing: 0.2 },
   compHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13 },
   compMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   compCheck: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },

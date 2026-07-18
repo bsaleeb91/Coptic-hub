@@ -237,7 +237,9 @@ export default function DashboardScreen() {
         db.upsertAgentProgress({
           user_id: user.id,
           agent_slug: 'vitals',
-          payload: Object.fromEntries(stats.map(s => [s.key, s.pct ?? 0])),
+          // Keep null for categories that never had anything due, so the FOC's
+          // view can show "—" rather than a misleading 0%.
+          payload: Object.fromEntries(stats.map(s => [s.key, s.pct])),
           updated_at: new Date().toISOString(),
         }).catch(() => {});
       }
