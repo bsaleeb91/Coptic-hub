@@ -4,9 +4,23 @@
 // last-write-wins backup so the rule survives a reinstall / new device.
 
 import * as db from '@/lib/db';
-import { RuleConfig, hasStoredRule, importRule, loadRule } from './rule-store';
+import { RuleConfig, hasStoredRule, importRule, loadRule, normalizeRule } from './rule-store';
 
 export const RULE_SLUG = 'personal-rule';
+
+// The member's current self-set rule, read from the cloud mirror — used by
+// the FOC's member view and canon editor to show/edit the member's ACTUAL
+// canon. Requires the "FOC reads flock personal rule" policy (consented FOC
+// link). Demo mode reads the device's own rule (single-device role-switch).
+export async function loadMemberRule(memberId: string, demoMode: boolean): Promise<RuleConfig | null> {
+  if (demoMode) return loadRule();
+  try {
+    const payload = await db.getAgentProgress(memberId, RULE_SLUG);
+    return payload?.rule ? normalizeRule(payload.rule) : null;
+  } catch {
+    return null;
+  }
+}
 
 // If no rule is stored on this device yet, pull one from the cloud. Returns the
 // hydrated rule, or null if there was nothing to hydrate.

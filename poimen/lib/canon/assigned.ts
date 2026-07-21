@@ -58,6 +58,7 @@ export interface CustomComponent {
   id: string;
   text: string;
   frequency: string;
+  days: number[] | null;   // weekday indices (0 = Sunday); null/empty = every day
   locked: boolean;
 }
 
@@ -195,7 +196,10 @@ export function applyOverlay(rule: RuleConfig, assigned: AssignedCanon[], lastCo
   for (const a of assigned) {
     const locked = isLocked(a, lastConfession);
     if (a.category === 'custom') {
-      customComponents.push({ id: a.id, text: a.component, frequency: a.frequency, locked });
+      const days = Array.isArray(a.payload?.days)
+        ? a.payload.days.filter((d: any) => Number.isInteger(d) && d >= 0 && d <= 6)
+        : null;
+      customComponents.push({ id: a.id, text: a.component, frequency: a.frequency, days, locked });
       continue;
     }
     if (!locked) continue;   // member has confessed since — their own (folded) value stands
@@ -295,7 +299,9 @@ export async function assignCategory(params: {
     // Custom components accumulate; structured categories replace.
     const kept = category === 'custom' ? list : list.filter(a => a.category !== category);
     kept.push({
-      id: `demo-${category}-${Date.now()}`,
+      // Uniquified: two customs saved in the same millisecond must not share
+      // an id — removeAssignment filters by id and would delete both.
+      id: `demo-${category}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       category, component, payload: payload ?? null,
       frequency: frequency ?? 'Daily',
       startDate: new Date().toISOString().slice(0, 10),

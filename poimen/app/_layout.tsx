@@ -23,7 +23,7 @@ import * as db from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { TutorialProvider } from '@/lib/tutorial-context';
 import { Modal, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView } from 'react-native';
-import { colors, fonts, applyTheme, loadThemeMode, ThemeMode } from '@/lib/theme';
+import { colors, fonts, applyTheme, loadThemeMode, lazyThemed, ThemeMode } from '@/lib/theme';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -77,7 +77,7 @@ function PINModal() {
           <TextInput
             style={pinStyles.input}
             placeholder="PIN"
-            placeholderTextColor="rgba(245,240,232,0.3)"
+            placeholderTextColor={colors.faint}
             value={pin}
             onChangeText={t => { setPin(t); setError(''); }}
             secureTextEntry
@@ -88,7 +88,7 @@ function PINModal() {
             <TextInput
               style={pinStyles.input}
               placeholder="Confirm PIN"
-              placeholderTextColor="rgba(245,240,232,0.3)"
+              placeholderTextColor={colors.faint}
               value={confirmPin}
               onChangeText={t => { setConfirmPin(t); setError(''); }}
               secureTextEntry
@@ -119,24 +119,32 @@ function PINModal() {
   );
 }
 
-const pinStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(10,16,30,0.92)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  card: { backgroundColor: '#0f1f3d', borderWidth: 1, borderColor: 'rgba(201,168,76,0.25)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 400, alignItems: 'center', gap: 12 },
+const pinStyles = lazyThemed(() => StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 28, width: '100%', maxWidth: 400, alignItems: 'center', gap: 12 },
   cross: { fontSize: 24, color: colors.gold, opacity: 0.8 },
   title: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, textAlign: 'center' },
   body: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18 },
-  input: { width: '100%', backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)', borderRadius: 10, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 15, padding: 14 },
+  input: { width: '100%', backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 15, padding: 14 },
   error: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.red, textAlign: 'center' },
   btn: { backgroundColor: colors.gold, borderRadius: 10, paddingVertical: 14, width: '100%', alignItems: 'center' },
   btnText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.navy, letterSpacing: 1 },
   skip: { marginTop: 4 },
   skipText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, textAlign: 'center', lineHeight: 16 },
-});
+}));
 
 function RootLayoutNav() {
   const { session, loading } = useSession();
-  const { demoMode } = useDemoMode();
+  const { demoMode, setDemoMode } = useDemoMode();
   const segments = useSegments();
+
+  // A real session always wins over a lingering demo flag. The sign-in
+  // screen's demo cards persist the flag and nothing ever cleared it, so one
+  // demo visit left every later authenticated session silently running on
+  // demo data and fake saves (e.g. priest encounters that never hit the DB).
+  useEffect(() => {
+    if (session && demoMode) setDemoMode(false);
+  }, [session, demoMode]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -155,7 +163,7 @@ function RootLayoutNav() {
     }
   }, [session?.user?.id]);
 
-  if (loading && !demoMode) return <View style={{ flex: 1, backgroundColor: '#0f1f3d' }} />;
+  if (loading && !demoMode) return <View style={{ flex: 1, backgroundColor: colors.navy }} />;
 
   if (!demoMode && !loading) {
     const onSignIn = segments[0] === 'sign-in';

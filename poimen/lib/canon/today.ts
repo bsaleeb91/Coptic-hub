@@ -43,6 +43,36 @@ const readLabel = (mode: ReadMode, n: number) => `${n} ${mode === 'chapters' ? (
 // maps the key to its last completion date; a non-weekly service done within
 // its period is hidden (except on the completion day itself, so the checked
 // row stays visible).
+
+// Whether a priest-assigned custom component is due on `date`. Daily (or no
+// weekday selection) means every day; otherwise only its chosen weekdays.
+// Frequencies longer than weekly rest for their period after being checked
+// off, exactly like Heart of Service commitments.
+export function customDueToday(
+  frequency: string,
+  days: number[] | null | undefined,
+  date: Date,
+  serviceDone?: Record<string, string>,
+  key?: string,
+  postponed?: Record<string, string>,
+): boolean {
+  const dayList = days ?? [];
+  if (frequency !== 'Daily' && dayList.length > 0 && !dayList.includes(date.getDay())) return false;
+  const todayStr = localDateStr(date);
+  if (key) {
+    const until = postponed?.[key];
+    if (until && todayStr < until) return false;
+    if (serviceDone && frequency !== 'Daily' && frequency !== 'Weekly') {
+      const last = serviceDone[key];
+      if (last && last !== todayStr) {
+        const next = nextDueAfter(frequency, new Date(`${last}T12:00:00`));
+        if (todayStr < localDateStr(next)) return false;
+      }
+    }
+  }
+  return true;
+}
+
 export function todayItems(
   rule: RuleConfig,
   date: Date,

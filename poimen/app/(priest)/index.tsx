@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useNavigation } from 'expo-router';
 import { DrawerActions } from '@react-navigation/native';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
+import { latestConfessionMs, daysSinceMs } from '@/lib/confession/dates';
 import { Card } from '@/components/ui/Card';
 import { CrossIcon, CandleIcon, PersonIcon } from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
@@ -91,10 +92,11 @@ export default function FlockScreen() {
     }
 
     const mapped: FlockMember[] = profiles.map(p => {
-      const last = latestByMember[p.id];
-      const daysSince = last
-        ? Math.floor((now.getTime() - new Date(last).getTime()) / 86400000)
-        : null;
+      // Newest of priest-logged confession encounters and the member's
+      // self-reported last confession — never double-counted, just max'd.
+      const lastMs = latestConfessionMs(latestByMember[p.id], p.last_confession_at);
+      // Local calendar days, matching the member's own count.
+      const daysSince = lastMs != null ? daysSinceMs(lastMs) : null;
       const status: StatusType =
         daysSince === null ? 'overdue' :
         daysSince < 30 ? 'recent' :
@@ -284,7 +286,7 @@ export default function FlockScreen() {
 
 const ctx = lazyThemed(() => StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  sheet: { backgroundColor: '#0b1423', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 24, paddingBottom: 36, paddingTop: 14 },
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 24, paddingBottom: 36, paddingTop: 14 },
   handle: { width: 36, height: 4, backgroundColor: colors.faint, borderRadius: 2, alignSelf: 'center', marginBottom: 18 },
   memberName: { fontFamily: fonts.cormorantMedium, fontSize: 20, color: colors.cream, marginBottom: 3 },
   memberMeta: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 16 },
@@ -327,9 +329,9 @@ const styles = lazyThemed(() => StyleSheet.create({
 
   memberRow: { paddingVertical: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   memberBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#2c4a7c', borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.blueBg, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   avatarFlagged: { borderColor: colors.red, backgroundColor: 'rgba(192,57,43,0.2)' },
-  avatarText: { fontFamily: fonts.cormorantMedium, fontSize: 14, color: colors.cream },
+  avatarText: { fontFamily: fonts.cormorantMedium, fontSize: 14, color: colors.blue },
   memberTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 },
   memberName: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, flex: 1 },
   statusPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20, flexShrink: 0 },

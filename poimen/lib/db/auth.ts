@@ -39,11 +39,16 @@ export async function signInWithPassword(email: string, password: string): Promi
   return { error: error?.message ?? null };
 }
 
-export async function signUp(email: string, password: string, fullName: string): Promise<{ error: string | null }> {
+export type SignupRole = 'congregant' | 'servant' | 'priest';
+
+export async function signUp(email: string, password: string, fullName: string, requestedRole: SignupRole = 'congregant'): Promise<{ error: string | null }> {
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName } },
+    // The handle_new_user trigger applies requested_role server-side:
+    // congregant/servant are granted directly, priest stays congregant
+    // until an admin approves the request.
+    options: { data: { full_name: fullName, requested_role: requestedRole } },
   });
   return { error: error?.message ?? null };
 }

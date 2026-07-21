@@ -21,7 +21,7 @@ import { useDemoMode } from '@/lib/demo';
 import { SIN_CATALOGUE } from '@/lib/confession/sinCatalogue';
 import { resetVitalsEpoch } from '@/lib/canon/history';
 import { confirmDestructive } from '@/lib/confirm';
-import { recordConfession, loadConfessionDates, lastConfessionDate } from '@/lib/confession/dates';
+import { recordConfession, loadConfessionDates, lastConfessionDate, pushConfessionDatesToCloud, parseLocalDate } from '@/lib/confession/dates';
 import { foldOnConfession } from '@/lib/canon/assigned';
 import {
   NotepadIcon, ClipboardIcon, PrayingHandsIcon, LockIcon, CrossIcon, HeartIcon,
@@ -132,6 +132,9 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
         { key: '2026-04-20', note: 'Fr. assigned: Marriage prayer practice' },
       ]) entries.set(e.key, { id: `demo_${e.key}`, dateKey: e.key, date: fmt(e.key), note: e.note });
     } else if (user) {
+      // Keep the FOC-visible dates mirror current (covers dates recorded
+      // before the mirror existed).
+      pushConfessionDatesToCloud(user.id);
       const data = await db.getConfessionsForCongregant(user.id);
       for (const enc of data ?? []) {
         const d = new Date(enc.encountered_at);
@@ -146,16 +149,20 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
 
   async function handleSelfReport() {
     if (!user) return;
-    const parsedDate = new Date(selfReportDate);
-    if (isNaN(parsedDate.getTime())) {
+    // parseLocalDate, not new Date(str): Hermes can't parse "Jun 15, 2026".
+    const parsedDate = parseLocalDate(selfReportDate);
+    if (!parsedDate) {
       setSelfReportError('Invalid date — use a format like "Jun 15, 2026"');
       return;
     }
     setSelfReportError('');
     setSelfReporting(true);
     const prevConfession = await lastConfessionDate();
-    await recordConfession(parsedDate);
-    await db.setLastConfession(user.id, parsedDate.toISOString());
+    const dates = await recordConfession(parsedDate);
+    // Mirror the NEWEST known date — a back-dated "forgot to log" entry must
+    // not move the FOC's days-since-confession backward.
+    await db.setLastConfession(user.id, new Date(`${dates[0]}T12:00:00`).toISOString());
+    if (!demoMode) pushConfessionDatesToCloud(user.id);
     // Release (fold in) any canon parts the FOC assigned since the last confession.
     await foldOnConfession({ memberId: user.id, userId: user.id, demoMode, previousLastConfession: prevConfession, focId: profile?.foc_id });
     await refreshProfile();
@@ -756,6 +763,7 @@ function CompleteView({ onBack }: { onBack: () => void }) {
       await recordConfession();
       if (!demoMode && user) {
         await db.setLastConfession(user.id, new Date().toISOString());
+        pushConfessionDatesToCloud(user.id);
         await refreshProfile();
       }
       // Release (fold in) any canon parts the FOC assigned since the last confession.

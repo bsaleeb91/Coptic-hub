@@ -32,11 +32,19 @@ export interface PartCard {
 
 export const cardId = (item: string, part: number) => `${item}:${part}`;
 
-function todayStr(): string { return new Date().toISOString().slice(0, 10); }
+// LOCAL calendar date (not UTC) — reviews unlock on the next local calendar
+// day, not 24h after the moment a portion was learned. Using toISOString here
+// mixed UTC (todayStr) with local (setDate), which pushed evening-learned
+// portions a day late in timezones behind UTC.
+function localStr(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function todayStr(): string { return localStr(new Date()); }
 function addDaysStr(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return localStr(d);
 }
 
 async function readJSON<T>(key: string, fallback: T): Promise<T> {

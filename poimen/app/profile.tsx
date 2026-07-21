@@ -250,6 +250,11 @@ export default function ProfileScreen() {
           <View style={styles.roleBadge}>
             <Text style={styles.roleBadgeText}>{profile?.role ?? 'congregant'}</Text>
           </View>
+          {profile?.requested_role === 'priest' && profile.role === 'congregant' && (
+            <View style={styles.pendingBadge}>
+              <Text style={styles.pendingBadgeText}>PRIEST VERIFICATION PENDING</Text>
+            </View>
+          )}
         </View>
 
         {/* ── Account Details ── */}
@@ -674,6 +679,11 @@ const styles = lazyThemed(() => StyleSheet.create({
     borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4,
   },
   roleBadgeText: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold },
+  pendingBadge: {
+    marginTop: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 4, backgroundColor: colors.panel,
+  },
+  pendingBadgeText: { fontFamily: fonts.latoBold, fontSize: 8, letterSpacing: 1.2, color: colors.muted },
 
   sectionHint: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 16, opacity: 0.8 },
 

@@ -11,9 +11,9 @@ import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
-import { loadRule } from '@/lib/canon/rule-store';
+import { loadRule, WEEKDAYS } from '@/lib/canon/rule-store';
 import { hydrateRuleFromCloud } from '@/lib/canon/rule-sync';
-import { todayItems, RuleItem } from '@/lib/canon/today';
+import { todayItems, customDueToday, RuleItem } from '@/lib/canon/today';
 import { isFastDay } from '@/lib/canon/fasting';
 import { loadTodayChecks, saveTodayChecks } from '@/lib/canon/checks';
 import {
@@ -139,10 +139,21 @@ export default function CanonScreen() {
 
     const [postponed, serviceDone] = await Promise.all([loadPostponements(), loadServiceDone()]);
     const structured = todayItems(overlay.rule, new Date(), postponed, serviceDone);
-    // Priest-added free-text components appear as read-only canon rows.
-    const customItems: RuleItem[] = overlay.customComponents.map(c => ({
-      key: `assigned_${c.id}`, icon: 'quiet', label: c.frequency ? `${c.text} · ${c.frequency}` : c.text,
-    }));
+    // Priest-added free-text components appear as read-only canon rows — on
+    // their scheduled weekdays only, resting for their period once checked
+    // off (the same recurrence model as Heart of Service commitments).
+    const customItems: RuleItem[] = overlay.customComponents
+      .filter(c => customDueToday(c.frequency, c.days, new Date(), serviceDone, `assigned_${c.id}`, postponed))
+      .map(c => {
+        const daysLabel = c.days?.length ? ` · ${c.days.map(d => WEEKDAYS[d].slice(0, 3)).join(', ')}` : '';
+        return {
+          key: `assigned_${c.id}`, icon: 'quiet',
+          label: c.frequency ? `${c.text} · ${c.frequency}${daysLabel}` : c.text,
+          // A rest-period frequency makes check-offs record a done date, so
+          // e.g. a monthly component sleeps until next month once completed.
+          freq: c.frequency && c.frequency !== 'Daily' && c.frequency !== 'Weekly' ? c.frequency : undefined,
+        };
+      });
     const items = [...structured, ...customItems];
 
     // Which of today's rows are FOC-assigned (locked) — badge them. Day-based
@@ -201,7 +212,7 @@ export default function CanonScreen() {
   // is what rests a non-weekly service until its next due date.
   function toggleCheck(item: RuleItem) {
     const id = `rule_${item.key}`;
-    const isServe = item.key.startsWith('serve_');
+    const isServe = item.key.startsWith('serve_') || (item.key.startsWith('assigned_') && !!item.freq);
     setChecked(prev => {
       const next = new Set(prev);
       const nowChecked = !next.has(id);

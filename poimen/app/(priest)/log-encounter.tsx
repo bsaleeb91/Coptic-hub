@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
+import { parseLocalDate } from '@/lib/confession/dates';
 import { useDemoMode } from '@/lib/demo';
 
 type EncounterType = 'confession' | 'counseling' | 'advice' | 'visit' | 'phone' | 'group';
@@ -48,6 +49,7 @@ export default function LogEncounterScreen() {
   const [memberNote, setMemberNote] = useState('');
   const [privateNote, setPrivateNote] = useState('');
   const [followUpDate, setFollowUpDate] = useState('');
+  const [followUpError, setFollowUpError] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dateError, setDateError] = useState('');
@@ -79,18 +81,40 @@ export default function LogEncounterScreen() {
   );
 
   async function handleSave() {
-    if (!selectedMemberId || saving) return;
-    if (demoMode) {
-      setSaved(true);
-      setTimeout(() => router.push('/(priest)'), 1300);
+    if (saving) return;
+    if (!selectedMemberId) {
+      setSaveError('Please select a member from the list first.');
       return;
     }
-    const parsedDate = new Date(encounterDate);
-    if (isNaN(parsedDate.getTime())) {
+    if (demoMode) {
+      setSaveError('You are in demo mode — sign in with a real account to save encounters.');
+      return;
+    }
+    // parseLocalDate (not `new Date(str)`) because Hermes — React Native's JS
+    // engine — cannot parse "Jul 21, 2026" and returns Invalid Date, which was
+    // silently blocking every save on device (it only "worked" in a browser).
+    const parsedDate = parseLocalDate(encounterDate);
+    if (!parsedDate) {
       setDateError('Invalid date — use a format like "Jun 7, 2026"');
       return;
     }
     setDateError('');
+    // follow_up_date is a DATE column — a free-text reminder (e.g. "after the
+    // Feast") makes the whole insert fail silently. Parse it: a bare date is
+    // sent as YYYY-MM-DD; anything unparseable is rejected with a clear error
+    // instead of losing the encounter.
+    let followUp: string | null = null;
+    const fuRaw = followUpDate.trim();
+    if (fuRaw) {
+      const fd = parseLocalDate(fuRaw);
+      if (!fd) {
+        setFollowUpError('Enter a date like "Jun 29, 2026", or leave this blank.');
+        return;
+      }
+      const p = (n: number) => String(n).padStart(2, '0');
+      followUp = `${fd.getFullYear()}-${p(fd.getMonth() + 1)}-${p(fd.getDate())}`;
+    }
+    setFollowUpError('');
     setSaveError('');
     setSaving(true);
     const { error } = await db.insertEncounter({
@@ -101,16 +125,18 @@ export default function LogEncounterScreen() {
       member_note: memberNote.trim() || null,
       private_note: privateNote.trim() || null,
       outcomes: null,
-      follow_up_date: followUpDate.trim() || null,
+      follow_up_date: followUp,
     });
     setSaving(false);
     if (error) {
-      setSaveError('Failed to save — please try again.');
+      // Surface the real reason (RLS denial, bad date, etc.) instead of a
+      // generic message that hides what actually failed.
+      setSaveError(`Couldn't save: ${error}`);
       return;
     }
-    if (encounterType === 'confession') {
-      await db.setLastConfession(selectedMemberId, parsedDate.toISOString());
-    }
+    // No profile mirror here: RLS lets a user update only their OWN profiles
+    // row, so a priest-side setLastConfession was a silent 0-row no-op. The
+    // FOC dashboards read confession encounters directly instead.
     setSaved(true);
     setTimeout(() => router.push('/(priest)'), 1300);
   }
@@ -221,12 +247,13 @@ export default function LogEncounterScreen() {
         <Card title="Schedule Follow-Up (Optional)" titleIconNode={<CalendarIcon size={16} color={colors.gold} />}>
           <TextInput
             style={styles.textInput}
-            placeholder="E.g., Jun 29 after Feast of Peter & Paul Liturgy"
+            placeholder="E.g., Jun 29, 2026"
             placeholderTextColor={colors.faint}
             value={followUpDate}
-            onChangeText={setFollowUpDate}
+            onChangeText={(t) => { setFollowUpDate(t); if (followUpError) setFollowUpError(''); }}
           />
-          <Text style={styles.fieldHint}>Will appear as a reminder in your Flock view.</Text>
+          {followUpError ? <Text style={styles.errorText}>{followUpError}</Text> : null}
+          <Text style={styles.fieldHint}>A reminder date for your Flock view. Leave blank if none.</Text>
         </Card>
 
         {/* Confession-specific notice */}
@@ -259,6 +286,7 @@ export default function LogEncounterScreen() {
 function today(): string {
   return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
+
 
 const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },

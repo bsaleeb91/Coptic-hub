@@ -6,7 +6,7 @@ import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
-import type { AdminSummary, MonthlyActivity, ChurchBreakdown } from '@/lib/db';
+import type { AdminSummary, MonthlyActivity, ChurchBreakdown, PriestRequest } from '@/lib/db';
 
 type ChartMetric = 'signups' | 'prayers' | 'confessions' | 'canon_completions' | 'journal_active';
 
@@ -65,6 +65,9 @@ export default function AdminScreen() {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [monthly, setMonthly] = useState<MonthlyActivity[]>([]);
   const [churches, setChurches] = useState<ChurchBreakdown[]>([]);
+  const [requests, setRequests] = useState<PriestRequest[] | null>([]);
+  const [requestError, setRequestError] = useState('');
+  const [actingId, setActingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState<ChartMetric>('signups');
 
@@ -74,13 +77,28 @@ export default function AdminScreen() {
       db.getAdminSummary(),
       db.getMonthlyActivity(),
       db.getChurchBreakdown(),
-    ]).then(([s, m, c]) => {
+      db.getPriestRequests(),
+    ]).then(([s, m, c, r]) => {
       setSummary(s);
       setMonthly(m);
       setChurches(c);
+      setRequests(r);
       setLoading(false);
     });
   }, [profile]);
+
+  async function handleRequest(id: string, approve: boolean) {
+    setActingId(id);
+    setRequestError('');
+    const ok = approve ? await db.approvePriestRequest(id) : await db.denyPriestRequest(id);
+    if (ok) {
+      setRequests((prev) => (prev ?? []).filter((r) => r.id !== id));
+    } else {
+      setRequestError('That request could not be updated — it may have been handled in another session. The list has been refreshed.');
+      setRequests(await db.getPriestRequests());
+    }
+    setActingId(null);
+  }
 
   if (Platform.OS !== 'web') {
     return (
@@ -130,6 +148,47 @@ export default function AdminScreen() {
           <Text style={styles.roadmapLinkText}>App Store Roadmap →</Text>
         </TouchableOpacity>
 
+        {/* ── Priest requests — rendered regardless of stats health so a
+              broken summary RPC can never hide pending approvals ── */}
+        {!loading && (
+          <>
+            <Text style={[styles.sectionLabel, { marginTop: 8 }]}>PRIEST REQUESTS</Text>
+            {requestError ? <Text style={styles.requestErrorText}>{requestError}</Text> : null}
+            {requests === null ? (
+              <Text style={styles.emptyText}>Could not load priest requests.</Text>
+            ) : requests.length === 0 ? (
+              <Text style={styles.emptyText}>No pending requests.</Text>
+            ) : (
+              <Card title="" titleIcon="">
+                {requests.map((r) => (
+                  <View key={r.id} style={styles.requestRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.requestName}>{r.full_name ?? 'Unnamed'}</Text>
+                      <Text style={styles.requestMeta}>
+                        {r.email ?? '—'}{r.church_name ? ` · ${r.church_name}` : ''}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.reqBtn, styles.approveBtn, actingId !== null && { opacity: 0.5 }]}
+                      disabled={actingId !== null}
+                      onPress={() => handleRequest(r.id, true)}
+                    >
+                      <Text style={styles.approveText}>Approve</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.reqBtn, styles.denyBtn, actingId !== null && { opacity: 0.5 }]}
+                      disabled={actingId !== null}
+                      onPress={() => handleRequest(r.id, false)}
+                    >
+                      <Text style={styles.denyText}>Deny</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </Card>
+            )}
+          </>
+        )}
+
         {loading ? (
           <ActivityIndicator color={colors.gold} style={{ marginTop: 60 }} />
         ) : !summary ? (
@@ -137,7 +196,7 @@ export default function AdminScreen() {
         ) : (
           <>
             {/* ── Summary grid ── */}
-            <Text style={styles.sectionLabel}>OVERVIEW</Text>
+            <Text style={[styles.sectionLabel, { marginTop: 24 }]}>OVERVIEW</Text>
             <View style={styles.statGrid}>
               <StatCard value={summary.total_users} label="Total Users" />
               <StatCard value={summary.active_week} label="Active This Week" sub={`${retentionRate}% monthly retention`} />
@@ -255,6 +314,16 @@ const styles = lazyThemed(() => StyleSheet.create({
   sectionLabel: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 2.5, color: colors.muted, marginBottom: 10 },
   errorText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.red, marginTop: 20, lineHeight: 20 },
   emptyText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, marginTop: 8 },
+
+  requestRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
+  requestErrorText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.red, marginBottom: 8, lineHeight: 17 },
+  requestName: { fontFamily: fonts.cormorantMedium, fontSize: 16, color: colors.cream },
+  requestMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 2 },
+  reqBtn: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
+  approveBtn: { borderColor: colors.green },
+  denyBtn: { borderColor: colors.border },
+  approveText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.green },
+  denyText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.red },
 
   gateTitle: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 8 },
   gateSub: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textAlign: 'center' },

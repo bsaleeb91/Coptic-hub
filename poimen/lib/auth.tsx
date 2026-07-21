@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as db from './db';
-import type { AuthSession, AuthUser, Profile } from './db';
+import type { AuthSession, AuthUser, Profile, SignupRole } from './db';
 import {
   hasLocalKeypair, getPublicKeyBase64, getOrCreateBoxKeypair,
   saveBoxKeypair, encryptKeypairWithPIN, decryptKeypairWithPIN,
@@ -19,7 +19,7 @@ type AuthContextType = {
   pinAction: PINAction;
   refreshProfile: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUpWithEmail: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
+  signUpWithEmail: (email: string, password: string, fullName: string, requestedRole?: SignupRole) => Promise<{ error: string | null }>;
   signInWithMagicLink: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   completePINSetup: (pin: string) => Promise<void>;
@@ -127,8 +127,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return db.signInWithPassword(email, password);
   }
 
-  async function signUpWithEmail(email: string, password: string, fullName: string) {
-    return db.signUp(email, password, fullName);
+  async function signUpWithEmail(email: string, password: string, fullName: string, requestedRole: SignupRole = 'congregant') {
+    return db.signUp(email, password, fullName, requestedRole);
   }
 
   async function signInWithMagicLink(email: string) {

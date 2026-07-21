@@ -59,8 +59,22 @@ export async function getRecentEncounters(congregantId: string, limit: number): 
     .select('encounter_type, encountered_at, member_note')
     .eq('congregant_id', congregantId)
     .order('encountered_at', { ascending: false })
+    .order('id', { ascending: false })
     .limit(limit);
   return data ?? [];
+}
+
+// Most-recent encountered_at of a given type for one member (e.g. the last
+// pastoral visit). Readable by the member (own rows) and their FOC.
+export async function getLastEncounterDate(congregantId: string, type: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('pastoral_encounters')
+    .select('encountered_at')
+    .eq('congregant_id', congregantId)
+    .eq('encounter_type', type)
+    .order('encountered_at', { ascending: false })
+    .limit(1);
+  return data?.[0]?.encountered_at ?? null;
 }
 
 // Confession-type encounters for one member (member detail + history).

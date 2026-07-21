@@ -8,8 +8,15 @@ import { useRouter } from 'expo-router';
 import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
+import type { SignupRole } from '@/lib/db';
 
 type Mode = 'signin' | 'signup' | 'magic';
+
+const SIGNUP_ROLES: { key: SignupRole; label: string; desc: string }[] = [
+  { key: 'congregant', label: 'Congregant', desc: 'My spiritual life' },
+  { key: 'servant',    label: 'Servant',    desc: 'Sunday school service' },
+  { key: 'priest',     label: 'Priest',     desc: 'Father of Confession' },
+];
 
 export default function SignInScreen() {
   const { signInWithEmail, signUpWithEmail, signInWithMagicLink } = useSession();
@@ -20,12 +27,14 @@ export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [signupRole, setSignupRole] = useState<SignupRole>('congregant');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
 
   function switchMode(m: Mode) {
     setMode(m);
+    setSignupRole('congregant');
     setError('');
     setInfo('');
   }
@@ -39,9 +48,11 @@ export default function SignInScreen() {
       if (error) setError(error);
       else router.replace('/(tabs)');
     } else if (mode === 'signup') {
-      const { error } = await signUpWithEmail(email.trim(), password, fullName.trim());
+      const { error } = await signUpWithEmail(email.trim(), password, fullName.trim(), signupRole);
       if (error) setError(error);
-      else setInfo('Check your email to confirm your account, then sign in.');
+      else setInfo(signupRole === 'priest'
+        ? 'Check your email to confirm your account, then sign in. Priest access unlocks once the church administration verifies your request.'
+        : 'Check your email to confirm your account, then sign in.');
     } else {
       const { error } = await signInWithMagicLink(email.trim());
       if (error) setError(error);
@@ -71,6 +82,27 @@ export default function SignInScreen() {
 
           {/* Form */}
           <View style={styles.form}>
+            {mode === 'signup' && (
+              <>
+                <View style={styles.roleRow}>
+                  {SIGNUP_ROLES.map((r) => (
+                    <TouchableOpacity
+                      key={r.key}
+                      style={[styles.roleBtn, signupRole === r.key && styles.roleBtnActive]}
+                      onPress={() => setSignupRole(r.key)}
+                    >
+                      <Text style={[styles.roleBtnLabel, signupRole === r.key && styles.roleBtnLabelActive]}>{r.label}</Text>
+                      <Text style={styles.roleBtnDesc}>{r.desc}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {signupRole === 'priest' && (
+                  <Text style={styles.roleNote}>
+                    Priest accounts are verified by the church administration. Until your request is approved, the account has congregant access.
+                  </Text>
+                )}
+              </>
+            )}
             {mode === 'signup' && (
               <TextInput
                 style={styles.input}
@@ -199,6 +231,30 @@ const styles = lazyThemed(() => StyleSheet.create({
   modeHeading: { fontFamily: fonts.cormorantItalic, fontSize: 20, color: colors.muted, marginBottom: 20 },
 
   form: { gap: 12 },
+  roleRow: { flexDirection: 'row', gap: 8 },
+  roleBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.panel,
+  },
+  roleBtnActive: { borderColor: colors.gold, backgroundColor: 'rgba(201,168,76,0.08)' },
+  roleBtnLabel: { fontFamily: fonts.cormorantMedium, fontSize: 15, color: colors.muted },
+  roleBtnLabelActive: { color: colors.cream },
+  roleBtnDesc: { fontFamily: fonts.latoLight, fontSize: 9, color: colors.faint, textAlign: 'center' },
+  roleNote: {
+    fontFamily: fonts.latoLight,
+    fontSize: 11,
+    color: colors.muted,
+    lineHeight: 16,
+    textAlign: 'center',
+    paddingHorizontal: 4,
+  },
   input: {
     backgroundColor: colors.panel,
     borderWidth: 1,

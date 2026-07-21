@@ -25,6 +25,12 @@ import {
   AssignedCanon, applyCategoryToRule, loadAssignedForPriest,
   assignCategory, removeAssignment,
 } from '@/lib/canon/assigned';
+import { loadMemberRule } from '@/lib/canon/rule-sync';
+
+// Scheduling choices for custom components. The member's canon shows one on
+// its chosen weekdays; frequencies longer than weekly rest for their period
+// after the member checks it off (same model as Heart of Service).
+const CUSTOM_FREQUENCIES = ['Daily', 'Weekly', 'Every 2 weeks', 'Monthly', 'Quarterly', 'Twice a year'];
 
 const SP = { xs: 6, sm: 10, md: 14, lg: 20 };
 const R = { md: 10, lg: 12, full: 999 };
@@ -91,8 +97,9 @@ export default function AssignCanonScreen() {
   const [enabled, setEnabled] = useState<Set<AssignedCategory>>(new Set());
   const [orig, setOrig] = useState<Set<AssignedCategory>>(new Set());
   const [origPayloads, setOrigPayloads] = useState<Record<string, string>>({}); // category -> serialized loaded payload
-  const [customList, setCustomList] = useState<{ id?: string; text: string; freq: string }[]>([]);
+  const [customList, setCustomList] = useState<{ id?: string; text: string; freq: string; days: number[] }[]>([]);
   const [origCustomIds, setOrigCustomIds] = useState<string[]>([]);
+  const [origCustomSnap, setOrigCustomSnap] = useState<Record<string, string>>({}); // id -> serialized schedule
   const [newCustom, setNewCustom] = useState('');
   const [expandDay, setExpandDay] = useState<AssignedCategory | null>(null);
   const [expandDayIdx, setExpandDayIdx] = useState(0);
@@ -101,12 +108,25 @@ export default function AssignCanonScreen() {
   const [saveError, setSaveError] = useState('');
 
   const load = useCallback(async () => {
-    const assigned = await loadAssignedForPriest(memberId ?? '', user?.id ?? '', demoMode);
-    const w: RuleConfig = JSON.parse(JSON.stringify(DEFAULT_RULE));
+    const [assigned, memberRule] = await Promise.all([
+      loadAssignedForPriest(memberId ?? '', user?.id ?? '', demoMode),
+      loadMemberRule(memberId ?? '', demoMode),
+    ]);
+    // Seed the editor from the member's CURRENT self-set rule, so unassigned
+    // categories show what the member actually does and "editing" a category
+    // starts from reality rather than app defaults. Categories this priest
+    // has assigned overlay on top below.
+    const w: RuleConfig = memberRule ?? JSON.parse(JSON.stringify(DEFAULT_RULE));
     const en = new Set<AssignedCategory>();
-    const custom: { id?: string; text: string; freq: string }[] = [];
+    const custom: { id?: string; text: string; freq: string; days: number[] }[] = [];
     for (const a of assigned) {
-      if (a.category === 'custom') { custom.push({ id: a.id, text: a.component, freq: a.frequency }); continue; }
+      if (a.category === 'custom') {
+        custom.push({
+          id: a.id, text: a.component, freq: a.frequency,
+          days: Array.isArray(a.payload?.days) ? a.payload.days : [],
+        });
+        continue;
+      }
       applyCategoryToRule(w, a);
       en.add(a.category);
     }
@@ -116,6 +136,9 @@ export default function AssignCanonScreen() {
     en.forEach(cat => { op[cat] = JSON.stringify(buildPayload(cat, w)); });
     setWork(w); setEnabled(en); setOrig(new Set(en)); setOrigPayloads(op);
     setCustomList(custom); setOrigCustomIds(custom.map(c => c.id!).filter(Boolean));
+    const snap: Record<string, string> = {};
+    for (const c of custom) if (c.id) snap[c.id] = JSON.stringify({ f: c.freq, d: c.days });
+    setOrigCustomSnap(snap);
   }, [memberId, demoMode, user?.id]);
 
   useEffect(() => { load(); }, [load]);
@@ -179,12 +202,33 @@ export default function AssignCanonScreen() {
           await removeAssignment({ memberId: memberId ?? '', priestId: user?.id ?? '', demoMode, category: cat });
         }
       }
-      // Custom components: add new (no id), remove any originally present but now gone.
-      for (const c of customList) {
-        if (!c.id && c.text.trim()) {
+      // Custom components: add new (no id), replace ones whose schedule the
+      // priest changed, remove any originally present but now gone. A
+      // component still sitting in the input counts too — typing one and
+      // hitting SAVE without tapping the add button is the natural flow, and
+      // silently dropping it lost the priest's custom canon.
+      const customs = newCustom.trim()
+        ? [...customList, { text: newCustom.trim(), freq: 'Daily', days: [] as number[] }]
+        : customList;
+      for (const c of customs) {
+        if (!c.text.trim()) continue;
+        // Days are ignored for Daily — compare and persist the EFFECTIVE
+        // schedule, so a Daily round-trip doesn't count as a change (which
+        // would replace the row and re-lock it).
+        const effDays = c.freq === 'Daily' ? [] : c.days;
+        const payload = effDays.length ? { days: effDays } : null;
+        if (!c.id) {
           await assignCategory({
             memberId: memberId ?? '', priestId: user?.id ?? '', demoMode,
-            category: 'custom', component: c.text.trim(), payload: null, frequency: c.freq,
+            category: 'custom', component: c.text.trim(), payload, frequency: c.freq,
+          });
+        } else if (origCustomSnap[c.id] !== JSON.stringify({ f: c.freq, d: effDays })) {
+          // Schedule changed — replace the row. The fresh created_at re-locks
+          // it, which is right: the priest just re-prescribed it.
+          await removeAssignment({ memberId: memberId ?? '', priestId: user?.id ?? '', demoMode, category: 'custom', id: c.id });
+          await assignCategory({
+            memberId: memberId ?? '', priestId: user?.id ?? '', demoMode,
+            category: 'custom', component: c.text.trim(), payload, frequency: c.freq,
           });
         }
       }
@@ -317,18 +361,54 @@ export default function AssignCanonScreen() {
           </View>
           <Text style={s.fieldNote}>Free-text additions to the member's canon. Read-only for them; you manage these.</Text>
           {customList.map((c, i) => (
-            <View key={c.id ?? `new-${i}`} style={s.customRow}>
-              <Text style={s.customText}>{c.text}{c.freq ? ` · ${c.freq}` : ''}</Text>
-              <TouchableOpacity onPress={() => setCustomList(list => list.filter((_, idx) => idx !== i))} hitSlop={8}>
-                <Text style={{ color: colors.red, fontSize: 12 }}>Remove</Text>
-              </TouchableOpacity>
+            <View key={c.id ?? `new-${i}`} style={s.customBlock}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={s.customText}>{c.text}</Text>
+                <TouchableOpacity onPress={() => setCustomList(list => list.filter((_, idx) => idx !== i))} hitSlop={8}>
+                  <Text style={{ color: colors.red, fontSize: 12 }}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={s.chipsRow}>
+                {CUSTOM_FREQUENCIES.map(f => (
+                  <TouchableOpacity
+                    key={f}
+                    style={[s.schedChip, c.freq === f && s.schedChipOn]}
+                    onPress={() => setCustomList(list => list.map((x, idx) =>
+                      // Days are kept when tapping Daily (they're just ignored),
+                      // so an accidental Daily tap can be undone without losing
+                      // the weekday selection.
+                      idx === i ? { ...x, freq: f } : x))}
+                  >
+                    <Text style={[s.schedChipTxt, c.freq === f && s.schedChipTxtOn]}>{f}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {c.freq !== 'Daily' && (
+                <View style={s.chipsRow}>
+                  {WEEKDAYS.map((d, di) => (
+                    <TouchableOpacity
+                      key={d}
+                      style={[s.dayChipSm, c.days.includes(di) && s.schedChipOn]}
+                      onPress={() => setCustomList(list => list.map((x, idx) =>
+                        idx === i
+                          ? { ...x, days: x.days.includes(di) ? x.days.filter(v => v !== di) : [...x.days, di].sort((a, b) => a - b) }
+                          : x))}
+                    >
+                      <Text style={[s.schedChipTxt, c.days.includes(di) && s.schedChipTxtOn]}>{d.slice(0, 3)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              {c.freq !== 'Daily' && c.days.length === 0 && (
+                <Text style={s.fieldNote}>No day chosen — it will show every day of the week.</Text>
+              )}
             </View>
           ))}
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: SP.sm }}>
             <TextInput style={[s.input, { flex: 1 }]} placeholder="e.g. Read the Sayings of the Desert Fathers" placeholderTextColor={colors.muted}
               value={newCustom} onChangeText={setNewCustom} />
             <TouchableOpacity
-              onPress={() => { if (newCustom.trim()) { setCustomList(list => [...list, { text: newCustom.trim(), freq: 'Daily' }]); setNewCustom(''); } }}
+              onPress={() => { if (newCustom.trim()) { setCustomList(list => [...list, { text: newCustom.trim(), freq: 'Daily', days: [] }]); setNewCustom(''); } }}
               hitSlop={8}
             >
               <Text style={{ color: colors.gold, fontSize: 13, fontFamily: fonts.latoBold, marginLeft: SP.sm }}>Add</Text>
@@ -400,6 +480,13 @@ const s = lazyThemed(() => StyleSheet.create({
 
   customRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border },
   customText: { fontFamily: fonts.lato, fontSize: 13, color: colors.cream, flex: 1, marginRight: SP.sm },
+  customBlock: { paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border, gap: 8 },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  schedChip: { borderWidth: 1, borderColor: colors.border, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: colors.panel },
+  dayChipSm: { borderWidth: 1, borderColor: colors.border, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: colors.panel },
+  schedChipOn: { borderColor: colors.gold, backgroundColor: colors.goldDim },
+  schedChipTxt: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
+  schedChipTxtOn: { fontFamily: fonts.latoBold, color: colors.gold },
 
   errorText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.red, marginBottom: 8 },
   saveBtn: { backgroundColor: colors.gold, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: SP.sm },

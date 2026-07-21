@@ -230,7 +230,7 @@ const styles = lazyThemed(() => StyleSheet.create({
   infoBtnText: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1, color: colors.muted, opacity: 0.6 },
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 32 },
-  tooltipBox: { backgroundColor: '#0e1929', borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 24, width: '100%' },
+  tooltipBox: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 24, width: '100%' },
   tooltipTitle: { fontFamily: fonts.cormorantMedium, fontSize: 18, color: colors.cream, marginBottom: 12 },
   tooltipBody: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20, marginBottom: 20 },
   tooltipDismiss: { fontFamily: fonts.latoBold, fontSize: 11, letterSpacing: 1.5, color: colors.gold, textAlign: 'center' },

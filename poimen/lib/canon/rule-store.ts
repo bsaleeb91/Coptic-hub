@@ -92,6 +92,10 @@ export const DEFAULT_RULE: RuleConfig = {
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
+export function normalizeRule(parsed: any): RuleConfig {
+  return normalize(parsed);
+}
+
 function normalize(parsed: any): RuleConfig {
   // Merge with defaults so older saves don't break on new fields.
   const days: DayPlan[] = Array.from({ length: 7 }, (_, i) => ({

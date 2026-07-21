@@ -15,11 +15,12 @@ import { useDemoMode } from '@/lib/demo';
 import { loadSections, saveSections, SECTION_DEFS, DEFAULT_SECTIONS, type SectionId } from '@/lib/dashboard-layout';
 import * as H from '@/lib/haptics';
 import { loadRule } from '@/lib/canon/rule-store';
-import { todayItems } from '@/lib/canon/today';
+import { todayItems, customDueToday, RuleItem } from '@/lib/canon/today';
+import { loadAssignedForMember, applyOverlay } from '@/lib/canon/assigned';
 import { loadTodayChecks } from '@/lib/canon/checks';
 import { loadPostponements, loadServiceDone } from '@/lib/canon/postpone';
 import { recordCanonDay, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
-import { lastConfessionDate, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
+import { lastConfessionDate, loadConfessionDates, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
 import { upcomingFeasts } from '@/lib/feasts';
 import { upcomingCommemorations } from '@/lib/synaxarium';
 import Harp from '@/components/ui/Harp';
@@ -29,6 +30,13 @@ const { width: SW } = Dimensions.get('window');
 const TILE_W = (SW - 48) / 2;
 
 // ── Demo data ────────────────────────────────────────────────
+// Local YYYY-MM-DD of a timestamp, for same-day confession dedupe.
+function localDayOf(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 const DEMO_TIMELINE = lazyThemed(() => [
   { date: 'MAY 21, 2026', title: 'Holy Confession', body: 'Fr. Bishoy assigned a 40-day reading plan from the Psalms.', tag: '✝︎ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
   { date: 'MAY 4, 2026', title: 'Pastoral Visit — Home', body: 'Pastoral visit following the birth of your daughter.', tag: '◎ Pastoral Visit', tagBg: 'rgba(41,128,185,0.15)', tagColor: colors.blue },
@@ -125,7 +133,7 @@ function CustomizeSheet({ visible, active, onSave, onClose }: {
 
 const cs = lazyThemed(() => StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  sheet: { backgroundColor: '#0b1423', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 24, paddingBottom: 40, paddingTop: 16 },
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 24, paddingBottom: 40, paddingTop: 16 },
   handle: { width: 36, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
   title: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 4 },
   sub: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, marginBottom: 20 },
@@ -174,6 +182,7 @@ export default function DashboardScreen() {
   const [feasts, setFeasts] = useState(nextFeastRows);
   const [commems, setCommems] = useState(nextCommemRows);
   const [timeline, setTimeline] = useState<any[]>([]);
+  const [lastVisit, setLastVisit] = useState<string | null>(null);
   const [focProfile, setFocProfile] = useState<any>(null);
   const [sections, setSections] = useState<SectionId[]>(DEFAULT_SECTIONS);
   const [customizing, setCustomizing] = useState(false);
@@ -203,8 +212,6 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     loadSections().then(setSections);
-    if (demoMode) return;
-    loadAll();
   }, [user]);
 
   // "Canon today" tile — tracks My Spiritual Canon (rule items + today's
@@ -216,14 +223,29 @@ export default function DashboardScreen() {
   const [canonToday, setCanonToday] = useState<{ done: number; total: number } | null>(null);
   useFocusEffect(useCallback(() => {
     (async () => {
-      const [rule, checks, postponed, serviceDone] = await Promise.all([
+      // Journey + FOC card refresh on every focus, so a confession recorded
+      // moments ago on the Confession tab appears in the timeline immediately.
+      if (!demoMode) loadAll();
+      const [rule, checks, postponed, serviceDone, assigned, last] = await Promise.all([
         loadRule(), loadTodayChecks(), loadPostponements(), loadServiceDone(),
+        loadAssignedForMember(user?.id ?? '', demoMode, profile?.foc_id ?? undefined),
+        lastConfessionDate(),
       ]);
-      const items = todayItems(rule, new Date(), postponed, serviceDone);
+      // Same EFFECTIVE canon as the Canon tab: the member's rule with the
+      // FOC's locked assignments overlaid, plus scheduled custom components.
+      // recordCanonDay below wholesale-replaces today's record, so building
+      // it from the bare rule here made the tile and the adherence history
+      // disagree with the Canon tab depending on which screen focused last.
+      const overlay = applyOverlay(rule, assigned, last);
+      const structured = todayItems(overlay.rule, new Date(), postponed, serviceDone);
+      const customItems: RuleItem[] = overlay.customComponents
+        .filter(c => customDueToday(c.frequency, c.days, new Date(), serviceDone, `assigned_${c.id}`, postponed))
+        .map(c => ({ key: `assigned_${c.id}`, icon: 'quiet', label: c.text }));
+      const items = [...structured, ...customItems];
       const done = items.filter(it => checks.has(`rule_${it.key}`)).length;
       setCanonToday({ done, total: items.length });
-      setConfFreqDays(confessionFrequencyDays(rule.confession));
-      setLastConf(await lastConfessionDate());
+      setConfFreqDays(confessionFrequencyDays(overlay.rule.confession));
+      setLastConf(last);
       setFeasts(nextFeastRows()); // stays current across midnights
       setCommems(nextCommemRows());
 
@@ -244,15 +266,36 @@ export default function DashboardScreen() {
         }).catch(() => {});
       }
     })();
-  }, [user, demoMode]));
+  }, [user, demoMode, profile?.foc_id]));
 
   async function loadAll() {
     if (!user) return;
-    const [enc, foc] = await Promise.all([
-      db.getRecentEncounters(user.id, 4),
+    // Fetch more than the 4 shown so same-day dedupe sees confession
+    // encounters even when other encounters crowd the top of the list.
+    const [enc, selfDates, foc, visit] = await Promise.all([
+      db.getRecentEncounters(user.id, 12),
+      loadConfessionDates(),
       profile?.foc_id ? db.getFocProfile(profile.foc_id) : null,
+      db.getLastEncounterDate(user.id, 'visit'),
     ]);
-    if (enc) setTimeline(enc);
+    setLastVisit(visit);
+    // The journey merges the FOC's logged encounters with the member's own
+    // recorded confession dates. A self-reported date is dropped when the
+    // priest logged a confession encounter that same local day, so one
+    // confession never appears twice.
+    const encounters = enc ?? [];
+    const loggedConfessionDays = new Set(
+      encounters
+        .filter((e: any) => e.encounter_type === 'confession')
+        .map((e: any) => localDayOf(e.encountered_at)),
+    );
+    const selfRows = selfDates
+      .filter((d) => !loggedConfessionDays.has(d))
+      .map((d) => ({ encounter_type: 'confession', encountered_at: `${d}T12:00:00`, member_note: null }));
+    const merged = [...encounters, ...selfRows]
+      .sort((a, b) => new Date(b.encountered_at).getTime() - new Date(a.encountered_at).getTime())
+      .slice(0, 4);
+    setTimeline(merged);
     if (foc) setFocProfile(foc);
   }
 
@@ -463,6 +506,17 @@ export default function DashboardScreen() {
 
         {sections.includes('journey') && (
           <Card title="Pastoral Journey" titleIcon="◎" action={<Text style={styles.cardAction}>View all</Text>}>
+            {!demoMode && (
+              <View style={styles.lastVisitRow}>
+                <Text style={styles.lastVisitLabel}>Last pastoral visit</Text>
+                <Text style={styles.lastVisitVal}>
+                  {lastVisit
+                    ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(lastVisit) ? `${lastVisit}T12:00:00` : lastVisit)
+                        .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    : 'None yet'}
+                </Text>
+              </View>
+            )}
             {demoMode ? (
               DEMO_TIMELINE.map((item, i) => (
                 <TimelineRow key={i} item={item} last={i === DEMO_TIMELINE.length - 1} />
@@ -672,7 +726,7 @@ const styles = lazyThemed(() => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', padding: 24,
   },
   consentModal: {
-    backgroundColor: '#0b1423', borderWidth: 1, borderColor: 'rgba(201,168,76,0.25)',
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
     borderRadius: 20, padding: 28, alignItems: 'center', width: '100%', maxWidth: 360,
   },
   consentCross: { fontSize: 32, color: colors.gold, marginBottom: 12 },
@@ -688,6 +742,9 @@ const styles = lazyThemed(() => StyleSheet.create({
 
   cardAction: { fontFamily: fonts.lato, fontSize: 11, color: colors.gold },
   emptyInline: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, opacity: 0.7 },
+  lastVisitRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 12, marginBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  lastVisitLabel: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.2, color: colors.muted, textTransform: 'uppercase' },
+  lastVisitVal: { fontFamily: fonts.lato, fontSize: 13, color: colors.cream },
 
   // Timeline
   tlRow: { flexDirection: 'row', gap: 14 },
@@ -713,8 +770,8 @@ const styles = lazyThemed(() => StyleSheet.create({
 
   // FOC
   focRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
-  focAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#2c4a7c', borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  focAvatarText: { fontFamily: fonts.cormorantMedium, fontSize: 16, color: colors.cream },
+  focAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.blueBg, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  focAvatarText: { fontFamily: fonts.cormorantMedium, fontSize: 16, color: colors.blue },
   focName: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.cream },
   focChurch: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
   scheduleChip: { flexDirection: 'row', gap: 10, backgroundColor: colors.goldDim, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, alignItems: 'center' },
