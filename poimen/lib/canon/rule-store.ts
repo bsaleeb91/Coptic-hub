@@ -5,7 +5,9 @@
 // This is the congregant's *self-set* rule — distinct from the priest-assigned
 // spiritual_canons that already drive the Canon tab.
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// Per-user-scoped storage (see lib/storage.ts) — keeps one account's spiritual
+// data from bleeding into another's on a shared device.
+import { userStorage as AsyncStorage } from '@/lib/storage';
 
 const KEY = 'poimen.rule';
 

@@ -6,7 +6,9 @@
 // touches AsyncStorage, and never syncs to Supabase. Everything is wiped when
 // the user permanently deletes their notes after confession.
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// Per-user-scoped storage (see lib/storage.ts) — keeps one account's spiritual
+// data from bleeding into another's on a shared device.
+import { userStorage as AsyncStorage } from '@/lib/storage';
 import { encryptNote, decryptNote } from '@/lib/crypto';
 import type { JournalIncident, IncidentCategory, ExamChecks } from './types';
 

@@ -21,7 +21,7 @@ import { useDemoMode } from '@/lib/demo';
 import { SIN_CATALOGUE } from '@/lib/confession/sinCatalogue';
 import { resetVitalsEpoch } from '@/lib/canon/history';
 import { confirmDestructive } from '@/lib/confirm';
-import { recordConfession, loadConfessionDates, lastConfessionDate, pushConfessionDatesToCloud, parseLocalDate } from '@/lib/confession/dates';
+import { recordConfession, loadConfessionDates, lastConfessionDate, pushConfessionDatesToCloud, hydrateConfessionDatesFromCloud, parseLocalDate } from '@/lib/confession/dates';
 import { foldOnConfession } from '@/lib/canon/assigned';
 import {
   NotepadIcon, ClipboardIcon, PrayingHandsIcon, LockIcon, CrossIcon, HeartIcon,
@@ -121,6 +121,9 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
   // per calendar day — the FOC/demo entry wins because it carries a note.
   async function loadHistory() {
     setLoadingHistory(true);
+    // Restore this account's own dates from the cloud when its local namespace
+    // is empty (fresh device, or after an account switch).
+    if (!demoMode && user) await hydrateConfessionDatesFromCloud(user.id);
     const fmt = (k: string) => new Date(`${k}T12:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     const entries = new Map<string, { id: string; dateKey: string; date: string; note: string }>();
     for (const k of await loadConfessionDates()) {

@@ -5,7 +5,9 @@
 // numbers. Days the app wasn't opened have no record and don't count against
 // (or toward) adherence.
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// Per-user-scoped storage (see lib/storage.ts) — keeps one account's spiritual
+// data from bleeding into another's on a shared device.
+import { userStorage as AsyncStorage } from '@/lib/storage';
 import { RuleItem } from './today';
 import { localDateStr } from './postpone';
 

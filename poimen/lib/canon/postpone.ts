@@ -6,7 +6,9 @@
 // Stored on-device, keyed by the rule-item key (serve_<weekday>_<index>) →
 // local YYYY-MM-DD date the item returns.
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// Per-user-scoped storage (see lib/storage.ts) — keeps one account's spiritual
+// data from bleeding into another's on a shared device.
+import { userStorage as AsyncStorage } from '@/lib/storage';
 
 const KEY = 'poimen.canon.postponed';
 const DONE_KEY = 'poimen.canon.serviceDone';

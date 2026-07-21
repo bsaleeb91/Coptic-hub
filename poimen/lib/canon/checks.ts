@@ -3,7 +3,9 @@
 // local calendar date so they reset automatically each morning. Shared by the
 // Canon tab (reads + writes) and the Home "canon today" tile (reads).
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// Per-user-scoped storage (see lib/storage.ts) — keeps one account's spiritual
+// data from bleeding into another's on a shared device.
+import { userStorage as AsyncStorage } from '@/lib/storage';
 
 const KEY = 'poimen.canon.checks';
 

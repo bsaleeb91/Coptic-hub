@@ -5,7 +5,9 @@
 // + full snapshot is mirrored to Supabase agent_progress by lib/psalms/sync.ts
 // so progress survives a reinstall and can surface to the Father of Confession.
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// Per-user-scoped storage (see lib/storage.ts) — keeps one account's spiritual
+// data from bleeding into another's on a shared device.
+import { userStorage as AsyncStorage } from '@/lib/storage';
 import { itemUnitCount as unitCount } from './psalter';
 
 const K_SELECTION = 'poimen.psalm.selection';

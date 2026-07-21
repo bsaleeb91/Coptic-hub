@@ -4,7 +4,9 @@
 // last confession even offline or in demo mode. When signed in, the date is
 // also mirrored to the profile (db.setLastConfession) for the FOC dashboards.
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// Per-user-scoped storage (see lib/storage.ts) — keeps one account's spiritual
+// data from bleeding into another's on a shared device.
+import { userStorage as AsyncStorage } from '@/lib/storage';
 import * as db from '@/lib/db';
 
 const KEY = 'poimen.confession.dates'; // local YYYY-MM-DD strings
@@ -55,6 +57,22 @@ export async function recordConfession(date: Date = new Date()): Promise<string[
 export async function lastConfessionDate(): Promise<string | null> {
   const list = await loadConfessionDates();
   return list[0] ?? null;
+}
+
+// Pull this user's confession dates from their cloud mirror into the (now
+// per-user) local store when local is empty — so signing into an account on a
+// fresh device/namespace restores their own history instead of showing none.
+export async function hydrateConfessionDatesFromCloud(userId: string): Promise<void> {
+  try {
+    if ((await loadConfessionDates()).length > 0) return;
+    const payload = await db.getAgentProgress(userId, CLOUD_SLUG);
+    const dates = Array.isArray((payload as any)?.dates)
+      ? (payload as any).dates.filter((x: unknown) => typeof x === 'string')
+      : [];
+    if (dates.length) await AsyncStorage.setItem(KEY, JSON.stringify(dates.sort().reverse()));
+  } catch {
+    // Offline or no row — local (empty) stands.
+  }
 }
 
 // Newest confession timestamp for FOC views: the latest of a

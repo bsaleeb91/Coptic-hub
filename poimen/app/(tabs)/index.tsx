@@ -20,7 +20,7 @@ import { loadAssignedForMember, applyOverlay } from '@/lib/canon/assigned';
 import { loadTodayChecks } from '@/lib/canon/checks';
 import { loadPostponements, loadServiceDone } from '@/lib/canon/postpone';
 import { recordCanonDay, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
-import { lastConfessionDate, loadConfessionDates, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
+import { lastConfessionDate, loadConfessionDates, hydrateConfessionDatesFromCloud, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
 import { upcomingFeasts } from '@/lib/feasts';
 import { upcomingCommemorations } from '@/lib/synaxarium';
 import Harp from '@/components/ui/Harp';
@@ -183,6 +183,8 @@ export default function DashboardScreen() {
   const [commems, setCommems] = useState(nextCommemRows);
   const [timeline, setTimeline] = useState<any[]>([]);
   const [lastVisit, setLastVisit] = useState<string | null>(null);
+  const [visitRequested, setVisitRequested] = useState(false);
+  const [visitBusy, setVisitBusy] = useState(false);
   const [focProfile, setFocProfile] = useState<any>(null);
   const [sections, setSections] = useState<SectionId[]>(DEFAULT_SECTIONS);
   const [customizing, setCustomizing] = useState(false);
@@ -270,15 +272,29 @@ export default function DashboardScreen() {
 
   async function loadAll() {
     if (!user) return;
+    // Restore this account's confession dates from the cloud if its local
+    // namespace is empty (fresh device or after an account switch).
+    if (!demoMode) await hydrateConfessionDatesFromCloud(user.id);
     // Fetch more than the 4 shown so same-day dedupe sees confession
     // encounters even when other encounters crowd the top of the list.
-    const [enc, selfDates, foc, visit] = await Promise.all([
+    const [enc, selfDates, foc, visit, visitReq] = await Promise.all([
       db.getRecentEncounters(user.id, 12),
       loadConfessionDates(),
       profile?.foc_id ? db.getFocProfile(profile.foc_id) : null,
       db.getLastEncounterDate(user.id, 'visit'),
+      db.getVisitRequest(user.id),
     ]);
     setLastVisit(visit);
+    // Auto-clear a pending visit request once the priest has logged a visit
+    // on or after it was requested (the priest can't write the member's row,
+    // so the member's app resolves it).
+    if (visitReq.active && visit && visitReq.requestedAt &&
+        localDayOf(visit) >= localDayOf(visitReq.requestedAt)) {
+      db.setVisitRequest(user.id, false).catch(() => {});
+      setVisitRequested(false);
+    } else {
+      setVisitRequested(visitReq.active);
+    }
     // The journey merges the FOC's logged encounters with the member's own
     // recorded confession dates. A self-reported date is dropped when the
     // priest logged a confession encounter that same local day, so one
@@ -298,6 +314,39 @@ export default function DashboardScreen() {
     setTimeline(merged);
     if (foc) setFocProfile(foc);
   }
+
+  async function toggleVisitRequest() {
+    if (visitBusy) return;
+    H.tap();
+    const next = !visitRequested;
+    if (demoMode || !user) { setVisitRequested(next); return; }
+    setVisitBusy(true);
+    const { error } = await db.setVisitRequest(user.id, next);
+    if (!error) setVisitRequested(next);
+    setVisitBusy(false);
+  }
+
+  const visitRequestChip = (
+    <TouchableOpacity
+      style={[styles.visitChip, visitRequested && styles.visitChipActive, visitBusy && { opacity: 0.6 }]}
+      onPress={toggleVisitRequest}
+      disabled={visitBusy}
+      activeOpacity={0.8}
+    >
+      <Text style={[styles.scheduleIcon, visitRequested && { color: colors.green }]}>◎</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.scheduleText}>
+          {visitRequested ? 'Pastoral Visit Requested' : 'Request Pastoral Visit'}
+        </Text>
+        <Text style={styles.scheduleSub}>
+          {visitRequested
+            ? 'Your Father of Confession has been notified · tap to cancel'
+            : 'Let your Father of Confession know you’d like a visit'}
+        </Text>
+      </View>
+      {visitRequested && <Text style={styles.visitCheck}>✓</Text>}
+    </TouchableOpacity>
+  );
 
   function enterCustomize() {
     H.heavy();
@@ -590,6 +639,7 @@ export default function DashboardScreen() {
                     <Text style={styles.scheduleSub}>Next available: Sunday after Liturgy</Text>
                   </View>
                 </TouchableOpacity>
+                {visitRequestChip}
               </>
             ) : focProfile ? (
               <>
@@ -611,6 +661,7 @@ export default function DashboardScreen() {
                     <Text style={styles.scheduleSub}>Prepare before your next meeting</Text>
                   </View>
                 </TouchableOpacity>
+                {visitRequestChip}
               </>
             ) : (
               <Text style={styles.emptyInline}>Your Father of Confession will link your account when they set up their Poimen profile.</Text>
@@ -778,4 +829,7 @@ const styles = lazyThemed(() => StyleSheet.create({
   scheduleIcon: { fontSize: 18 },
   scheduleText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream },
   scheduleSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 1 },
+  visitChip: { flexDirection: 'row', gap: 10, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 8 },
+  visitChipActive: { borderColor: colors.green, backgroundColor: colors.greenBg },
+  visitCheck: { fontFamily: fonts.latoBold, fontSize: 16, color: colors.green },
 }));

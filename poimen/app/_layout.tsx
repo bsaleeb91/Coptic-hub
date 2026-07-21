@@ -19,6 +19,7 @@ import {
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, useSession } from '@/lib/auth';
 import { DemoProvider, useDemoMode } from '@/lib/demo';
+import { setStorageScope } from '@/lib/storage';
 import * as db from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { TutorialProvider } from '@/lib/tutorial-context';
@@ -137,6 +138,12 @@ function RootLayoutNav() {
   const { session, loading } = useSession();
   const { demoMode, setDemoMode } = useDemoMode();
   const segments = useSegments();
+
+  // Point the on-device stores at THIS account's namespace before any screen
+  // reads them — synchronously during render so a child's mount effect never
+  // sees the previous user's data. Signed-in id wins over the demo flag (the
+  // sticky-demo effect below clears demoMode on a real session anyway).
+  setStorageScope(session?.user?.id ?? (demoMode ? 'demo' : null));
 
   // A real session always wins over a lingering demo flag. The sign-in
   // screen's demo cards persist the flag and nothing ever cleared it, so one

@@ -233,24 +233,33 @@ export default function MemberScreen() {
   // still-locked assignments overlaid — what the member's Canon tab shows.
   const [memberRule, setMemberRule] = useState<RuleConfig | null>(null);
   const [assignedCats, setAssignedCats] = useState<Set<AssignedCategory>>(new Set());
+  const [customCount, setCustomCount] = useState(0);
   const [lastVisit, setLastVisit] = useState<string | null>(demoMode ? '2026-05-04' : null);
+  const [visitRequested, setVisitRequested] = useState(false);
 
   const loadEffectiveRule = useCallback(async (lastConfessionIso: string | null) => {
     const [base, assigned] = await Promise.all([
       loadMemberRule(memberId ?? '', demoMode),
       loadAssignedForPriest(memberId ?? '', user?.id ?? '', demoMode),
     ]);
-    if (!base) { setMemberRule(null); setAssignedCats(new Set()); return; }
+    if (!base) { setMemberRule(null); setAssignedCats(new Set()); setCustomCount(0); return; }
     const overlay = applyOverlay(base, assigned, lastConfessionIso ? localDayOf(lastConfessionIso) : null);
     setMemberRule(overlay.rule);
     setAssignedCats(overlay.lockedCategories);
+    setCustomCount(overlay.customComponents.length);
   }, [memberId, demoMode, user?.id]);
+
+  // Total canon components the member follows = the effective rule's shown
+  // components plus any free-text custom ones — not just the priest-assigned
+  // rows, so the count matches the full Current Canon below.
+  const canonCount = memberRule ? ruleSummaryLines(memberRule).length + customCount : canons.length;
 
   useFocusEffect(
     useCallback(() => {
       if (demoMode) loadEffectiveRule(null);
       if (demoMode) {
         const d = getDemoData(memberId ?? '');
+        setVisitRequested(d.member.name === 'Peter Botros');
         setMemberInfo(d.member);
         setContact(d.contact);
         setLifeStageData(d.life);
@@ -286,6 +295,7 @@ export default function MemberScreen() {
 
     loadEffectiveRule(profileData?.last_confession_at ?? null);
     db.getLastEncounterDate(memberId, 'visit').then(setLastVisit);
+    db.getVisitRequest(memberId).then(r => setVisitRequested(r.active));
 
     if (profileData) {
       const p = profileData;
@@ -451,6 +461,11 @@ export default function MemberScreen() {
                     <Text style={styles.flagBadgeText}>⚑ {memberInfo.flagNote}</Text>
                   </View>
                 )}
+                {visitRequested && (
+                  <View style={styles.visitBadge}>
+                    <Text style={styles.visitBadgeText}>◎ Requested a pastoral visit</Text>
+                  </View>
+                )}
               </View>
             </View>
 
@@ -462,7 +477,7 @@ export default function MemberScreen() {
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
-                <Text style={[styles.statVal, { color: colors.cream }]}>{canons.length}</Text>
+                <Text style={[styles.statVal, { color: colors.cream }]}>{canonCount}</Text>
                 <Text style={styles.statLabel}>CANONS</Text>
               </View>
               <View style={styles.statDivider} />
@@ -831,6 +846,8 @@ const styles = lazyThemed(() => StyleSheet.create({
   heroLifeStage: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 3 },
   flagBadge: { backgroundColor: 'rgba(192,57,43,0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, alignSelf: 'flex-start', marginTop: 6 },
   flagBadgeText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.red, letterSpacing: 0.5 },
+  visitBadge: { backgroundColor: colors.blueBg, borderWidth: 1, borderColor: colors.blue, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, alignSelf: 'flex-start', marginTop: 6 },
+  visitBadgeText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.blue, letterSpacing: 0.5 },
 
   statStrip: { flexDirection: 'row', backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, borderRadius: 12, marginBottom: 16, overflow: 'hidden' },
   statItem: { flex: 1, paddingVertical: 14, alignItems: 'center' },

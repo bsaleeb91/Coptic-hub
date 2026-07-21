@@ -23,17 +23,18 @@ interface FlockMember {
   daysSince: number | null;
   canonPct: number | null;
   flagged: boolean;
+  visitRequested: boolean;
   status: StatusType;
   note: string;
 }
 
 const FLOCK_DEMO: FlockMember[] = [
-  { id: 'demo-mh', initials: 'MH', name: 'Michael Hanna', stage: 'Growing', daysSince: 47, canonPct: 50, flagged: false, status: 'due', note: 'New father — pastoral visit completed May 4.' },
-  { id: 'demo-sg', initials: 'SG', name: 'Sara Girgis', stage: 'Mature', daysSince: 18, canonPct: 88, flagged: false, status: 'recent', note: '' },
-  { id: 'demo-pb', initials: 'PB', name: 'Peter Botros', stage: 'New', daysSince: 74, canonPct: 20, flagged: true, status: 'overdue', note: 'Flagged: missed two follow-up appointments.' },
-  { id: 'demo-mm', initials: 'MM', name: 'Mary Mikhail', stage: 'Growing', daysSince: 29, canonPct: 65, flagged: false, status: 'recent', note: '' },
-  { id: 'demo-ag', initials: 'AG', name: 'Andrew George', stage: 'Seeking', daysSince: 92, canonPct: 0, flagged: true, status: 'overdue', note: 'New to the church — needs initial meeting.' },
-  { id: 'demo-cn', initials: 'CN', name: 'Christine Naguib', stage: 'Multiplying', daysSince: 35, canonPct: 92, flagged: false, status: 'due', note: '' },
+  { id: 'demo-mh', initials: 'MH', name: 'Michael Hanna', stage: 'Growing', daysSince: 47, canonPct: 50, flagged: false, visitRequested: false, status: 'due', note: 'New father — pastoral visit completed May 4.' },
+  { id: 'demo-sg', initials: 'SG', name: 'Sara Girgis', stage: 'Mature', daysSince: 18, canonPct: 88, flagged: false, visitRequested: false, status: 'recent', note: '' },
+  { id: 'demo-pb', initials: 'PB', name: 'Peter Botros', stage: 'New', daysSince: 74, canonPct: 20, flagged: true, visitRequested: false, status: 'overdue', note: 'Flagged: missed two follow-up appointments.' },
+  { id: 'demo-mm', initials: 'MM', name: 'Mary Mikhail', stage: 'Growing', daysSince: 29, canonPct: 65, flagged: false, visitRequested: false, status: 'recent', note: '' },
+  { id: 'demo-ag', initials: 'AG', name: 'Andrew George', stage: 'Seeking', daysSince: 92, canonPct: 0, flagged: true, visitRequested: false, status: 'overdue', note: 'New to the church — needs initial meeting.' },
+  { id: 'demo-cn', initials: 'CN', name: 'Christine Naguib', stage: 'Multiplying', daysSince: 35, canonPct: 92, flagged: false, visitRequested: false, status: 'due', note: '' },
 ];
 
 const STATUS_COLOR: Record<StatusType, string> = lazyThemed(() => ({
@@ -85,6 +86,9 @@ export default function FlockScreen() {
     // latest confession per member
     const confessions = await db.getConfessionsForPriest(user.id);
 
+    // Which members have an open "Request Pastoral Visit" flag.
+    const visitReqs = await db.getFlockVisitRequests(profiles.map(p => p.id));
+
     const now = new Date();
     const latestByMember: Record<string, string> = {};
     for (const c of confessions ?? []) {
@@ -103,7 +107,7 @@ export default function FlockScreen() {
         daysSince < 60 ? 'due' : 'overdue';
       const parts = (p.full_name ?? '?').split(' ');
       const initials = (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
-      return { id: p.id, initials: initials.toUpperCase(), name: p.full_name ?? 'Unknown', stage: '', daysSince, canonPct: null, flagged: false, status, note: '' };
+      return { id: p.id, initials: initials.toUpperCase(), name: p.full_name ?? 'Unknown', stage: '', daysSince, canonPct: null, flagged: false, visitRequested: !!visitReqs[p.id], status, note: '' };
     });
 
     setMembers(mapped);
@@ -112,13 +116,14 @@ export default function FlockScreen() {
 
   const filtered = members.filter(m => {
     const matchSearch = m.name.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === 'all' ? true : filter === 'flagged' ? m.flagged : m.status === filter;
+    const matchFilter = filter === 'all' ? true : filter === 'flagged' ? (m.flagged || m.visitRequested) : m.status === filter;
     return matchSearch && matchFilter;
   });
 
   const overdue = members.filter(m => m.status === 'overdue').length;
   const due = members.filter(m => m.status === 'due').length;
-  const flagged = members.filter(m => m.flagged).length;
+  const flagged = members.filter(m => m.flagged || m.visitRequested).length;
+  const visitRequests = members.filter(m => m.visitRequested).length;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -146,7 +151,7 @@ export default function FlockScreen() {
         <Text style={styles.flockMeta}>
           {members.length} member{members.length !== 1 ? 's' : ''}
           {overdue > 0 ? ` · ${overdue} overdue` : ''}
-          {flagged > 0 ? ` · ${flagged} flagged` : ''}
+          {visitRequests > 0 ? ` · ${visitRequests} visit request${visitRequests !== 1 ? 's' : ''}` : ''}
         </Text>
 
         <TextInput
@@ -215,6 +220,11 @@ export default function FlockScreen() {
                     ) : null}
                   </View>
                   {member.note ? <Text style={styles.memberNote}>{member.note}</Text> : null}
+                  {member.visitRequested && (
+                    <View style={styles.visitBadge}>
+                      <Text style={styles.visitBadgeText}>◎ Requested a pastoral visit</Text>
+                    </View>
+                  )}
                   {member.flagged && (
                     <View style={styles.flagBadge}>
                       <Text style={styles.flagBadgeText}>⚑ Flagged for follow-up</Text>
@@ -342,5 +352,7 @@ const styles = lazyThemed(() => StyleSheet.create({
   memberNote: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, fontStyle: 'italic', lineHeight: 16 },
   flagBadge: { backgroundColor: 'rgba(192,57,43,0.12)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20, alignSelf: 'flex-start', marginTop: 5 },
   flagBadgeText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.red, letterSpacing: 0.5 },
+  visitBadge: { backgroundColor: colors.blueBg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20, alignSelf: 'flex-start', marginTop: 5, borderWidth: 1, borderColor: colors.blue },
+  visitBadgeText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.blue, letterSpacing: 0.5 },
   chevron: { fontFamily: fonts.lato, fontSize: 20, color: colors.muted, marginTop: 8 },
 }));
