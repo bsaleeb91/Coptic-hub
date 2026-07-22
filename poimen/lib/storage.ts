@@ -19,6 +19,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 let scope = 'anon';
 
+// Modules that keep an in-memory cache of scoped data (e.g. the psalm card map)
+// must drop it when the account changes, or the previous user's data leaks into
+// the next account within the same JS runtime. They register a reset callback
+// here; setStorageScope fires them all on every real scope change.
+const scopeChangeListeners = new Set<() => void>();
+
+export function onStorageScopeChange(cb: () => void): () => void {
+  scopeChangeListeners.add(cb);
+  return () => scopeChangeListeners.delete(cb);
+}
+
 // Set the active storage scope. Returns true if it changed. Call this
 // synchronously (before screens read their stores) whenever the signed-in
 // user or demo state changes.
@@ -26,6 +37,9 @@ export function setStorageScope(next: string | null): boolean {
   const s = next && next.length ? next : 'anon';
   if (s === scope) return false;
   scope = s;
+  scopeChangeListeners.forEach((cb) => {
+    try { cb(); } catch {}
+  });
   return true;
 }
 

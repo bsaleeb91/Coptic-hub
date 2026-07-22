@@ -7,7 +7,7 @@
 
 // Per-user-scoped storage (see lib/storage.ts) — keeps one account's spiritual
 // data from bleeding into another's on a shared device.
-import { userStorage as AsyncStorage } from '@/lib/storage';
+import { userStorage as AsyncStorage, onStorageScopeChange } from '@/lib/storage';
 import { itemUnitCount as unitCount } from './psalter';
 
 const K_SELECTION = 'poimen.psalm.selection';
@@ -75,6 +75,11 @@ export async function saveSelection(items: string[]): Promise<void> {
 // ─── Cards ────────────────────────────────────────────────────────────────────
 
 let _cards: Record<string, PartCard> | null = null;
+
+// Drop the in-memory card cache whenever the account (storage scope) changes, so
+// the next account re-reads its own namespace instead of seeing the previous
+// user's cards left in memory from this JS runtime.
+onStorageScopeChange(() => { _cards = null; });
 
 async function cards(): Promise<Record<string, PartCard>> {
   if (!_cards) _cards = await readJSON<Record<string, PartCard>>(K_CARDS, {});
