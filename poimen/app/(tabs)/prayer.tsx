@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  Animated, PanResponder, ActivityIndicator, TextInput,
+  ActivityIndicator, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
@@ -56,68 +56,48 @@ function fmtShortDate(iso: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-// ── Swipeable Row ────────────────────────────────────────────
-function SwipeableRequest({ item, onDelete, onMarkAnswered }: {
+// ── Request row — tap to reveal actions ──────────────────────
+function ExpandableRequest({ item, onDelete, onMarkAnswered }: {
   item: any;
   onDelete: () => void;
-  onMarkAnswered: () => void;
+  onMarkAnswered?: () => void;   // omitted for answered prayers → only Delete shows
 }) {
-  const translateX = useRef(new Animated.Value(0)).current;
-  const ACTION_WIDTH = 130;
-
-  const panResponder = useRef(PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dy) < 20,
-    onPanResponderMove: (_, g) => {
-      if (g.dx < 0) translateX.setValue(Math.max(g.dx, -ACTION_WIDTH));
-    },
-    onPanResponderRelease: (_, g) => {
-      if (g.dx < -ACTION_WIDTH / 2) {
-        Animated.spring(translateX, { toValue: -ACTION_WIDTH, useNativeDriver: true }).start();
-      } else {
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-      }
-    },
-  })).current;
-
-  function close() {
-    Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-  }
+  const [open, setOpen] = useState(false);
 
   return (
-    <View style={styles.swipeContainer}>
-      {/* Actions revealed on swipe */}
-      <View style={styles.swipeActions}>
-        <TouchableOpacity
-          style={[styles.swipeAction, styles.swipeActionAnswer]}
-          onPress={() => { close(); onMarkAnswered(); }}
-        >
-          <Text style={styles.swipeActionText}>✓{'\n'}Answered</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.swipeAction, styles.swipeActionDelete]}
-          onPress={() => { close(); onDelete(); }}
-        >
-          <Text style={styles.swipeActionText}>✕{'\n'}Delete</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Row content */}
-      <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
-        <View style={styles.reqItem}>
-          <View style={styles.reqTop}>
-            <Text style={styles.reqTitle}>
-              {CATEGORY_OPTS.find(c => c.value === item.category)?.icon ?? '⊕'}{' '}
-              {CATEGORY_OPTS.find(c => c.value === item.category)?.label ?? item.topic ?? item.category ?? 'Request'}
-            </Text>
-            <Text style={styles.reqDate}>{fmtShortDate(item.created_at)}</Text>
-          </View>
-          {item.body ? <Text style={styles.reqBody}>{item.body}</Text> : null}
-          <View style={styles.reqVis}>
-            <Text style={styles.reqVisText}>{VIS_DISPLAY[item.visibility as Visibility].icon} {VIS_DISPLAY[item.visibility as Visibility].label}</Text>
-          </View>
-          <Text style={styles.swipeHint}>← swipe to answer or delete</Text>
+    <View style={styles.reqItem}>
+      <TouchableOpacity activeOpacity={0.7} onPress={() => setOpen(o => !o)}>
+        <View style={styles.reqTop}>
+          <Text style={styles.reqTitle}>
+            {CATEGORY_OPTS.find(c => c.value === item.category)?.icon ?? '⊕'}{' '}
+            {CATEGORY_OPTS.find(c => c.value === item.category)?.label ?? item.topic ?? item.category ?? 'Request'}
+          </Text>
+          <Text style={styles.reqDate}>{fmtShortDate(item.created_at)}</Text>
         </View>
-      </Animated.View>
+        {item.body ? <Text style={styles.reqBody}>{item.body}</Text> : null}
+        <View style={styles.reqVis}>
+          <Text style={styles.reqVisText}>{VIS_DISPLAY[item.visibility as Visibility].icon} {VIS_DISPLAY[item.visibility as Visibility].label}</Text>
+        </View>
+      </TouchableOpacity>
+
+      {open && (
+        <View style={styles.actionRow}>
+          {onMarkAnswered && (
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionAnswer]}
+              onPress={() => { setOpen(false); onMarkAnswered(); }}
+            >
+              <Text style={styles.actionAnswerText}>✓ Mark Answered</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.actionDelete]}
+            onPress={() => { setOpen(false); onDelete(); }}
+          >
+            <Text style={styles.actionDeleteText}>✕ Delete</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -247,7 +227,7 @@ export default function PrayerScreen() {
             </View>
           ) : (
             active.map(req => (
-              <SwipeableRequest
+              <ExpandableRequest
                 key={req.id}
                 item={req}
                 onDelete={() => handleDelete(req.id)}
@@ -322,11 +302,10 @@ export default function PrayerScreen() {
         {answered.length > 0 && (
           <Card title={`Answered (${answered.length})`} flat>
             {answered.map(req => (
-              <SwipeableRequest
+              <ExpandableRequest
                 key={req.id}
                 item={{ ...req, visibility: req.visibility ?? 'private' }}
                 onDelete={() => handleDeleteAnswered(req.id)}
-                onMarkAnswered={() => {}}
               />
             ))}
           </Card>
@@ -345,23 +324,21 @@ const styles = lazyThemed(() => StyleSheet.create({
   pageTitle: { fontFamily: fonts.cormorantMedium, fontSize: 28, color: colors.cream, marginBottom: 4 },
   pageSubtitle: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 20 },
 
-  swipeContainer: { position: 'relative', overflow: 'hidden', borderRadius: 10, marginBottom: 8 },
-  swipeActions: { position: 'absolute', right: 0, top: 0, bottom: 0, flexDirection: 'row' },
-  swipeAction: { width: 65, alignItems: 'center', justifyContent: 'center' },
-  swipeActionAnswer: { backgroundColor: colors.greenBg },
-  swipeActionDelete: { backgroundColor: 'rgba(192,57,43,0.25)' },
-  swipeActionText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.cream, textAlign: 'center', letterSpacing: 0.5 },
-
-  // Opaque background — the swipe actions sit behind this row and must not
-  // show through until revealed by the swipe.
-  reqItem: { padding: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 10 },
+  reqItem: { padding: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 10, marginBottom: 8 },
   reqTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 5 },
   reqTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, flex: 1 },
   reqDate: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, flexShrink: 0 },
   reqBody: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, marginBottom: 6 },
   reqVis: { flexDirection: 'row', alignItems: 'center' },
   reqVisText: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted },
-  swipeHint: { fontFamily: fonts.latoLight, fontSize: 9, color: colors.faint, marginTop: 6, letterSpacing: 0.3 },
+
+  // Action buttons revealed by tapping a request row.
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  actionBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center', borderWidth: 1 },
+  actionAnswer: { backgroundColor: colors.greenBg, borderColor: colors.green },
+  actionDelete: { backgroundColor: 'rgba(192,57,43,0.15)', borderColor: colors.red },
+  actionAnswerText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.green, letterSpacing: 0.3 },
+  actionDeleteText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.red, letterSpacing: 0.3 },
 
   divider: { height: 1, backgroundColor: colors.border },
 

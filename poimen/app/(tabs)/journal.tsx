@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  TextInput, Animated, PanResponder, ActivityIndicator,
+  TextInput, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
@@ -41,49 +41,19 @@ function fmtDate(iso: string, long = false): string {
     : { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-// ── Swipeable entry row — swipe left to delete, tap to open ──
-function SwipeableEntry({ entry, onPress, onDelete }: {
-  entry: JournalEntry; onPress: () => void; onDelete: () => void;
+// ── Entry row — tap to open the entry (delete lives in the detail view) ──
+function EntryRow({ entry, onPress }: {
+  entry: JournalEntry; onPress: () => void;
 }) {
-  const translateX = useRef(new Animated.Value(0)).current;
-  const ACTION_WIDTH = 70;
-
-  const panResponder = useRef(PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dy) < 20,
-    onPanResponderMove: (_, g) => {
-      if (g.dx < 0) translateX.setValue(Math.max(g.dx, -ACTION_WIDTH));
-    },
-    onPanResponderRelease: (_, g) => {
-      if (g.dx < -ACTION_WIDTH / 2) {
-        Animated.spring(translateX, { toValue: -ACTION_WIDTH, useNativeDriver: true }).start();
-      } else {
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-      }
-    },
-  })).current;
-
-  function close() {
-    Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-  }
-
   return (
-    <View style={styles.swipeContainer}>
-      <View style={styles.swipeActions}>
-        <TouchableOpacity style={styles.swipeActionDelete} onPress={() => { close(); onDelete(); }}>
-          <Text style={styles.swipeActionText}>✕{'\n'}Delete</Text>
-        </TouchableOpacity>
+    <TouchableOpacity style={styles.entryItem} onPress={onPress} activeOpacity={0.7}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.entryDate}>{fmtDate(entry.created_at)}</Text>
+        <Text style={styles.entryTitle}>{entry.title}</Text>
+        <Text style={styles.entryPreview} numberOfLines={2}>{entry.reflection}</Text>
       </View>
-      <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
-        <TouchableOpacity style={styles.entryItem} onPress={onPress} activeOpacity={0.7}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.entryDate}>{fmtDate(entry.created_at)}</Text>
-            <Text style={styles.entryTitle}>{entry.title}</Text>
-            <Text style={styles.entryPreview} numberOfLines={2}>{entry.reflection}</Text>
-          </View>
-          <Text style={styles.entryChevron}>›</Text>
-        </TouchableOpacity>
-      </Animated.View>
-    </View>
+      <Text style={styles.entryChevron}>›</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -241,11 +211,10 @@ export default function JournalScreen() {
             </View>
           ) : (
             entries.map(entry => (
-              <SwipeableEntry
+              <EntryRow
                 key={entry.id}
                 entry={entry}
                 onPress={() => setViewEntry(entry)}
-                onDelete={() => deleteEntry(entry.id)}
               />
             ))
           )}
@@ -310,11 +279,6 @@ const styles = lazyThemed(() => StyleSheet.create({
   pageTitle: { fontFamily: fonts.cormorantMedium, fontSize: 28, color: colors.cream, marginBottom: 4 },
   pageSubtitle: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 20 },
 
-  swipeContainer: { position: 'relative', overflow: 'hidden', borderRadius: 10, marginBottom: 8 },
-  swipeActions: { position: 'absolute', right: 0, top: 0, bottom: 0, flexDirection: 'row' },
-  swipeActionDelete: { width: 70, backgroundColor: 'rgba(192,57,43,0.25)', alignItems: 'center', justifyContent: 'center' },
-  swipeActionText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.cream, textAlign: 'center', letterSpacing: 0.5 },
-
   formLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.8, marginBottom: 8 },
   textarea: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', lineHeight: 20 },
   input: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12 },
@@ -324,9 +288,7 @@ const styles = lazyThemed(() => StyleSheet.create({
   btnDisabled: { opacity: 0.35 },
   btnGoldFullText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.navy, letterSpacing: 0.8 },
 
-  // Opaque background — the delete underlay sits behind this row and must not
-  // show through until revealed by the swipe.
-  entryItem: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 10 },
+  entryItem: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 10, marginBottom: 8 },
   entryDate: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.7, marginBottom: 3 },
   entryTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2 },
   entryPreview: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },
