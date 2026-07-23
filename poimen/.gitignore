@@ -9,3 +9,6 @@ expo-env.d.ts
 # local Supabase credentials — never commit
 .env
 .env.local
+
+# Supabase CLI cache (project link ref etc.)
+supabase/.temp/
