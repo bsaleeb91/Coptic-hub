@@ -7,6 +7,7 @@ export interface Profile {
   church_name: string | null;
   church_id: string | null;
   role: 'congregant' | 'priest' | 'servant' | 'admin';
+  requested_role: 'congregant' | 'priest' | 'servant' | null;
   avatar_url: string | null;
   foc_id: string | null;
   servant_id: string | null;
@@ -27,7 +28,7 @@ export interface Church {
 export async function getProfile(userId: string): Promise<Profile | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, church_name, church_id, role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, last_confession_at, last_seen_at')
+    .select('id, full_name, church_name, church_id, role, requested_role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, last_confession_at, last_seen_at')
     .eq('id', userId)
     .single();
   return data ?? null;
@@ -131,18 +132,18 @@ export async function getFocProfile(focId: string): Promise<{ full_name: string 
 }
 
 // Member detail header (priest view).
-export async function getMemberProfile(memberId: string): Promise<{ full_name: string | null; created_at: string; role: string; foc_consent_at: string | null } | null> {
+export async function getMemberProfile(memberId: string): Promise<{ full_name: string | null; created_at: string; role: string; foc_consent_at: string | null; last_confession_at: string | null } | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('full_name, created_at, role, foc_consent_at')
+    .select('full_name, created_at, role, foc_consent_at, last_confession_at')
     .eq('id', memberId)
     .single();
   return data ?? null;
 }
 
 // Members who list this priest as their Father of Confession.
-export async function getFlock(focId: string, opts?: { ordered?: boolean }): Promise<{ id: string; full_name: string | null }[]> {
-  let query = supabase.from('profiles').select('id, full_name').eq('foc_id', focId);
+export async function getFlock(focId: string, opts?: { ordered?: boolean }): Promise<{ id: string; full_name: string | null; last_confession_at: string | null }[]> {
+  let query = supabase.from('profiles').select('id, full_name, last_confession_at').eq('foc_id', focId);
   if (opts?.ordered) query = query.order('full_name');
   const { data } = await query;
   return data ?? [];
@@ -179,7 +180,7 @@ export async function getKeyBackup(userId: string): Promise<string | null> {
 export async function getAllProfiles(): Promise<Profile[]> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, church_name, church_id, role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, last_confession_at, last_seen_at')
+    .select('id, full_name, church_name, church_id, role, requested_role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, last_confession_at, last_seen_at')
     .order('role')
     .order('full_name');
   return data ?? [];

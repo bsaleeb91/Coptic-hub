@@ -5,29 +5,90 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
-import { PsalmStatsCard, DEMO_PSALM_STATS } from '@/components/ui/PsalmStatsCard';
-import type { PsalmStatsSnapshot } from '@/lib/psalms/stats';
+import { CandleIcon } from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
+import { latestConfessionMs, daysSinceMs } from '@/lib/confession/dates';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 import { decryptFromSender } from '@/lib/crypto';
+import { VITAL_CATEGORIES } from '@/lib/canon/history';
+import { RuleConfig, WEEKDAYS, AGPEYA_HOURS, SERVICES } from '@/lib/canon/rule-store';
+import { loadMemberRule } from '@/lib/canon/rule-sync';
+import { AssignedCategory, applyOverlay, loadAssignedForPriest } from '@/lib/canon/assigned';
+
+// Local YYYY-MM-DD of a timestamp — the lock model compares calendar days.
+function localDayOf(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+const SUMMARY_CATEGORY: Record<string, AssignedCategory> = {
+  'Prostrations': 'prostrations',
+  'Quiet time': 'quiet',
+  'Fasting': 'fasting',
+  'Bible': 'bible',
+  'Spiritual book': 'book',
+  'Confession': 'confession',
+  'Agpeya hours': 'agpeya_hours',
+  'Church services': 'services',
+  'Heart of Service': 'heart_of_service',
+};
+
+// Compact FOC-facing summary of a member's self-set rule. Long option names
+// collapse to their short form ("First Hour (Prime)" → "Prime").
+function ruleSummaryLines(r: RuleConfig): { label: string; value: string }[] {
+  const dayName = (i: number) => WEEKDAYS[i].slice(0, 3);
+  const shortName = (full: string) => {
+    const m = full.match(/\(([^)]+)\)/);
+    return m ? m[1] : full;
+  };
+  const hourName = (k: string) => shortName(AGPEYA_HOURS.find(h => h.key === k)?.name ?? k);
+  const svcName = (k: string) => (SERVICES.find(s => s.key === k)?.name ?? k).split(' (')[0];
+
+  const lines: { label: string; value: string }[] = [
+    { label: 'Prostrations', value: r.prostrations > 0 ? `${r.prostrations} daily` : 'None' },
+    { label: 'Quiet time', value: `${r.quietMinutes} min daily` },
+    { label: 'Fasting', value: `Until ${r.fastUntil} on fasting days` },
+    { label: 'Bible', value: `${r.bible.amount} ${r.bible.mode} daily` },
+  ];
+  if (r.book) lines.push({ label: 'Spiritual book', value: `${r.book.title || 'Untitled'} — ${r.book.amount} ${r.book.mode}` });
+  lines.push({ label: 'Confession', value: r.confession });
+
+  const agpeya = r.days
+    .map((d, i) => (d.hours.length ? `${dayName(i)} · ${d.hours.map(hourName).join(', ')}` : null))
+    .filter(Boolean) as string[];
+  if (agpeya.length) lines.push({ label: 'Agpeya hours', value: agpeya.join('\n') });
+
+  const services = r.days
+    .map((d, i) => (d.services.length ? `${dayName(i)} · ${d.services.map(svcName).join(', ')}` : null))
+    .filter(Boolean) as string[];
+  if (services.length) lines.push({ label: 'Church services', value: services.join('\n') });
+
+  const serving = r.days
+    .map((d, i) => (d.serving.length ? `${dayName(i)} · ${d.serving.map(s => `${s.text} (${s.freq})`).join(', ')}` : null))
+    .filter(Boolean) as string[];
+  if (serving.length) lines.push({ label: 'Heart of Service', value: serving.join('\n') });
+
+  return lines;
+}
 
 // ── Demo data ─────────────────────────────────────────────────
 const DEMO_DB: Record<string, {
   member: any; contact: any; life: any; children: any[];
-  vitals: any[]; confessions: any[]; prayer: any[]; canons: any[]; note: string;
+  vitals: Record<string, number | null>; confessions: any[]; prayer: any[]; canons: any[]; note: string;
 }> = {
   'demo-mh': {
     member: { initials: 'MH', name: 'Michael Hanna', stage: 'Growing', joined: 'September 2024', daysSince: 47, flagged: false, flagNote: '' },
     contact: { phone: '(614) 555-0214', email: 'mhanna@example.com', address_line1: '1190 Oak Hill Rd', address_line2: null, city: 'Columbus', state: 'OH', zip: '43235', country: 'US' },
     life: { life_stage: 'married', spouse_name: 'Nadia Hanna' },
     children: [{ id: 'dc1', name: 'Kyrillos', birth_year: 2024 }],
-    vitals: [{ label: 'Daily Prayer', pct: 75, shared: true }, { label: 'Scripture Reading', pct: 50, shared: true }, { label: 'Divine Liturgy', pct: 80, shared: true }, { label: 'Small Group', pct: 100, shared: true }, { label: 'Service', pct: 25, shared: false }],
+    vitals: { prayer: 75, quiet: 55, scripture: 50, book: null, liturgy: 80, fasting: 60, service: 25, confession: null },
     confessions: [{ date: 'APR 20, 2026', type: 'Holy Confession', note: 'Discussed new-father anxieties. Encouraged daily Agpeya.' }, { date: 'FEB 5, 2026', type: 'Holy Confession', note: 'Pre-birth spiritual preparation.' }],
     prayer: [{ date: 'MAY 4, 2026', topic: 'Gratitude for new baby — prayers of thanksgiving' }, { date: 'MAR 10, 2026', topic: 'Wisdom as a new father' }],
-    canons: [{ id: 'c1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Apr 21, 2026', pct: 75 }, { id: 'c2', component: 'Psalm reading (1 chapter)', frequency: 'Daily', startDate: 'Apr 21, 2026', pct: 50 }],
+    canons: [{ id: 'c1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Apr 21, 2026', completions: 5, totalDays: 7 }, { id: 'c2', component: 'Psalm reading (1 chapter)', frequency: 'Daily', startDate: 'Apr 21, 2026', completions: 4, totalDays: 7 }],
     note: 'Growing well since the birth of Kyrillos. Pastoral visit May 4 was fruitful. Follow up on consistent Agpeya practice — suggested praying together as a couple after the baby sleeps.',
   },
   'demo-sg': {
@@ -35,10 +96,10 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0339', email: 'sgirgis@example.com', address_line1: '408 Granville St', address_line2: null, city: 'Columbus', state: 'OH', zip: '43215', country: 'US' },
     life: { life_stage: 'single', spouse_name: '' },
     children: [],
-    vitals: [{ label: 'Daily Prayer', pct: 90, shared: true }, { label: 'Scripture Reading', pct: 85, shared: true }, { label: 'Divine Liturgy', pct: 100, shared: true }, { label: 'Small Group', pct: 75, shared: true }, { label: 'Service', pct: 100, shared: true }],
+    vitals: { prayer: 90, quiet: 85, scripture: 85, book: 70, liturgy: 100, fasting: 88, service: 100, confession: null },
     confessions: [{ date: 'MAY 21, 2026', type: 'Holy Confession', note: 'Discussed vocation discernment. Encouraged continued prayer and patience.' }, { date: 'MAR 3, 2026', type: 'Holy Confession', note: 'Lenten preparation.' }, { date: 'JAN 8, 2026', type: 'Holy Confession', note: 'Start-of-year spiritual plan.' }],
     prayer: [{ date: 'MAY 20, 2026', topic: 'Discernment of vocation — monastery vs. marriage' }],
-    canons: [{ id: 'c1', component: 'Complete Agpeya (all 7 hours)', frequency: 'Daily', startDate: 'Jan 9, 2026', pct: 88 }, { id: 'c2', component: 'Bible reading (2 chapters)', frequency: 'Daily', startDate: 'Jan 9, 2026', pct: 85 }],
+    canons: [{ id: 'c1', component: 'Complete Agpeya (all 7 hours)', frequency: 'Daily', startDate: 'Jan 9, 2026', completions: 6, totalDays: 7 }, { id: 'c2', component: 'Bible reading (2 chapters)', frequency: 'Daily', startDate: 'Jan 9, 2026', completions: 6, totalDays: 7 }],
     note: 'Spiritually mature and consistent. Currently in a season of vocational discernment. Needs gentle guidance, not pressure. Recommend reading Fr. Matta El-Meskeen on the monastic call.',
   },
   'demo-pb': {
@@ -46,10 +107,10 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0182', email: 'pbotros@example.com', address_line1: '2847 Riverside Dr', address_line2: null, city: 'Columbus', state: 'OH', zip: '43221', country: 'US' },
     life: { life_stage: 'married', spouse_name: 'Maria Botros' },
     children: [{ id: 'dc1', name: 'Anthony', birth_year: 2018 }, { id: 'dc2', name: 'Mary', birth_year: 2021 }],
-    vitals: [{ label: 'Daily Prayer', pct: 20, shared: true }, { label: 'Scripture Reading', pct: 30, shared: true }, { label: 'Divine Liturgy', pct: 45, shared: true }, { label: 'Small Group', pct: 0, shared: false }, { label: 'Service', pct: 0, shared: false }],
+    vitals: { prayer: 20, quiet: 10, scripture: 30, book: null, liturgy: 45, fasting: 20, service: 0, confession: null },
     confessions: [{ date: 'FEB 25, 2026', type: 'Holy Confession', note: 'Set spiritual goals.' }, { date: 'FEB 11, 2026', type: 'Introductory Meeting', note: 'Getting to know one another.' }],
     prayer: [{ date: 'MAY 28, 2026', topic: 'Job transition — feeling lost' }, { date: 'MAY 5, 2026', topic: 'Family reconciliation with brother' }],
-    canons: [{ id: 'c1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 20 }, { id: 'c2', component: 'Gospel Reading (1 chapter)', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 30 }],
+    canons: [{ id: 'c1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Mar 1, 2026', completions: 1, totalDays: 7 }, { id: 'c2', component: 'Gospel Reading (1 chapter)', frequency: 'Daily', startDate: 'Mar 1, 2026', completions: 2, totalDays: 7 }],
     note: 'Needs consistent follow-up. Has expressed interest in deepening faith but struggles with consistency. Suggested accountability partner from the young adult group.',
   },
   'demo-mm': {
@@ -57,10 +118,10 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0471', email: 'mmkhail@example.com', address_line1: '93 Olentangy Blvd', address_line2: 'Apt 4B', city: 'Columbus', state: 'OH', zip: '43202', country: 'US' },
     life: { life_stage: 'married', spouse_name: 'Fady Mikhail' },
     children: [{ id: 'dc1', name: 'Bishoy', birth_year: 2020 }, { id: 'dc2', name: 'Irene', birth_year: 2023 }],
-    vitals: [{ label: 'Daily Prayer', pct: 65, shared: true }, { label: 'Scripture Reading', pct: 60, shared: true }, { label: 'Divine Liturgy', pct: 75, shared: true }, { label: 'Small Group', pct: 50, shared: true }, { label: 'Service', pct: 50, shared: true }],
+    vitals: { prayer: 65, quiet: 50, scripture: 60, book: null, liturgy: 75, fasting: 58, service: 50, confession: null },
     confessions: [{ date: 'MAY 10, 2026', type: 'Holy Confession', note: 'Marriage enrichment focus. Prayed together with Fady.' }, { date: 'FEB 28, 2026', type: 'Holy Confession', note: 'Lenten preparation. Addressed anxiety about second child.' }],
     prayer: [{ date: 'APR 30, 2026', topic: 'Peace in marriage — communication difficulties' }, { date: 'MAR 15, 2026', topic: 'Healing for mother-in-law' }],
-    canons: [{ id: 'c1', component: 'Evening Prayer (Compline)', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 65 }, { id: 'c2', component: 'Bible reading (1 chapter)', frequency: 'Daily', startDate: 'Mar 1, 2026', pct: 60 }],
+    canons: [{ id: 'c1', component: 'Evening Prayer (Compline)', frequency: 'Daily', startDate: 'Mar 1, 2026', completions: 5, totalDays: 7 }, { id: 'c2', component: 'Bible reading (1 chapter)', frequency: 'Daily', startDate: 'Mar 1, 2026', completions: 4, totalDays: 7 }],
     note: 'Consistent growth. Fady and Mary attend together which is encouraging. Consider inviting them to lead a young couples\' small group — they have the maturity for it.',
   },
   'demo-ag': {
@@ -68,7 +129,7 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0598', email: 'ageorge@example.com', address_line1: '5120 Kenny Rd', address_line2: null, city: 'Columbus', state: 'OH', zip: '43220', country: 'US' },
     life: { life_stage: 'single', spouse_name: '' },
     children: [],
-    vitals: [{ label: 'Daily Prayer', pct: 0, shared: false }, { label: 'Scripture Reading', pct: 0, shared: false }, { label: 'Divine Liturgy', pct: 25, shared: true }, { label: 'Small Group', pct: 0, shared: false }, { label: 'Service', pct: 0, shared: false }],
+    vitals: { prayer: null, quiet: null, scripture: null, book: null, liturgy: 25, fasting: null, service: null, confession: null },
     confessions: [],
     prayer: [{ date: 'MAY 1, 2026', topic: 'Searching for meaning — career feels empty' }],
     canons: [],
@@ -79,16 +140,29 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0623', email: 'cnaguib@example.com', address_line1: '711 Worthington Ave', address_line2: null, city: 'Columbus', state: 'OH', zip: '43085', country: 'US' },
     life: { life_stage: 'married', spouse_name: 'Mina Naguib' },
     children: [{ id: 'dc1', name: 'Verena', birth_year: 2017 }, { id: 'dc2', name: 'Mark', birth_year: 2019 }, { id: 'dc3', name: 'Irini', birth_year: 2022 }],
-    vitals: [{ label: 'Daily Prayer', pct: 95, shared: true }, { label: 'Scripture Reading', pct: 90, shared: true }, { label: 'Divine Liturgy', pct: 100, shared: true }, { label: 'Small Group', pct: 75, shared: true }, { label: 'Service', pct: 100, shared: true }],
+    vitals: { prayer: 95, quiet: 90, scripture: 90, book: 85, liturgy: 100, fasting: 92, service: 100, confession: null },
     confessions: [{ date: 'MAY 5, 2026', type: 'Holy Confession', note: 'Strong spiritually. Discussed leading the women\'s Bible study.' }, { date: 'FEB 20, 2026', type: 'Holy Confession', note: 'Lenten reflection — themes of gratitude and service.' }, { date: 'NOV 10, 2025', type: 'Holy Confession', note: 'Pre-Advent preparation.' }],
     prayer: [{ date: 'APR 25, 2026', topic: 'Guidance for Verena\'s school transition' }],
-    canons: [{ id: 'c1', component: 'Midnight Praise (Tasbeha)', frequency: 'Weekly', startDate: 'Jan 1, 2026', pct: 92 }, { id: 'c2', component: 'Bible reading (3 chapters)', frequency: 'Daily', startDate: 'Jan 1, 2026', pct: 90 }],
+    canons: [{ id: 'c1', component: 'Midnight Praise (Tasbeha)', frequency: 'Weekly', startDate: 'Jan 1, 2026', completions: 6, totalDays: 7 }, { id: 'c2', component: 'Bible reading (3 chapters)', frequency: 'Daily', startDate: 'Jan 1, 2026', completions: 6, totalDays: 7 }],
     note: 'One of the strongest members of the flock. Mentoring two younger women. Consider formally appointing her to lead the women\'s spiritual development group.',
   },
 };
 
 function getDemoData(id: string) {
   return DEMO_DB[id] ?? DEMO_DB['demo-pb'];
+}
+
+// Render the member's eight vital categories from a stored payload (the same
+// map the member mirrors to agent_progress['vitals']). A key that's absent is
+// "not shared"; a key present but null had nothing ever due, so it reads "—".
+function vitalsFromPayload(payload: Record<string, number | null> | null | undefined) {
+  const v = payload ?? {};
+  return VITAL_CATEGORIES.map(c => ({
+    key: c.key,
+    label: c.label,
+    pct: c.key in v ? v[c.key] : null,
+    shared: c.key in v,
+  }));
 }
 
 type TabType = 'overview' | 'canon' | 'prayer' | 'notes';
@@ -133,8 +207,7 @@ export default function MemberScreen() {
   const [contact, setContact] = useState<any>(demoMode ? demo.contact : null);
   const [lifeStageData, setLifeStageData] = useState<any>(demoMode ? demo.life : null);
   const [memberChildren, setMemberChildren] = useState<any[]>(demoMode ? demo.children : []);
-  const [vitals, setVitals] = useState<any[]>(demo.vitals);
-  const [psalmStats, setPsalmStats] = useState<PsalmStatsSnapshot | null>(demoMode ? DEMO_PSALM_STATS : null);
+  const [vitals, setVitals] = useState<any[]>(vitalsFromPayload(demo.vitals));
   const [confessions, setConfessions] = useState<any[]>(demo.confessions);
   const [prayerRequests, setPrayerRequests] = useState<any[]>(demo.prayer);
   const [canons, setCanons] = useState<any[]>(demo.canons);
@@ -156,16 +229,42 @@ export default function MemberScreen() {
   // Contact sheet
   const [showContactSheet, setShowContactSheet] = useState(false);
 
+  // The member's EFFECTIVE canon: their self-set rule with this priest's
+  // still-locked assignments overlaid — what the member's Canon tab shows.
+  const [memberRule, setMemberRule] = useState<RuleConfig | null>(null);
+  const [assignedCats, setAssignedCats] = useState<Set<AssignedCategory>>(new Set());
+  const [customCount, setCustomCount] = useState(0);
+  const [lastVisit, setLastVisit] = useState<string | null>(demoMode ? '2026-05-04' : null);
+  const [visitRequested, setVisitRequested] = useState(false);
+
+  const loadEffectiveRule = useCallback(async (lastConfessionIso: string | null) => {
+    const [base, assigned] = await Promise.all([
+      loadMemberRule(memberId ?? '', demoMode),
+      loadAssignedForPriest(memberId ?? '', user?.id ?? '', demoMode),
+    ]);
+    if (!base) { setMemberRule(null); setAssignedCats(new Set()); setCustomCount(0); return; }
+    const overlay = applyOverlay(base, assigned, lastConfessionIso ? localDayOf(lastConfessionIso) : null);
+    setMemberRule(overlay.rule);
+    setAssignedCats(overlay.lockedCategories);
+    setCustomCount(overlay.customComponents.length);
+  }, [memberId, demoMode, user?.id]);
+
+  // Total canon components the member follows = the effective rule's shown
+  // components plus any free-text custom ones — not just the priest-assigned
+  // rows, so the count matches the full Current Canon below.
+  const canonCount = memberRule ? ruleSummaryLines(memberRule).length + customCount : canons.length;
+
   useFocusEffect(
     useCallback(() => {
+      if (demoMode) loadEffectiveRule(null);
       if (demoMode) {
         const d = getDemoData(memberId ?? '');
+        setVisitRequested(d.member.name === 'Peter Botros');
         setMemberInfo(d.member);
         setContact(d.contact);
         setLifeStageData(d.life);
         setMemberChildren(d.children);
-        setVitals(d.vitals);
-        setPsalmStats(DEMO_PSALM_STATS);
+        setVitals(vitalsFromPayload(d.vitals));
         setConfessions(d.confessions);
         setPrayerRequests(d.prayer);
         setCanons(d.canons);
@@ -173,19 +272,19 @@ export default function MemberScreen() {
       } else if (memberId) {
         loadMemberData();
       }
-    }, [memberId, demoMode])
+    }, [memberId, demoMode, loadEffectiveRule])
   );
 
   async function loadMemberData() {
     if (!user || !memberId) return;
     setLoading(true);
 
-    const [profileData, vitalsPayload, psalmPayload, confData, prayerData, canonData, notesData, contactData, lifeData, kidsData] =
+    const [profileData, vitalsPayload, confData, confDatesPayload, prayerData, canonData, notesData, contactData, lifeData, kidsData] =
       await Promise.all([
         db.getMemberProfile(memberId),
         db.getAgentProgress(memberId, 'vitals'),
-        db.getAgentProgress(memberId, 'psalm-stats'),
         db.getConfessionsForCongregant(memberId),
+        db.getAgentProgress(memberId, 'confession-dates'),
         db.getFocPrayerRequests(memberId),
         db.getMemberActiveCanons(memberId),
         db.getPastoralNotes(user.id, memberId),
@@ -194,35 +293,57 @@ export default function MemberScreen() {
         db.getChildren(memberId),
       ]);
 
+    loadEffectiveRule(profileData?.last_confession_at ?? null);
+    db.getLastEncounterDate(memberId, 'visit').then(setLastVisit);
+    db.getVisitRequest(memberId).then(r => setVisitRequested(r.active));
+
     if (profileData) {
       const p = profileData;
       const joined = new Date(p.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-      const lastConf = confData?.[0];
-      const daysSince = lastConf ? Math.floor((Date.now() - new Date(lastConf.encountered_at).getTime()) / 86400000) : null;
+      // Latest of the priest's logged confession encounters and the member's
+      // own self-reported confession (profiles.last_confession_at) — the same
+      // event may exist in both, so taking the newest never double-counts.
+      const lastMs = latestConfessionMs(confData?.[0]?.encountered_at, p.last_confession_at);
+      // Count local calendar days (not raw elapsed 24h) so this matches the
+      // member's own "days since confession".
+      const daysSince = lastMs != null ? daysSinceMs(lastMs) : null;
       setMemberInfo({ initials: initials(memberName ?? p.full_name), name: memberName ?? p.full_name, stage: '', joined, daysSince, flagged: false, flagNote: '' });
     }
 
     if (vitalsPayload) {
-      const v = vitalsPayload as any;
-      setVitals([
-        { label: 'Daily Prayer', pct: v.prayer ?? 0, shared: true },
-        { label: 'Scripture Reading', pct: v.scripture ?? 0, shared: true },
-        { label: 'Divine Liturgy', pct: v.liturgy ?? 0, shared: true },
-        { label: 'Fasting', pct: v.fasting ?? 0, shared: true },
-        { label: 'Service', pct: v.service ?? 0, shared: true },
-      ]);
+      // Mirror the member's own eight vital categories exactly (same keys/labels
+      // the member computes from their canon adherence).
+      setVitals(vitalsFromPayload(vitalsPayload as Record<string, number | null>));
     } else if (!demoMode) {
       setVitals([]);
     }
 
-    setPsalmStats((psalmPayload as PsalmStatsSnapshot | null) ?? null);
-
-    if (confData) {
-      setConfessions(confData.map(c => ({
-        date: new Date(c.encountered_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
+    {
+      // Priest-logged confession encounters merged with the member's own
+      // self-reported dates (a dates-only mirror — never content). A same-day
+      // pair collapses to the logged encounter, which carries the note.
+      const fmtDay = (ms: number) => new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+      const encRows = (confData ?? []).map((c: any) => ({
+        ms: new Date(c.encountered_at).getTime(),
+        day: localDayOf(c.encountered_at),
         type: 'Holy Confession',
         note: c.member_note ?? '',
-      })));
+      }));
+      const encDays = new Set(encRows.map(r => r.day));
+      const selfDates: string[] = Array.isArray((confDatesPayload as any)?.dates) ? (confDatesPayload as any).dates : [];
+      const selfRows = selfDates
+        .filter(d => typeof d === 'string' && !encDays.has(d))
+        .map(d => ({
+          ms: new Date(`${d}T12:00:00`).getTime(),
+          day: d,
+          type: 'Holy Confession',
+          note: 'Self-reported by the member',
+        }));
+      setConfessions(
+        [...encRows, ...selfRows]
+          .sort((a, b) => b.ms - a.ms)
+          .map(r => ({ date: fmtDay(r.ms), type: r.type, note: r.note })),
+      );
     }
 
     if (prayerData) {
@@ -236,7 +357,15 @@ export default function MemberScreen() {
     }
 
     if (canonData) {
-      setCanons(canonData.map(c => ({ id: c.id, component: c.component, frequency: c.frequency, startDate: c.start_date, pct: 0, selfAdded: c.priest_id == null })));
+      // completions/totalDays over the trailing week — same measure the
+      // servant's student view uses, so "how is this going" reads the same
+      // way across both pastoral roles.
+      const enriched = await Promise.all(canonData.map(async (c: any) => {
+        const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+        const count = await db.countCanonCompletionsSince(c.id, sevenDaysAgo);
+        return { id: c.id, component: c.component, frequency: c.frequency, startDate: c.start_date, completions: count, totalDays: 7 };
+      }));
+      setCanons(enriched);
     }
 
     setNotes(notesData);
@@ -340,6 +469,11 @@ export default function MemberScreen() {
                     <Text style={styles.flagBadgeText}>⚑ {memberInfo.flagNote}</Text>
                   </View>
                 )}
+                {visitRequested && (
+                  <View style={styles.visitBadge}>
+                    <Text style={styles.visitBadgeText}>◎ Requested a pastoral visit</Text>
+                  </View>
+                )}
               </View>
             </View>
 
@@ -351,7 +485,7 @@ export default function MemberScreen() {
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
-                <Text style={[styles.statVal, { color: colors.cream }]}>{canons.length}</Text>
+                <Text style={[styles.statVal, { color: colors.cream }]}>{canonCount}</Text>
                 <Text style={styles.statLabel}>CANONS</Text>
               </View>
               <View style={styles.statDivider} />
@@ -359,6 +493,17 @@ export default function MemberScreen() {
                 <Text style={[styles.statVal, { color: colors.cream }]}>{prayerRequests.length}</Text>
                 <Text style={styles.statLabel}>REQUESTS</Text>
               </View>
+            </View>
+
+            {/* ── Last pastoral visit ── */}
+            <View style={styles.lastVisitRow}>
+              <Text style={styles.lastVisitLabel}>Last pastoral visit</Text>
+              <Text style={styles.lastVisitVal}>
+                {lastVisit
+                  ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(lastVisit) ? `${lastVisit}T12:00:00` : lastVisit)
+                      .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  : 'None logged'}
+              </Text>
             </View>
 
             {/* ── Action row ── */}
@@ -396,22 +541,31 @@ export default function MemberScreen() {
                 <Card title="Spiritual Vitals" flat>
                   {vitals.length === 0 ? (
                     <Text style={styles.emptyText}>Member hasn't shared any vitals yet.</Text>
-                  ) : vitals.map((v, i) => (
-                    <View key={i} style={[styles.vitalRow, i < vitals.length - 1 && { marginBottom: 10 }]}>
-                      <Text style={[styles.vitalLabel, !v.shared && styles.vitalLabelDim]}>
-                        {v.label}{!v.shared ? ' (not shared)' : ''}
-                      </Text>
-                      <View style={styles.vitalTrack}>
-                        {v.shared && <View style={[styles.vitalFill, { width: `${v.pct}%` as any }]} />}
+                  ) : vitals.map((v, i) => {
+                    // Confession has no canon check-off to measure, so it never
+                    // has a percentage — show days-since-confession instead of
+                    // "—", the same as the member's own dashboard.
+                    const isConf = v.key === 'confession';
+                    const confDays = memberInfo?.daysSince;
+                    const has = isConf
+                      ? confDays !== null && confDays !== undefined
+                      : v.shared && v.pct !== null && v.pct !== undefined;
+                    const notShared = !isConf && !v.shared;
+                    return (
+                      <View key={i} style={[styles.vitalRow, i < vitals.length - 1 && { marginBottom: 10 }]}>
+                        <Text style={[styles.vitalLabel, notShared && styles.vitalLabelDim]}>
+                          {v.label}{notShared ? ' (not shared)' : ''}
+                        </Text>
+                        <View style={styles.vitalTrack}>
+                          {has && !isConf && <View style={[styles.vitalFill, { width: `${v.pct}%` as any }]} />}
+                        </View>
+                        <Text style={[styles.vitalVal, !has && { color: colors.muted, opacity: 0.4 }]}>
+                          {isConf ? (has ? `${confDays}d` : '—') : (has ? `${v.pct}%` : '—')}
+                        </Text>
                       </View>
-                      <Text style={[styles.vitalVal, !v.shared && { color: colors.muted, opacity: 0.4 }]}>
-                        {v.shared ? `${v.pct}%` : '—'}
-                      </Text>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </Card>
-
-                <PsalmStatsCard stats={psalmStats} />
 
                 <Card title="Confession History" flat>
                   <View style={styles.privacyNote}>
@@ -432,34 +586,54 @@ export default function MemberScreen() {
 
             {/* ── Canon ── */}
             {tab === 'canon' && (
-              <Card title="Canon" flat>
-                {canons.length === 0 ? (
-                  <Text style={styles.emptyText}>No canon yet.</Text>
-                ) : canons.map((c, i) => (
-                  <View key={c.id} style={[styles.canonRow, i < canons.length - 1 && styles.histBorder]}>
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={styles.canonComponent}>{c.component}</Text>
-                        {c.selfAdded && (
-                          <View style={styles.selfAddedBadge}>
-                            <Text style={styles.selfAddedBadgeText}>ADDED BY MEMBER</Text>
-                          </View>
-                        )}
+              <Card title="Current Canon" flat>
+                {!memberRule ? (
+                  <Text style={styles.emptyText}>No personal rule synced yet.</Text>
+                ) : (
+                  ruleSummaryLines(memberRule).map((l, i, arr) => (
+                    <View key={l.label} style={[styles.canonRow, i < arr.length - 1 && styles.histBorder]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.canonComponent}>
+                          {l.label}
+                          {SUMMARY_CATEGORY[l.label] && assignedCats.has(SUMMARY_CATEGORY[l.label])
+                            ? <Text style={styles.assignedByYou}>  ·  assigned by you</Text>
+                            : null}
+                        </Text>
+                        <Text style={styles.canonMeta}>{l.value}</Text>
                       </View>
-                      <Text style={styles.canonMeta}>{c.frequency} · since {c.startDate}</Text>
                     </View>
-                    {c.pct > 0 && (
-                      <View style={styles.canonPill}>
-                        <Text style={[styles.canonPillText, { color: c.pct < 40 ? colors.red : colors.yellow }]}>{c.pct}%</Text>
+                  ))
+                )}
+                <Text style={styles.currentCanonHint}>
+                  The member's own rule. Open the editor below to adjust it — categories you assign become read-only for the member until their next confession.
+                </Text>
+              </Card>
+            )}
+            {tab === 'canon' && (
+              <Card title="Assigned Canon" flat>
+                {canons.length === 0 ? (
+                  <Text style={styles.emptyText}>No canon assigned yet.</Text>
+                ) : canons.map((c, i) => {
+                  const pct = Math.round((c.completions / c.totalDays) * 100);
+                  return (
+                    <View key={c.id} style={[styles.canonRow, i < canons.length - 1 && styles.histBorder]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.canonComponent}>{c.component}</Text>
+                        <Text style={styles.canonMeta}>{c.frequency} · since {c.startDate}</Text>
                       </View>
-                    )}
-                  </View>
-                ))}
+                      <View style={styles.canonPill}>
+                        <Text style={[styles.canonPillText, { color: pct < 40 ? colors.red : colors.yellow }]}>
+                          {c.completions}/{c.totalDays} this week
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
                 <TouchableOpacity
                   style={[styles.btnGold, { alignSelf: 'flex-start', marginTop: 12 }]}
                   onPress={() => router.push({ pathname: '/(priest)/assign-canon', params: { memberId: memberId ?? '', memberName: memberName ?? memberInfo?.name ?? '' } })}
                 >
-                  <Text style={styles.btnGoldText}>+ ASSIGN COMPONENT</Text>
+                  <Text style={styles.btnGoldText}>ASSIGN CANON</Text>
                 </TouchableOpacity>
               </Card>
             )}
@@ -526,7 +700,7 @@ export default function MemberScreen() {
                           onChangeText={setEditText}
                           multiline
                           autoFocus
-                          placeholderTextColor="rgba(245,240,232,0.22)"
+                          placeholderTextColor={colors.faint}
                         />
                         {editError ? <Text style={styles.noteErrorText}>{editError}</Text> : null}
                         <View style={styles.editActions}>
@@ -552,7 +726,7 @@ export default function MemberScreen() {
                   <TextInput
                     style={styles.noteInput}
                     placeholder="Add a pastoral note…"
-                    placeholderTextColor="rgba(245,240,232,0.22)"
+                    placeholderTextColor={colors.faint}
                     multiline
                     numberOfLines={4}
                     value={newNoteText}
@@ -595,7 +769,7 @@ export default function MemberScreen() {
               style={styles.sheetRow}
               onPress={() => { setShowContactSheet(false); router.push({ pathname: '/(priest)/assign-canon', params: { memberId: memberId ?? '', memberName: memberName ?? memberInfo?.name ?? '' } }); }}
             >
-              <Text style={styles.sheetRowIcon}>📜</Text>
+              <View style={styles.sheetRowIcon}><CandleIcon size={18} color={colors.gold} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.sheetRowLabel}>Assign Canon</Text>
                 <Text style={styles.sheetRowValue}>Add a spiritual practice</Text>
@@ -665,7 +839,7 @@ export default function MemberScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
@@ -675,19 +849,24 @@ const styles = StyleSheet.create({
   backText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted },
 
   heroCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 16, marginBottom: 12 },
-  heroAvatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#2c4a7c', borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  heroAvatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.blueBg, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   heroAvatarFlagged: { borderColor: colors.red, backgroundColor: 'rgba(192,57,43,0.2)' },
-  heroAvatarText: { fontFamily: fonts.cormorantMedium, fontSize: 20, color: colors.cream },
+  heroAvatarText: { fontFamily: fonts.cormorantMedium, fontSize: 20, color: colors.blue },
   heroName: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 2 },
   heroMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
   heroLifeStage: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 3 },
   flagBadge: { backgroundColor: 'rgba(192,57,43,0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, alignSelf: 'flex-start', marginTop: 6 },
   flagBadgeText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.red, letterSpacing: 0.5 },
+  visitBadge: { backgroundColor: colors.blueBg, borderWidth: 1, borderColor: colors.blue, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, alignSelf: 'flex-start', marginTop: 6 },
+  visitBadgeText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.blue, letterSpacing: 0.5 },
 
   statStrip: { flexDirection: 'row', backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, borderRadius: 12, marginBottom: 16, overflow: 'hidden' },
   statItem: { flex: 1, paddingVertical: 14, alignItems: 'center' },
   statVal: { fontFamily: fonts.cormorantMedium, fontSize: 22 },
   statLabel: { fontFamily: fonts.latoBold, fontSize: 8, letterSpacing: 1.5, color: colors.muted, textTransform: 'uppercase', marginTop: 2 },
+  lastVisitRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, paddingHorizontal: 4 },
+  lastVisitLabel: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.2, color: colors.muted, textTransform: 'uppercase' },
+  lastVisitVal: { fontFamily: fonts.lato, fontSize: 13, color: colors.cream },
   statDivider: { width: 1, backgroundColor: colors.border },
 
   actionRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
@@ -696,7 +875,7 @@ const styles = StyleSheet.create({
   btnMenu: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 9, alignItems: 'center', justifyContent: 'center' },
   btnMenuText: { fontFamily: fonts.lato, fontSize: 16, color: colors.muted, letterSpacing: 2, lineHeight: 18 },
 
-  tabBar: { flexDirection: 'row', backgroundColor: 'rgba(10,16,30,0.6)', borderRadius: 10, padding: 4, marginBottom: 16, gap: 2 },
+  tabBar: { flexDirection: 'row', backgroundColor: colors.panel, borderRadius: 10, padding: 4, marginBottom: 16, gap: 2 },
   tabItem: { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center' },
   tabItemActive: { backgroundColor: colors.navyMid, borderWidth: 1, borderColor: colors.border },
   tabText: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.muted },
@@ -705,7 +884,7 @@ const styles = StyleSheet.create({
   vitalRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   vitalLabel: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, flex: 1 },
   vitalLabelDim: { opacity: 0.4 },
-  vitalTrack: { width: 80, height: 4, backgroundColor: 'rgba(245,240,232,0.08)', borderRadius: 4, overflow: 'hidden' },
+  vitalTrack: { width: 80, height: 4, backgroundColor: colors.creamDim, borderRadius: 4, overflow: 'hidden' },
   vitalFill: { height: '100%', backgroundColor: colors.gold, borderRadius: 4 },
   vitalVal: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream, width: 30, textAlign: 'right' },
 
@@ -720,16 +899,16 @@ const styles = StyleSheet.create({
 
   canonRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 },
   canonComponent: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2 },
-  canonMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
+  canonMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 17 },
+  currentCanonHint: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 16, marginTop: 12, opacity: 0.85 },
+  assignedByYou: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.gold },
   canonPill: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   canonPillText: { fontFamily: fonts.latoBold, fontSize: 12 },
-  selfAddedBadge: { backgroundColor: 'rgba(201,168,76,0.12)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.25)', borderRadius: 20, paddingHorizontal: 6, paddingVertical: 2 },
-  selfAddedBadgeText: { fontFamily: fonts.latoBold, fontSize: 8, letterSpacing: 0.6, color: colors.gold },
 
   emptyText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textAlign: 'center', paddingVertical: 16 },
 
-  savedNoteText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20, marginBottom: 12, padding: 12, backgroundColor: 'rgba(10,16,30,0.4)', borderRadius: 8 },
-  noteCard: { backgroundColor: 'rgba(10,16,30,0.4)', borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 10 },
+  savedNoteText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20, marginBottom: 12, padding: 12, backgroundColor: colors.panel, borderRadius: 8 },
+  noteCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 10 },
   noteCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   noteCardDate: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1, color: colors.gold, opacity: 0.8 },
   noteCardBody: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20 },
@@ -740,7 +919,7 @@ const styles = StyleSheet.create({
   btnCancel: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
   btnCancelText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.muted, letterSpacing: 0.8 },
   addNoteSection: { marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
-  noteInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', minHeight: 90 },
+  noteInput: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', minHeight: 90 },
   noteErrorText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginTop: 6 },
 
   // ── Contact sheet ──
@@ -752,11 +931,11 @@ const styles = StyleSheet.create({
   sheetHandle: { width: 36, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 18 },
   sheetTitle: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 18 },
   sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
-  sheetRowIcon: { fontSize: 18, width: 26, textAlign: 'center', color: colors.gold },
+  sheetRowIcon: { width: 26, alignItems: 'center', justifyContent: 'center' },
   sheetRowLabel: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.muted, marginBottom: 2 },
   sheetRowValue: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.cream },
   sheetRowAction: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1, color: colors.gold, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 },
   sheetEmpty: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textAlign: 'center', paddingVertical: 28, lineHeight: 20 },
   sheetCloseBtn: { marginTop: 18, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
   sheetCloseBtnText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.muted, letterSpacing: 1 },
-});
+}));

@@ -6,4 +6,9 @@ expo-env.d.ts
 # @end expo-cli
 .vercel
 
+# local Supabase credentials — never commit
+.env
+.env.local
+
+# Supabase CLI cache (project link ref etc.)
 supabase/.temp/

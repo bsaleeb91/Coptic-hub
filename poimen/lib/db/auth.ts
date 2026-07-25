@@ -39,17 +39,37 @@ export async function signInWithPassword(email: string, password: string): Promi
   return { error: error?.message ?? null };
 }
 
-export async function signUp(email: string, password: string, fullName: string): Promise<{ error: string | null }> {
+export type SignupRole = 'congregant' | 'servant' | 'priest';
+
+export async function signUp(email: string, password: string, fullName: string, requestedRole: SignupRole = 'congregant'): Promise<{ error: string | null }> {
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName } },
+    // The handle_new_user trigger applies requested_role server-side:
+    // congregant/servant are granted directly, priest stays congregant
+    // until an admin approves the request.
+    options: { data: { full_name: fullName, requested_role: requestedRole } },
   });
   return { error: error?.message ?? null };
 }
 
-export async function signInWithOtp(email: string): Promise<{ error: string | null }> {
-  const { error } = await supabase.auth.signInWithOtp({ email });
+export async function signInWithOtp(email: string, redirectTo: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
+  return { error: error?.message ?? null };
+}
+
+export async function resetPasswordForEmail(email: string, redirectTo: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+  return { error: error?.message ?? null };
+}
+
+export async function setSessionFromTokens(accessToken: string, refreshToken: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+  return { error: error?.message ?? null };
+}
+
+export async function updatePassword(password: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.auth.updateUser({ password });
   return { error: error?.message ?? null };
 }
 

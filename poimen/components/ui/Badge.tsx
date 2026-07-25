@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors } from '@/lib/theme';
+import { colors , lazyThemed } from '@/lib/theme';
 
 type BadgeVariant = 'green' | 'yellow' | 'red';
 
@@ -20,7 +20,7 @@ export function Badge({ variant, label }: BadgeProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   badge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -33,4 +33,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
-});
+}));

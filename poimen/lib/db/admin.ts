@@ -53,3 +53,30 @@ export async function getChurchBreakdown(): Promise<ChurchBreakdown[]> {
   const { data } = await supabase.rpc('get_church_breakdown');
   return (data ?? []) as ChurchBreakdown[];
 }
+
+export interface PriestRequest {
+  id: string;
+  full_name: string | null;
+  church_name: string | null;
+  email: string | null;
+}
+
+// null = the RPC failed (missing migration, network), which the UI must
+// not present as an empty queue.
+export async function getPriestRequests(): Promise<PriestRequest[] | null> {
+  const { data, error } = await supabase.rpc('get_priest_requests');
+  if (error) return null;
+  return (data ?? []) as PriestRequest[];
+}
+
+// The RPCs return the affected row count; 0 means the request was no
+// longer pending (handled in another session), which is not a success.
+export async function approvePriestRequest(userId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('approve_priest_request', { target: userId });
+  return !error && typeof data === 'number' && data > 0;
+}
+
+export async function denyPriestRequest(userId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('deny_priest_request', { target: userId });
+  return !error && typeof data === 'number' && data > 0;
+}

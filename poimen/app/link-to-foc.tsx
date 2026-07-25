@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 
 type LinkType = 'foc' | 'servant';
 
@@ -66,7 +66,7 @@ export default function LinkToFocScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.successContainer}>
-          <Text style={styles.successCross}>✝</Text>
+          <Text style={styles.successCross}>✝︎</Text>
           <Text style={styles.successTitle}>You're linked!</Text>
           <Text style={styles.successBody}>
             {found?.full_name ?? 'Your leader'} can now see your spiritual profile.
@@ -100,7 +100,7 @@ export default function LinkToFocScreen() {
               value={code}
               onChangeText={t => { setCode(t.toUpperCase()); setError(''); setFound(null); }}
               placeholder="A B C 1 2 3"
-              placeholderTextColor="rgba(245,240,232,0.22)"
+              placeholderTextColor={colors.faint}
               autoCapitalize="characters"
               maxLength={6}
               autoCorrect={false}
@@ -121,7 +121,7 @@ export default function LinkToFocScreen() {
 
           {found && (
             <View style={styles.foundCard}>
-              <Text style={styles.foundCross}>✝</Text>
+              <Text style={styles.foundCross}>✝︎</Text>
               <View style={{ flex: 1 }}>
                 <Text style={styles.foundName}>{found.full_name ?? 'Unknown'}</Text>
                 {found.church_name ? <Text style={styles.foundChurch}>{found.church_name}</Text> : null}
@@ -149,7 +149,7 @@ export default function LinkToFocScreen() {
 
           <View style={styles.hintBox}>
             <Text style={styles.hintText}>
-              Your {roleLabel} can find their code in the Profile tab of their Poimen app.
+              Your {roleLabel} can find their code in the Profile tab of their Nepsis app.
             </Text>
           </View>
 
@@ -159,7 +159,7 @@ export default function LinkToFocScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   content: { padding: 24, paddingBottom: 48 },
 
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   inputRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   codeInput: {
     flex: 1,
-    backgroundColor: 'rgba(10,16,30,0.7)',
+    backgroundColor: colors.panel,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 10,
@@ -242,4 +242,4 @@ const styles = StyleSheet.create({
   successBody: { fontFamily: fonts.latoLight, fontSize: 14, color: colors.muted, textAlign: 'center', lineHeight: 22, marginBottom: 32 },
   doneBtn: { backgroundColor: colors.gold, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 40 },
   doneBtnText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.navy, letterSpacing: 1.2 },
-});
+}));

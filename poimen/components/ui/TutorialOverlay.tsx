@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Animated,
   Dimensions, Modal, Platform,
 } from 'react-native';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import type { TutorialStep } from '@/lib/tutorial';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -62,7 +62,7 @@ export function TutorialOverlay({ steps, currentIndex, onNext, onSkip, visible }
           </View>
 
           {/* Cross accent */}
-          <Text style={styles.crossAccent}>✝</Text>
+          <Text style={styles.crossAccent}>✝︎</Text>
 
           {/* Content */}
           <Text style={styles.title}>{step.title}</Text>
@@ -89,7 +89,7 @@ export function TutorialOverlay({ steps, currentIndex, onNext, onSkip, visible }
 
 const SHEET_WIDTH = Math.min(SCREEN_W - 40, 480);
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(5,10,22,0.82)',
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.latoBold,
     fontSize: 9,
     letterSpacing: 1.5,
-    color: 'rgba(245,240,232,0.25)',
+    color: colors.faint,
     textTransform: 'uppercase',
     marginBottom: 20,
   },
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   skipText: {
     fontFamily: fonts.lato,
     fontSize: 13,
-    color: 'rgba(245,240,232,0.35)',
+    color: colors.faint,
   },
   nextBtn: {
     backgroundColor: colors.gold,
@@ -194,4 +194,4 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     color: colors.navy,
   },
-});
+}));

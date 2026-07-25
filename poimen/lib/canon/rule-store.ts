@@ -1,13 +1,15 @@
-// lib/liturgical/ruleStore.ts
-// The user's personal prayer rule, ideally set with their father of
-// confession. Configurable per day of the week and persisted on-device.
-// Distinct from priest-assigned canons (Supabase): this is the private,
-// self-kept structure of daily prayer.
+// lib/canon/rule-store.ts
+// The user's personal prayer rule (Canon), ideally set with their father of
+// confession. Ported from Nepsis. Configurable per day of the week and persisted
+// on-device (AsyncStorage); mirrored to Supabase agent_progress by rule-sync.ts.
+// This is the congregant's *self-set* rule — distinct from the priest-assigned
+// spiritual_canons that already drive the Canon tab.
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// Per-user-scoped storage (see lib/storage.ts) — keeps one account's spiritual
+// data from bleeding into another's on a shared device.
+import { userStorage as AsyncStorage } from '@/lib/storage';
 
 const KEY = 'poimen.rule';
-const DONE_KEY = 'poimen.rule.done';
 
 // ─── Option lists ─────────────────────────────────────────────────────────────
 
@@ -33,6 +35,11 @@ export const CONFESSION_OPTIONS = [
   'Weekly', 'Every 2 weeks', 'Monthly', 'Every 2 months', 'Quarterly', 'Twice a year',
 ];
 
+// Heart of Service: how often a service commitment recurs on its weekday.
+export const SERVICE_FREQUENCY_OPTIONS = [
+  'Weekly', 'Every 2 weeks', 'Monthly', 'Every 2 months', 'Quarterly',
+];
+
 // On fasting days, abstain from food until this time of day — every half hour.
 function genTimeOptions(): string[] {
   const out: string[] = [];
@@ -53,9 +60,16 @@ export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday',
 
 export type ReadMode = 'chapters' | 'minutes';
 
+// A Heart of Service commitment (diakonia) — free text, attached to a weekday.
+export interface ServiceCommitment {
+  text: string;   // what the service is, in the user's own words
+  freq: string;   // one of SERVICE_FREQUENCY_OPTIONS
+}
+
 export interface DayPlan {
   hours: string[];      // agpeya hour keys prayed this weekday
   services: string[];   // church service keys this weekday
+  serving: ServiceCommitment[];  // Heart of Service commitments this weekday
 }
 
 export interface RuleConfig {
@@ -75,33 +89,32 @@ export const DEFAULT_RULE: RuleConfig = {
   bible: { mode: 'chapters', amount: 1 },
   book: null,
   confession: 'Monthly',
-  days: Array.from({ length: 7 }, () => ({ hours: [], services: [] })),
+  days: Array.from({ length: 7 }, () => ({ hours: [], services: [], serving: [] })),
 };
 
-// True when the rule has nothing configured — used to show a setup prompt.
-export function ruleIsEmpty(rule: RuleConfig): boolean {
-  return (
-    rule.prostrations === 0 &&
-    rule.quietMinutes === 0 &&
-    rule.bible.amount === 0 &&
-    !rule.book &&
-    rule.days.every(d => d.hours.length === 0 && d.services.length === 0)
-  );
+// ─── Persistence ──────────────────────────────────────────────────────────────
+
+export function normalizeRule(parsed: any): RuleConfig {
+  return normalize(parsed);
 }
 
-// ─── Persistence ──────────────────────────────────────────────────────────────
+function normalize(parsed: any): RuleConfig {
+  // Merge with defaults so older saves don't break on new fields.
+  const days: DayPlan[] = Array.from({ length: 7 }, (_, i) => ({
+    hours: parsed?.days?.[i]?.hours ?? [],
+    services: parsed?.days?.[i]?.services ?? [],
+    serving: Array.isArray(parsed?.days?.[i]?.serving)
+      ? parsed.days[i].serving.map((e: any) => ({ text: String(e?.text ?? ''), freq: String(e?.freq ?? 'Weekly') }))
+      : [],
+  }));
+  return { ...DEFAULT_RULE, ...parsed, bible: { ...DEFAULT_RULE.bible, ...parsed?.bible }, days };
+}
 
 export async function loadRule(): Promise<RuleConfig> {
   try {
     const raw = await AsyncStorage.getItem(KEY);
     if (!raw) return DEFAULT_RULE;
-    const parsed = JSON.parse(raw);
-    // Merge with defaults so older saves don't break on new fields.
-    const days: DayPlan[] = Array.from({ length: 7 }, (_, i) => ({
-      hours: parsed.days?.[i]?.hours ?? [],
-      services: parsed.days?.[i]?.services ?? [],
-    }));
-    return { ...DEFAULT_RULE, ...parsed, bible: { ...DEFAULT_RULE.bible, ...parsed.bible }, days };
+    return normalize(JSON.parse(raw));
   } catch {
     return DEFAULT_RULE;
   }
@@ -111,28 +124,14 @@ export async function saveRule(rule: RuleConfig): Promise<void> {
   try { await AsyncStorage.setItem(KEY, JSON.stringify(rule)); } catch {}
 }
 
-// ─── Today's completions ──────────────────────────────────────────────────────
-// Which rule items were checked off today. Keyed by date so yesterday's
-// checkmarks never bleed into a new day.
-
-interface DoneRecord { date: string; keys: string[]; }
-
-const todayStr = () => new Date().toISOString().slice(0, 10);
-
-export async function loadTodayDone(): Promise<Set<string>> {
-  try {
-    const raw = await AsyncStorage.getItem(DONE_KEY);
-    if (!raw) return new Set();
-    const rec = JSON.parse(raw) as DoneRecord;
-    return rec.date === todayStr() ? new Set(rec.keys) : new Set();
-  } catch {
-    return new Set();
-  }
+// Whether a rule has ever been saved on this device (vs. the default fallback).
+export async function hasStoredRule(): Promise<boolean> {
+  try { return (await AsyncStorage.getItem(KEY)) != null; } catch { return false; }
 }
 
-export async function saveTodayDone(keys: Set<string>): Promise<void> {
-  try {
-    const rec: DoneRecord = { date: todayStr(), keys: [...keys] };
-    await AsyncStorage.setItem(DONE_KEY, JSON.stringify(rec));
-  } catch {}
+// Overwrite local rule with one pulled from the cloud.
+export async function importRule(parsed: any): Promise<RuleConfig> {
+  const rule = normalize(parsed);
+  await saveRule(rule);
+  return rule;
 }

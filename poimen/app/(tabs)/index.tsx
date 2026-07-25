@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  Animated, PanResponder, Modal, Dimensions, AccessibilityInfo,
+  Animated, Modal, Dimensions, AccessibilityInfo,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { useRouter, useFocusEffect, useNavigation } from 'expo-router';
+import { DrawerActions } from '@react-navigation/native';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
@@ -13,86 +14,80 @@ import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 import { loadSections, saveSections, SECTION_DEFS, DEFAULT_SECTIONS, type SectionId } from '@/lib/dashboard-layout';
 import * as H from '@/lib/haptics';
-import { copticToday } from '@/lib/liturgical/copticDate';
-import { dayContext } from '@/lib/liturgical/season';
+import { loadRule } from '@/lib/canon/rule-store';
+import { todayItems, customDueToday, RuleItem } from '@/lib/canon/today';
+import { loadAssignedForMember, applyOverlay } from '@/lib/canon/assigned';
+import { loadTodayChecks } from '@/lib/canon/checks';
+import { loadPostponements, loadServiceDone } from '@/lib/canon/postpone';
+import { recordCanonDay, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
+import { lastConfessionDate, loadConfessionDates, hydrateConfessionDatesFromCloud, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
+import { upcomingFeasts } from '@/lib/feasts';
+import { upcomingCommemorations } from '@/lib/synaxarium';
+import Harp from '@/components/ui/Harp';
+import { CrossIcon, CandleIcon } from '@/components/ui/TabIcons';
 
 const { width: SW } = Dimensions.get('window');
 const TILE_W = (SW - 48) / 2;
 
 // ── Demo data ────────────────────────────────────────────────
-const DEMO_VITALS = [
-  { label: 'Daily Prayer (Agpeya)', pct: 65 },
-  { label: 'Scripture Reading', pct: 80 },
-  { label: 'Divine Liturgy', pct: 80 },
-  { label: 'Fasting', pct: 90 },
-  { label: 'Service / Diakonia', pct: 50 },
-];
+// Local YYYY-MM-DD of a timestamp, for same-day confession dedupe.
+function localDayOf(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
 
-const DEMO_TIMELINE = [
-  { date: 'MAY 21, 2026', title: 'Holy Confession', body: 'Fr. Bishoy assigned a 40-day reading plan from the Psalms.', tag: '✝ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
+const DEMO_TIMELINE = lazyThemed(() => [
+  { date: 'MAY 21, 2026', title: 'Holy Confession', body: 'Fr. Bishoy assigned a 40-day reading plan from the Psalms.', tag: '✝︎ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
   { date: 'MAY 4, 2026', title: 'Pastoral Visit — Home', body: 'Pastoral visit following the birth of your daughter.', tag: '◎ Pastoral Visit', tagBg: 'rgba(41,128,185,0.15)', tagColor: colors.blue },
-  { date: 'APR 20, 2026', title: 'Holy Week Confession', body: 'Guidance on marriage and family prayer practices.', tag: '✝ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
-  { date: 'MAR 12, 2026', title: 'Small Group Check-in', body: "Discussed the Book of Job with the young couples' group.", tag: '◇ Note', tagBg: 'rgba(245,240,232,0.07)', tagColor: colors.muted, dim: true },
-];
+  { date: 'APR 20, 2026', title: 'Holy Week Confession', body: 'Guidance on marriage and family prayer practices.', tag: '✝︎ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
+  { date: 'MAR 12, 2026', title: 'Small Group Check-in', body: "Discussed the Book of Job with the young couples' group.", tag: '◇ Note', tagBg: colors.creamDim, tagColor: colors.muted, dim: true },
+]);
 
-const FEASTS = [
-  { month: 'JUL', day: '12', title: 'Feast of the Apostles', desc: "End of Apostles' Fast. Breaking of fast after Divine Liturgy." },
-  { month: 'JUL', day: '19', title: 'Feast of Archangel Michael', desc: 'Monthly feast. Tasbeha at 11:00 PM the prior evening.' },
-  { month: 'AUG', day: '7', title: 'Feast of the Transfiguration', desc: 'Feast of the Transfiguration of our Lord Jesus Christ.' },
-];
-
-const VITAL_LABELS = ['Daily Prayer (Agpeya)', 'Scripture Reading', 'Divine Liturgy', 'Fasting', 'Service / Diakonia'];
-const VITAL_KEYS = ['prayer', 'scripture', 'liturgy', 'fasting', 'service'] as const;
+// Computed live from the Coptic liturgical calendar (lib/feasts.ts,
+// lib/synaxarium.ts) — movable feasts follow each year's Pascha, Coptic-dated
+// entries follow Nayrouz.
+const toDateRow = (e: { date: Date; title: string; desc: string }) => ({
+  month: e.date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+  day: String(e.date.getDate()),
+  title: e.title,
+  desc: e.desc,
+});
+const nextFeastRows = () => upcomingFeasts(new Date(), 4).map(toDateRow);
+const nextCommemRows = () => upcomingCommemorations(new Date(), 4).map(toDateRow);
 
 function getDashboardSubtitle(): string {
   const today = new Date();
   const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  const coptic = copticToday();
-  const base = `${dateStr} · ${coptic.label}, AM ${coptic.year}`;
-  const context = dayContext(today);
-  return context ? `${base} · ${context}` : base;
+  const apostlesStart = new Date(2026, 4, 25);
+  const apostlesEnd = new Date(2026, 6, 11);
+  if (today >= apostlesStart && today <= apostlesEnd) {
+    const day = Math.round((today.getTime() - apostlesStart.getTime()) / 86400000) + 1;
+    return `${dateStr} · Apostles' Fast · Day ${day}`;
+  }
+  const m = today.getMonth() + 1; const d = today.getDate();
+  if (m === 8 && d >= 1 && d <= 14) return `${dateStr} · St. Mary's Fast · Day ${d}`;
+  if ((m === 11 && d >= 25) || m === 12 || (m === 1 && d <= 6)) {
+    const y = m === 1 ? today.getFullYear() - 1 : today.getFullYear();
+    const day = Math.round((today.getTime() - new Date(y, 10, 25).getTime()) / 86400000) + 1;
+    return `${dateStr} · Advent Fast · Day ${day}`;
+  }
+  return dateStr;
 }
 
-// ── VitalRow with drag slider ─────────────────────────────────
-function VitalRow({ label, value, onChange, last }: { label: string; value: number; onChange: (v: number) => void; last: boolean }) {
-  const trackWidthRef = useRef(1);
-  const startValueRef = useRef(value);
-  const valueRef = useRef(value);
-  const onChangeRef = useRef(onChange);
-  useEffect(() => { valueRef.current = value; }, [value]);
-  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
-
-  const panResponder = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 4,
-    onPanResponderGrant: (evt) => {
-      startValueRef.current = valueRef.current;
-      const pct = Math.max(0, Math.min(100, (evt.nativeEvent.locationX / trackWidthRef.current) * 100));
-      onChangeRef.current(Math.round(pct / 5) * 5);
-    },
-    onPanResponderMove: (_, g) => {
-      const delta = (g.dx / trackWidthRef.current) * 100;
-      const raw = Math.max(0, Math.min(100, startValueRef.current + delta));
-      const snapped = Math.round(raw / 5) * 5;
-      if (snapped !== valueRef.current) {
-        if (snapped % 25 === 0) H.tap();
-        onChangeRef.current(snapped);
-      }
-    },
-  })).current;
-
+// ── VitalRow — canon adherence over the trailing window ──────
+// Read-only: values are computed from My Spiritual Canon check-off history
+// (lib/canon/history.ts), not self-reported.
+function VitalRow({ label, value, text, last }: { label: string; value: number | null; text?: string; last: boolean }) {
   return (
     <View style={[styles.vitalRow, !last && { marginBottom: 16 }]}>
       <Text style={styles.vitalLabel}>{label}</Text>
-      <View
-        style={styles.vitalTrack}
-        onLayout={e => { trackWidthRef.current = e.nativeEvent.layout.width; }}
-        {...panResponder.panHandlers}
-      >
-        <View style={[styles.vitalFill, { width: `${value}%` as any }]} />
-        <View style={[styles.vitalThumb, { left: `${Math.max(0, value)}%` as any, marginLeft: value > 0 ? -5 : 0 }]} />
+      <View style={styles.vitalTrack}>
+        <View style={[styles.vitalFill, { width: `${value ?? 0}%` as any }]} />
       </View>
-      <Text style={styles.vitalVal}>{value > 0 ? `${value}%` : '—'}</Text>
+      <Text style={[styles.vitalVal, text != null && { width: undefined, minWidth: 34 }]}>
+        {text ?? (value != null ? `${value}%` : '—')}
+      </Text>
     </View>
   );
 }
@@ -136,9 +131,9 @@ function CustomizeSheet({ visible, active, onSave, onClose }: {
   );
 }
 
-const cs = StyleSheet.create({
+const cs = lazyThemed(() => StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  sheet: { backgroundColor: '#0b1423', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 24, paddingBottom: 40, paddingTop: 16 },
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 24, paddingBottom: 40, paddingTop: 16 },
   handle: { width: 36, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
   title: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 4 },
   sub: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, marginBottom: 20 },
@@ -150,7 +145,7 @@ const cs = StyleSheet.create({
   checkMark: { fontSize: 12, color: colors.navy, fontFamily: fonts.latoBold },
   saveBtn: { backgroundColor: colors.gold, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 24 },
   saveBtnText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.navy, letterSpacing: 1.5 },
-});
+}));
 
 // ── Timeline row ──────────────────────────────────────────────
 function TimelineRow({ item, last }: { item: any; last: boolean }) {
@@ -175,17 +170,24 @@ function TimelineRow({ item, last }: { item: any; last: boolean }) {
 // ── Main screen ───────────────────────────────────────────────
 export default function DashboardScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { profile, user, refreshProfile } = useSession();
   const { demoMode, demoRole } = useDemoMode();
   const firstName = profile?.full_name?.split(' ')[0] ?? 'friend';
 
-  const [vitals, setVitals] = useState<number[]>(VITAL_LABELS.map(() => 0));
+  const [vitalStats, setVitalStats] = useState<VitalStat[] | null>(null);
+  const [vitalsEpoch, setVitalsEpoch] = useState<string | null>(null);
+  const [lastConf, setLastConf] = useState<string | null>(null);
+  const [confFreqDays, setConfFreqDays] = useState(31);
+  const [feasts, setFeasts] = useState(nextFeastRows);
+  const [commems, setCommems] = useState(nextCommemRows);
   const [timeline, setTimeline] = useState<any[]>([]);
+  const [lastVisit, setLastVisit] = useState<string | null>(null);
+  const [visitRequested, setVisitRequested] = useState(false);
+  const [visitBusy, setVisitBusy] = useState(false);
   const [focProfile, setFocProfile] = useState<any>(null);
   const [sections, setSections] = useState<SectionId[]>(DEFAULT_SECTIONS);
   const [customizing, setCustomizing] = useState(false);
-  const [savingVitals, setSavingVitals] = useState(false);
-  const [vitalsError, setVitalsError] = useState('');
   const [showVitalsConsent, setShowVitalsConsent] = useState(false);
   const [settingConsent, setSettingConsent] = useState(false);
 
@@ -212,43 +214,139 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     loadSections().then(setSections);
-    if (demoMode) return;
-    loadAll();
   }, [user]);
+
+  // "Canon today" tile — tracks My Spiritual Canon (rule items + today's
+  // check-offs). Reloaded on every focus so checking items on the Canon tab
+  // reflects here immediately. The same pass keeps the adherence history
+  // current and recomputes Spiritual Vitals from it; the computed vitals are
+  // mirrored to the 'vitals' agent_progress slug so the Father-of-Confession
+  // dashboards keep working (consent still gates visibility).
+  const [canonToday, setCanonToday] = useState<{ done: number; total: number } | null>(null);
+  useFocusEffect(useCallback(() => {
+    (async () => {
+      // Journey + FOC card refresh on every focus, so a confession recorded
+      // moments ago on the Confession tab appears in the timeline immediately.
+      if (!demoMode) loadAll();
+      const [rule, checks, postponed, serviceDone, assigned, last] = await Promise.all([
+        loadRule(), loadTodayChecks(), loadPostponements(), loadServiceDone(),
+        loadAssignedForMember(user?.id ?? '', demoMode, profile?.foc_id ?? undefined),
+        lastConfessionDate(),
+      ]);
+      // Same EFFECTIVE canon as the Canon tab: the member's rule with the
+      // FOC's locked assignments overlaid, plus scheduled custom components.
+      // recordCanonDay below wholesale-replaces today's record, so building
+      // it from the bare rule here made the tile and the adherence history
+      // disagree with the Canon tab depending on which screen focused last.
+      const overlay = applyOverlay(rule, assigned, last);
+      const structured = todayItems(overlay.rule, new Date(), postponed, serviceDone);
+      const customItems: RuleItem[] = overlay.customComponents
+        .filter(c => customDueToday(c.frequency, c.days, new Date(), serviceDone, `assigned_${c.id}`, postponed))
+        .map(c => ({ key: `assigned_${c.id}`, icon: 'quiet', label: c.text }));
+      const items = [...structured, ...customItems];
+      const done = items.filter(it => checks.has(`rule_${it.key}`)).length;
+      setCanonToday({ done, total: items.length });
+      setConfFreqDays(confessionFrequencyDays(overlay.rule.confession));
+      setLastConf(last);
+      setFeasts(nextFeastRows()); // stays current across midnights
+      setCommems(nextCommemRows());
+
+
+      await recordCanonDay(items, checks);
+      const epoch = await loadVitalsEpoch();
+      setVitalsEpoch(epoch);
+      const stats = computeVitals(await loadCanonHistory(), epoch);
+      setVitalStats(stats);
+      if (user && !demoMode) {
+        db.upsertAgentProgress({
+          user_id: user.id,
+          agent_slug: 'vitals',
+          // Keep null for categories that never had anything due, so the FOC's
+          // view can show "—" rather than a misleading 0%.
+          payload: Object.fromEntries(stats.map(s => [s.key, s.pct])),
+          updated_at: new Date().toISOString(),
+        }).catch(() => {});
+      }
+    })();
+  }, [user, demoMode, profile?.foc_id]));
 
   async function loadAll() {
     if (!user) return;
-    const [prog, enc, foc] = await Promise.all([
-      db.getAgentProgress(user.id, 'vitals'),
-      db.getRecentEncounters(user.id, 4),
+    // Restore this account's confession dates from the cloud if its local
+    // namespace is empty (fresh device or after an account switch).
+    if (!demoMode) await hydrateConfessionDatesFromCloud(user.id);
+    // Fetch more than the 4 shown so same-day dedupe sees confession
+    // encounters even when other encounters crowd the top of the list.
+    const [enc, selfDates, foc, visit, visitReq] = await Promise.all([
+      db.getRecentEncounters(user.id, 12),
+      loadConfessionDates(),
       profile?.foc_id ? db.getFocProfile(profile.foc_id) : null,
+      db.getLastEncounterDate(user.id, 'visit'),
+      db.getVisitRequest(user.id),
     ]);
-    if (prog) setVitals(VITAL_KEYS.map(k => (prog as any)[k] ?? 0));
-    if (enc) setTimeline(enc);
+    setLastVisit(visit);
+    // Auto-clear a pending visit request once the priest has logged a visit
+    // on or after it was requested (the priest can't write the member's row,
+    // so the member's app resolves it).
+    if (visitReq.active && visit && visitReq.requestedAt &&
+        localDayOf(visit) >= localDayOf(visitReq.requestedAt)) {
+      db.setVisitRequest(user.id, false).catch(() => {});
+      setVisitRequested(false);
+    } else {
+      setVisitRequested(visitReq.active);
+    }
+    // The journey merges the FOC's logged encounters with the member's own
+    // recorded confession dates. A self-reported date is dropped when the
+    // priest logged a confession encounter that same local day, so one
+    // confession never appears twice.
+    const encounters = enc ?? [];
+    const loggedConfessionDays = new Set(
+      encounters
+        .filter((e: any) => e.encounter_type === 'confession')
+        .map((e: any) => localDayOf(e.encountered_at)),
+    );
+    const selfRows = selfDates
+      .filter((d) => !loggedConfessionDays.has(d))
+      .map((d) => ({ encounter_type: 'confession', encountered_at: `${d}T12:00:00`, member_note: null }));
+    const merged = [...encounters, ...selfRows]
+      .sort((a, b) => new Date(b.encountered_at).getTime() - new Date(a.encountered_at).getTime())
+      .slice(0, 4);
+    setTimeline(merged);
     if (foc) setFocProfile(foc);
   }
 
-  async function saveVitals() {
-    if (!user) return;
-    setSavingVitals(true);
-    setVitalsError('');
-    const { error } = await db.upsertAgentProgress({
-      user_id: user.id,
-      agent_slug: 'vitals',
-      payload: Object.fromEntries(VITAL_KEYS.map((k, i) => [k, vitals[i]])),
-      updated_at: new Date().toISOString(),
-    });
-    setSavingVitals(false);
-    if (error) {
-      setVitalsError('Failed to save — please try again.');
-    } else {
-      H.success();
-    }
+  async function toggleVisitRequest() {
+    if (visitBusy) return;
+    H.tap();
+    const next = !visitRequested;
+    if (demoMode || !user) { setVisitRequested(next); return; }
+    setVisitBusy(true);
+    const { error } = await db.setVisitRequest(user.id, next);
+    if (!error) setVisitRequested(next);
+    setVisitBusy(false);
   }
 
-  const updateVital = useCallback((i: number, v: number) => {
-    setVitals(prev => { const next = [...prev]; next[i] = v; return next; });
-  }, []);
+  const visitRequestChip = (
+    <TouchableOpacity
+      style={[styles.visitChip, visitRequested && styles.visitChipActive, visitBusy && { opacity: 0.6 }]}
+      onPress={toggleVisitRequest}
+      disabled={visitBusy}
+      activeOpacity={0.8}
+    >
+      <Text style={[styles.scheduleIcon, visitRequested && { color: colors.green }]}>◎</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.scheduleText}>
+          {visitRequested ? 'Pastoral Visit Requested' : 'Request Pastoral Visit'}
+        </Text>
+        <Text style={styles.scheduleSub}>
+          {visitRequested
+            ? 'Your Father of Confession has been notified · tap to cancel'
+            : 'Let your Father of Confession know you’d like a visit'}
+        </Text>
+      </View>
+      {visitRequested && <Text style={styles.visitCheck}>✓</Text>}
+    </TouchableOpacity>
+  );
 
   function enterCustomize() {
     H.heavy();
@@ -274,22 +372,28 @@ export default function DashboardScreen() {
 
   const wiggleStyle = { transform: [{ rotate: wiggle.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-2.5deg', '0deg', '2.5deg'] }) }] };
 
-  const displayVitals = demoMode ? DEMO_VITALS.map(v => v.pct) : vitals;
   const displayTimeline = demoMode ? DEMO_TIMELINE : timeline;
 
   const role = demoMode ? demoRole : profile?.role;
   const demoDaysSince = 47;
-  const demoCanonStats = { done: 2, total: 3 };
 
-  const daysSinceConfession = demoMode
-    ? demoDaysSince
+  // Canon tile display state, derived from My Spiritual Canon.
+  const canonAllDone = canonToday != null && canonToday.total > 0 && canonToday.done === canonToday.total;
+  const canonSet = canonToday != null && canonToday.total > 0;
+
+  // Days since confession: the device-tracked record (completion flow /
+  // self-report) wins; profile date and demo fallback fill in behind it.
+  const daysSinceConfession = lastConf != null
+    ? daysSinceDate(lastConf)
     : profile?.last_confession_at
       ? Math.floor((Date.now() - new Date(profile.last_confession_at).getTime()) / 86400000)
-      : null;
+      : demoMode ? demoDaysSince : null;
 
+  // Status keys off the rule's confession frequency: within it = recent,
+  // past it = due, past twice it = overdue.
   const confessionStatus = daysSinceConfession === null ? null
-    : daysSinceConfession < 30 ? 'recent'
-    : daysSinceConfession < 60 ? 'due'
+    : daysSinceConfession <= confFreqDays ? 'recent'
+    : daysSinceConfession <= confFreqDays * 2 ? 'due'
     : 'overdue';
   const statusColor = confessionStatus === 'recent' ? colors.green : confessionStatus === 'overdue' ? colors.red : colors.yellow;
   const statusLabel = confessionStatus === 'recent' ? '✓ Recent'
@@ -298,11 +402,11 @@ export default function DashboardScreen() {
     : '— log it';
 
   const encounterTagMap: Record<string, any> = {
-    confession: { tag: '✝ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
+    confession: { tag: '✝︎ Confession', tagBg: 'rgba(201,168,76,0.15)', tagColor: colors.goldLight },
     counseling: { tag: '◎ Counseling', tagBg: 'rgba(41,128,185,0.15)', tagColor: colors.blue },
     visit: { tag: '⊕ Pastoral Visit', tagBg: 'rgba(41,128,185,0.15)', tagColor: colors.blue },
-    advice: { tag: '◇ Advice', tagBg: 'rgba(245,240,232,0.07)', tagColor: colors.muted },
-    phone: { tag: '◈ Call', tagBg: 'rgba(245,240,232,0.07)', tagColor: colors.muted },
+    advice: { tag: '◇ Advice', tagBg: colors.creamDim, tagColor: colors.muted },
+    phone: { tag: '◈ Call', tagBg: colors.creamDim, tagColor: colors.muted },
     group: { tag: '◉ Group', tagBg: 'rgba(93,202,135,0.12)', tagColor: colors.green },
   };
 
@@ -312,6 +416,13 @@ export default function DashboardScreen() {
 
         {/* Header */}
         <View style={styles.topbar}>
+          <TouchableOpacity
+            style={[styles.chipBtn, { marginRight: 12 }]}
+            onPress={() => { H.tap(); navigation.dispatch(DrawerActions.openDrawer()); }}
+            hitSlop={8}
+          >
+            <Text style={styles.chipBtnText}>☰</Text>
+          </TouchableOpacity>
           <View style={{ flex: 1, marginRight: 12 }}>
             <Text style={styles.subtitle}>{getDashboardSubtitle()}</Text>
             <Text style={styles.greeting}>{firstName}</Text>
@@ -341,11 +452,11 @@ export default function DashboardScreen() {
           {/* Confession tile */}
           <TouchableOpacity
             style={[styles.tile, { borderColor: confessionStatus && confessionStatus !== 'recent' ? `${statusColor}50` : colors.border }]}
-            onPress={() => { H.tap(); router.push('/(drawer)/confession'); }}
+            onPress={() => { H.tap(); router.push('/(tabs)/confession'); }}
             onLongPress={enterCustomize}
             activeOpacity={0.8}
           >
-            <Text style={styles.tileIcon}>✝</Text>
+            <CrossIcon size={20} color={colors.gold} />
             <Text style={styles.tileBigNum}>{daysSinceConfession ?? '—'}</Text>
             <Text style={styles.tileSubLabel}>days since confession</Text>
             <View style={[styles.tileStatus, { backgroundColor: confessionStatus ? `${statusColor}20` : 'transparent' }]}>
@@ -356,36 +467,49 @@ export default function DashboardScreen() {
           {/* Canon tile */}
           <TouchableOpacity
             style={styles.tile}
-            onPress={() => { H.tap(); router.push('/(drawer)/canon'); }}
+            onPress={() => { H.tap(); router.push('/(tabs)/canon'); }}
             onLongPress={enterCustomize}
             activeOpacity={0.8}
           >
-            <Text style={styles.tileIcon}>📜</Text>
+            <CandleIcon size={20} color={colors.gold} />
             <Text style={styles.tileBigNum}>
-              {demoMode ? `${demoCanonStats.done}/${demoCanonStats.total}` : '—'}
+              {canonSet ? `${canonToday!.done}/${canonToday!.total}` : '—'}
             </Text>
             <Text style={styles.tileSubLabel}>canon today</Text>
             <View style={[styles.tileStatus, {
-              backgroundColor: demoMode && demoCanonStats.done === demoCanonStats.total
-                ? `${colors.green}20` : `${colors.yellow}20`
+              backgroundColor: canonAllDone ? `${colors.green}20` : `${colors.yellow}20`
             }]}>
               <Text style={[styles.tileStatusText, {
-                color: demoMode && demoCanonStats.done === demoCanonStats.total ? colors.green : colors.yellow
+                color: canonAllDone ? colors.green : colors.yellow
               }]}>
-                {!demoMode ? '— set up' : demoCanonStats.done === demoCanonStats.total ? '✓ All done' : '↑ In progress'}
+                {!canonSet ? '— set up' : canonAllDone ? '✓ All done' : '↑ In progress'}
               </Text>
             </View>
           </TouchableOpacity>
         </View>
 
+        {/* Psalms memorization entry */}
+        <TouchableOpacity
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 16, marginBottom: 20 }}
+          onPress={() => { H.tap(); router.push('/psalms'); }}
+          activeOpacity={0.85}
+        >
+          <Harp size={24} color={colors.gold} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ fontFamily: fonts.latoBold, fontSize: 14, color: colors.cream, marginBottom: 2, flexShrink: 1 }}>Memorize the Psalms</Text>
+            <Text style={{ fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, flexShrink: 1 }}>Agpeya psalter · spaced repetition</Text>
+          </View>
+          <Text style={{ fontSize: 18, color: colors.gold }}>›</Text>
+        </TouchableOpacity>
+
         {/* Confession CTA banner — only if due or overdue */}
         {(confessionStatus === 'due' || confessionStatus === 'overdue') && (
           <TouchableOpacity
             style={styles.banner}
-            onPress={() => { H.tap(); router.push('/(drawer)/confession'); }}
+            onPress={() => { H.tap(); router.push('/(tabs)/confession'); }}
             activeOpacity={0.85}
           >
-            <Text style={styles.bannerCross}>✝</Text>
+            <Text style={styles.bannerCross}>✝︎</Text>
             <Text style={styles.bannerLabel}>PREPARE</Text>
             <Text style={styles.bannerTitle}>Examination of Conscience</Text>
             <Text style={styles.bannerBody}>
@@ -402,13 +526,11 @@ export default function DashboardScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Spiritual Vitals</Text>
-              {!demoMode && (
-                <TouchableOpacity onPress={saveVitals} disabled={savingVitals}>
-                  <Text style={[styles.sectionAction, vitalsError ? { color: colors.red } : {}]}>
-                    {savingVitals ? 'Saving…' : vitalsError ? 'Error — retry' : 'Save'}
-                  </Text>
-                </TouchableOpacity>
-              )}
+              <Text style={[styles.sectionAction, { color: colors.muted }]}>
+                {vitalsEpoch
+                  ? `Since ${new Date(`${vitalsEpoch}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                  : 'All time'}
+              </Text>
             </View>
             {!demoMode && profile?.foc_id && profile?.vitals_consent === false && (
               <TouchableOpacity style={styles.vitalNudge} onPress={() => setShowVitalsConsent(true)} activeOpacity={0.8}>
@@ -418,21 +540,32 @@ export default function DashboardScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-            {VITAL_LABELS.map((label, i) => (
+            {(vitalStats ?? []).map((s, i, rows) => (
               <VitalRow
-                key={i}
-                label={label}
-                value={displayVitals[i] ?? 0}
-                onChange={v => updateVital(i, v)}
-                last={i === VITAL_LABELS.length - 1}
+                key={s.key}
+                label={s.key === 'confession' ? 'Confession (days since)' : s.label}
+                value={s.pct}
+                text={s.key === 'confession' ? (daysSinceConfession != null ? `${daysSinceConfession}d` : '—') : undefined}
+                last={i === rows.length - 1}
               />
             ))}
-            <PrivacyNote text="Self-reported. Visible only to you and your Father of Confession." />
+            <PrivacyNote text="Computed from your canon check-offs. Visible only to you and your Father of Confession." />
           </View>
         )}
 
         {sections.includes('journey') && (
           <Card title="Pastoral Journey" titleIcon="◎" action={<Text style={styles.cardAction}>View all</Text>}>
+            {!demoMode && (
+              <View style={styles.lastVisitRow}>
+                <Text style={styles.lastVisitLabel}>Last pastoral visit</Text>
+                <Text style={styles.lastVisitVal}>
+                  {lastVisit
+                    ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(lastVisit) ? `${lastVisit}T12:00:00` : lastVisit)
+                        .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    : 'None yet'}
+                </Text>
+              </View>
+            )}
             {demoMode ? (
               DEMO_TIMELINE.map((item, i) => (
                 <TimelineRow key={i} item={item} last={i === DEMO_TIMELINE.length - 1} />
@@ -455,20 +588,37 @@ export default function DashboardScreen() {
         )}
 
         {sections.includes('feasts') && (
-          <Card title="Upcoming Feasts" titleIcon="⊕">
-            {FEASTS.map((feast, i) => (
-              <View key={i} style={[styles.feastItem, i < FEASTS.length - 1 && styles.feastBorder]}>
-                <View style={styles.feastDate}>
-                  <Text style={styles.feastMonth}>{feast.month}</Text>
-                  <Text style={styles.feastDay}>{feast.day}</Text>
+          <>
+            <Card title="Upcoming Feasts" titleIcon="⊕">
+              {feasts.map((feast, i) => (
+                <View key={i} style={[styles.feastItem, i < feasts.length - 1 && styles.feastBorder]}>
+                  <View style={styles.feastDate}>
+                    <Text style={styles.feastMonth}>{feast.month}</Text>
+                    <Text style={styles.feastDay}>{feast.day}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.feastTitle}>{feast.title}</Text>
+                    <Text style={styles.feastDesc}>{feast.desc}</Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.feastTitle}>{feast.title}</Text>
-                  <Text style={styles.feastDesc}>{feast.desc}</Text>
+              ))}
+            </Card>
+
+            <Card title="Upcoming Commemorations" titleIcon="✦">
+              {commems.map((c, i) => (
+                <View key={i} style={[styles.feastItem, i < commems.length - 1 && styles.feastBorder]}>
+                  <View style={styles.feastDate}>
+                    <Text style={styles.feastMonth}>{c.month}</Text>
+                    <Text style={styles.feastDay}>{c.day}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.feastTitle}>{c.title}</Text>
+                    <Text style={styles.feastDesc}>{c.desc}</Text>
+                  </View>
                 </View>
-              </View>
-            ))}
-          </Card>
+              ))}
+            </Card>
+          </>
         )}
 
         {sections.includes('foc') && (
@@ -482,13 +632,14 @@ export default function DashboardScreen() {
                     <Text style={styles.focChurch}>St. Mary's Coptic Orthodox Church</Text>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.scheduleChip} onPress={() => { H.tap(); router.push('/(drawer)/confession'); }} activeOpacity={0.8}>
-                  <Text style={styles.scheduleIcon}>✝</Text>
+                <TouchableOpacity style={styles.scheduleChip} onPress={() => { H.tap(); router.push('/(tabs)/confession'); }} activeOpacity={0.8}>
+                  <Text style={styles.scheduleIcon}>✝︎</Text>
                   <View>
                     <Text style={styles.scheduleText}>Request Confession Appointment</Text>
                     <Text style={styles.scheduleSub}>Next available: Sunday after Liturgy</Text>
                   </View>
                 </TouchableOpacity>
+                {visitRequestChip}
               </>
             ) : focProfile ? (
               <>
@@ -503,16 +654,17 @@ export default function DashboardScreen() {
                     <Text style={styles.focChurch}>{focProfile.church_name ?? ''}</Text>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.scheduleChip} onPress={() => { H.tap(); router.push('/(drawer)/confession'); }} activeOpacity={0.8}>
-                  <Text style={styles.scheduleIcon}>✝</Text>
+                <TouchableOpacity style={styles.scheduleChip} onPress={() => { H.tap(); router.push('/(tabs)/confession'); }} activeOpacity={0.8}>
+                  <Text style={styles.scheduleIcon}>✝︎</Text>
                   <View>
                     <Text style={styles.scheduleText}>Begin Confession Examination</Text>
                     <Text style={styles.scheduleSub}>Prepare before your next meeting</Text>
                   </View>
                 </TouchableOpacity>
+                {visitRequestChip}
               </>
             ) : (
-              <Text style={styles.emptyInline}>Your Father of Confession will link your account when they set up their Poimen profile.</Text>
+              <Text style={styles.emptyInline}>Your Father of Confession will link your account when they set up their Nepsis profile.</Text>
             )}
           </Card>
         )}
@@ -523,7 +675,7 @@ export default function DashboardScreen() {
       <Modal visible={showVitalsConsent} transparent animationType="fade" onRequestClose={() => {}}>
         <View style={styles.consentModalBg}>
           <View style={styles.consentModal}>
-            <Text style={styles.consentCross}>✝</Text>
+            <Text style={styles.consentCross}>✝︎</Text>
             <Text style={styles.consentTitle}>Share Your Vitals?</Text>
             <Text style={styles.consentSub}>with {focProfile?.full_name ?? 'your Father of Confession'}</Text>
             <Text style={styles.consentBody}>
@@ -557,7 +709,7 @@ export default function DashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 48 },
@@ -608,11 +760,6 @@ const styles = StyleSheet.create({
   vitalLabel: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, flex: 1 },
   vitalTrack: { width: 80, height: 18, justifyContent: 'center', flexShrink: 0 },
   vitalFill: { height: 4, backgroundColor: colors.gold, borderRadius: 4 },
-  vitalThumb: {
-    position: 'absolute', width: 10, height: 10, borderRadius: 5,
-    backgroundColor: colors.gold, borderWidth: 2, borderColor: colors.navy,
-    top: 4,
-  },
   vitalVal: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream, width: 34, textAlign: 'right' },
 
   // Vitals nudge banner
@@ -630,7 +777,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', padding: 24,
   },
   consentModal: {
-    backgroundColor: '#0b1423', borderWidth: 1, borderColor: 'rgba(201,168,76,0.25)',
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
     borderRadius: 20, padding: 28, alignItems: 'center', width: '100%', maxWidth: 360,
   },
   consentCross: { fontSize: 32, color: colors.gold, marginBottom: 12 },
@@ -646,6 +793,9 @@ const styles = StyleSheet.create({
 
   cardAction: { fontFamily: fonts.lato, fontSize: 11, color: colors.gold },
   emptyInline: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, opacity: 0.7 },
+  lastVisitRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 12, marginBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  lastVisitLabel: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.2, color: colors.muted, textTransform: 'uppercase' },
+  lastVisitVal: { fontFamily: fonts.lato, fontSize: 13, color: colors.cream },
 
   // Timeline
   tlRow: { flexDirection: 'row', gap: 14 },
@@ -671,12 +821,15 @@ const styles = StyleSheet.create({
 
   // FOC
   focRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
-  focAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#2c4a7c', borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  focAvatarText: { fontFamily: fonts.cormorantMedium, fontSize: 16, color: colors.cream },
+  focAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.blueBg, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  focAvatarText: { fontFamily: fonts.cormorantMedium, fontSize: 16, color: colors.blue },
   focName: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.cream },
   focChurch: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
   scheduleChip: { flexDirection: 'row', gap: 10, backgroundColor: colors.goldDim, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, alignItems: 'center' },
   scheduleIcon: { fontSize: 18 },
   scheduleText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream },
   scheduleSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 1 },
-});
+  visitChip: { flexDirection: 'row', gap: 10, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 8 },
+  visitChipActive: { borderColor: colors.green, backgroundColor: colors.greenBg },
+  visitCheck: { fontFamily: fonts.latoBold, fontSize: 16, color: colors.green },
+}));

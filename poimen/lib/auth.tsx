@@ -1,6 +1,23 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import * as Linking from 'expo-linking';
+import { useRouter } from 'expo-router';
 import * as db from './db';
-import type { AuthSession, AuthUser, Profile } from './db';
+import type { AuthSession, AuthUser, Profile, SignupRole } from './db';
+
+// Supabase appends tokens as a URL fragment (#access_token=...&type=...) on
+// the emailRedirectTo link — not query params — so this can't use the
+// URL/URLSearchParams globals (unreliable across Hermes versions).
+function parseAuthCallbackParams(url: string): Record<string, string> {
+  const idx = url.indexOf('#') !== -1 ? url.indexOf('#') : url.indexOf('?');
+  if (idx === -1) return {};
+  const params: Record<string, string> = {};
+  for (const pair of url.slice(idx + 1).split('&')) {
+    if (!pair) continue;
+    const [key, value] = pair.split('=');
+    if (key) params[decodeURIComponent(key)] = decodeURIComponent(value ?? '');
+  }
+  return params;
+}
 import {
   hasLocalKeypair, getPublicKeyBase64, getOrCreateBoxKeypair,
   saveBoxKeypair, encryptKeypairWithPIN, decryptKeypairWithPIN,
@@ -19,8 +36,9 @@ type AuthContextType = {
   pinAction: PINAction;
   refreshProfile: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUpWithEmail: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
+  signUpWithEmail: (email: string, password: string, fullName: string, requestedRole?: SignupRole) => Promise<{ error: string | null }>;
   signInWithMagicLink: (email: string) => Promise<{ error: string | null }>;
+  resetPassword: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   completePINSetup: (pin: string) => Promise<void>;
   completePINRecovery: (pin: string) => Promise<boolean>;
@@ -36,6 +54,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [pinAction, setPinAction] = useState<PINAction>(null);
   const [pendingBackup, setPendingBackup] = useState<string | null>(null);
+  const router = useRouter();
+
+  // Magic-link and password-reset emails open the app via a poimen://
+  // auth-callback link carrying the new session as a URL fragment. Neither
+  // flow completes without this: the link alone doesn't create a session.
+  useEffect(() => {
+    async function handleAuthCallback(url: string) {
+      const params = parseAuthCallbackParams(url);
+      if (!params.access_token || !params.refresh_token) return;
+      const { error } = await db.setSessionFromTokens(params.access_token, params.refresh_token);
+      if (error) return;
+      // Always navigate somewhere real: the deep link's own path
+      // (auth-callback) is just a token carrier, not a destination.
+      router.replace(params.type === 'recovery' ? '/reset-password' : '/(tabs)');
+    }
+    Linking.getInitialURL().then((url) => { if (url) handleAuthCallback(url); });
+    const sub = Linking.addEventListener('url', ({ url }) => handleAuthCallback(url));
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     db.getSession().then((session) => {
@@ -127,12 +164,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return db.signInWithPassword(email, password);
   }
 
-  async function signUpWithEmail(email: string, password: string, fullName: string) {
-    return db.signUp(email, password, fullName);
+  async function signUpWithEmail(email: string, password: string, fullName: string, requestedRole: SignupRole = 'congregant') {
+    return db.signUp(email, password, fullName, requestedRole);
   }
 
   async function signInWithMagicLink(email: string) {
-    return db.signInWithOtp(email);
+    return db.signInWithOtp(email, Linking.createURL('auth-callback'));
+  }
+
+  async function resetPassword(email: string) {
+    return db.resetPasswordForEmail(email, Linking.createURL('auth-callback'));
   }
 
   async function signOut() {
@@ -151,6 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithEmail,
       signUpWithEmail,
       signInWithMagicLink,
+      resetPassword,
       signOut,
       completePINSetup,
       completePINRecovery,

@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { ClipboardIcon, CalendarIcon, PencilIcon } from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
@@ -110,7 +111,7 @@ export default function ServantAssignCanonScreen() {
           </TouchableOpacity>
         </Modal>
 
-        <Card title="Choose Practice" titleIcon="📜">
+        <Card title="Choose Practice" titleIconNode={<ClipboardIcon size={16} color={colors.gold} />}>
           {PRESET_COMPONENTS.map(group => (
             <View key={group.group}>
               <TouchableOpacity
@@ -141,13 +142,13 @@ export default function ServantAssignCanonScreen() {
           <TextInput
             style={styles.textInput}
             placeholder="E.g., Read one Bible story each evening with a parent"
-            placeholderTextColor="rgba(245,240,232,0.22)"
+            placeholderTextColor={colors.faint}
             value={customComponent}
             onChangeText={t => { setCustomComponent(t); if (t) setSelectedComponent(''); }}
           />
         </Card>
 
-        <Card title="Frequency" titleIcon="◇">
+        <Card title="Frequency" titleIconNode={<CalendarIcon size={16} color={colors.gold} />}>
           <View style={styles.freqRow}>
             {FREQ_OPTS.map(opt => (
               <TouchableOpacity
@@ -163,28 +164,28 @@ export default function ServantAssignCanonScreen() {
             <TextInput
               style={[styles.textInput, { marginTop: 10 }]}
               placeholder="Describe the frequency..."
-              placeholderTextColor="rgba(245,240,232,0.22)"
+              placeholderTextColor={colors.faint}
               value={customFreq}
               onChangeText={setCustomFreq}
             />
           )}
         </Card>
 
-        <Card title="Start Date" titleIcon="⊕">
+        <Card title="Start Date" titleIconNode={<CalendarIcon size={16} color={colors.gold} />}>
           <TextInput
             style={styles.textInput}
             value={startDate}
             onChangeText={setStartDate}
             placeholder="E.g., Jun 8, 2026"
-            placeholderTextColor="rgba(245,240,232,0.22)"
+            placeholderTextColor={colors.faint}
           />
         </Card>
 
-        <Card title="Encouragement Note (Optional)" titleIcon="✎">
+        <Card title="Encouragement Note (Optional)" titleIconNode={<PencilIcon size={16} color={colors.gold} />}>
           <TextInput
             style={[styles.textInput, { minHeight: 70, textAlignVertical: 'top' }]}
             placeholder={`Leave an encouraging note for ${firstName}...`}
-            placeholderTextColor="rgba(245,240,232,0.22)"
+            placeholderTextColor={colors.faint}
             multiline
             value={reflectionPrompt}
             onChangeText={setReflectionPrompt}
@@ -214,7 +215,7 @@ function tomorrow(): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 48 },
@@ -229,7 +230,7 @@ const styles = StyleSheet.create({
   infoBtnText: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1, color: colors.muted, opacity: 0.6 },
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 32 },
-  tooltipBox: { backgroundColor: '#0e1929', borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 24, width: '100%' },
+  tooltipBox: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 24, width: '100%' },
   tooltipTitle: { fontFamily: fonts.cormorantMedium, fontSize: 18, color: colors.cream, marginBottom: 12 },
   tooltipBody: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20, marginBottom: 20 },
   tooltipDismiss: { fontFamily: fonts.latoBold, fontSize: 11, letterSpacing: 1.5, color: colors.gold, textAlign: 'center' },
@@ -248,7 +249,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.border, marginVertical: 14 },
   orLabel: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.5, color: colors.muted, textAlign: 'center', textTransform: 'uppercase', marginBottom: 10 },
 
-  textInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12 },
+  textInput: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12 },
   fieldHint: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, marginTop: 6, lineHeight: 15 },
 
   freqRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
@@ -260,4 +261,4 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: colors.gold, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   saveBtnDisabled: { opacity: 0.35 },
   saveBtnText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.navy, letterSpacing: 1 },
-});
+}));

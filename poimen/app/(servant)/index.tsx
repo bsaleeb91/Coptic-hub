@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { useRouter, useNavigation } from 'expo-router';
+import { DrawerActions } from '@react-navigation/native';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { CandleIcon } from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
@@ -23,6 +25,7 @@ const DEMO_STUDENTS: Student[] = [
 
 export default function ServantFlockScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { user, profile } = useSession();
   const { demoMode } = useDemoMode();
   const [students, setStudents] = useState<Student[]>([]);
@@ -70,11 +73,20 @@ export default function ServantFlockScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
 
         <View style={styles.topbar}>
-          <View>
-            <Text style={styles.pageTitle}>My Students</Text>
-            <Text style={styles.pageSubtitle}>{today} · {greeting}</Text>
+          <View style={styles.topbarLeft}>
+            <TouchableOpacity
+              style={styles.menuBtn}
+              onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+              hitSlop={8}
+            >
+              <Text style={styles.menuBtnText}>☰</Text>
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.pageTitle}>My Students</Text>
+              <Text style={styles.pageSubtitle}>{today} · {greeting}</Text>
+            </View>
           </View>
-          <TouchableOpacity style={styles.switchBtn} onPress={() => router.push('/(drawer)')}>
+          <TouchableOpacity style={styles.switchBtn} onPress={() => router.push('/(tabs)')}>
             <Text style={styles.switchBtnText}>MY VIEW</Text>
           </TouchableOpacity>
         </View>
@@ -89,7 +101,7 @@ export default function ServantFlockScreen() {
         <TextInput
           style={styles.search}
           placeholder="Search students..."
-          placeholderTextColor="rgba(245,240,232,0.22)"
+          placeholderTextColor={colors.faint}
           value={search}
           onChangeText={setSearch}
         />
@@ -120,7 +132,8 @@ export default function ServantFlockScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.studentName}>{student.name}</Text>
                   <View style={styles.studentMeta}>
-                    <Text style={styles.metaItem}>📜 {student.canonCount} canon{student.canonCount !== 1 ? 's' : ''}</Text>
+                    <CandleIcon size={12} color={colors.muted} />
+                    <Text style={styles.metaItem}>{student.canonCount} canon{student.canonCount !== 1 ? 's' : ''}</Text>
                     {student.lastActivity && (
                       <>
                         <Text style={styles.metaDot}>·</Text>
@@ -146,12 +159,15 @@ export default function ServantFlockScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
 
   topbar: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 },
+  topbarLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 12 },
+  menuBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 11, paddingVertical: 6 },
+  menuBtnText: { fontFamily: fonts.lato, fontSize: 16, color: colors.gold },
   pageTitle: { fontFamily: fonts.cormorantMedium, fontSize: 28, color: colors.cream },
   pageSubtitle: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 4 },
   switchBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
@@ -159,7 +175,7 @@ const styles = StyleSheet.create({
 
   flockMeta: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 18, marginTop: -12 },
 
-  search: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 11, marginBottom: 16 },
+  search: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 11, marginBottom: 16 },
 
   emptyState: { alignItems: 'center', paddingVertical: 24, gap: 6 },
   emptyTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.muted },
@@ -177,4 +193,4 @@ const styles = StyleSheet.create({
 
   scopeNote: { backgroundColor: 'rgba(201,168,76,0.05)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)', borderRadius: 10, padding: 14, marginTop: 8 },
   scopeNoteText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 17, letterSpacing: 0.2 },
-});
+}));

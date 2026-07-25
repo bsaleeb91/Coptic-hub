@@ -2,21 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import {
+  CrossIcon, SpeechIcon, ThoughtIcon, HouseIcon, PhoneIcon, CongregationIcon,
+  PersonIcon, ClipboardIcon, CalendarIcon, NotepadIcon, PencilIcon,
+} from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
+import { parseLocalDate } from '@/lib/confession/dates';
 import { useDemoMode } from '@/lib/demo';
 
 type EncounterType = 'confession' | 'counseling' | 'advice' | 'visit' | 'phone' | 'group';
 
-const ENCOUNTER_TYPES: { value: EncounterType; label: string; desc: string }[] = [
-  { value: 'confession', label: '✝ Holy Confession', desc: 'Sacramental confession' },
-  { value: 'counseling', label: '◎ Counseling Session', desc: 'In-person pastoral guidance' },
-  { value: 'advice', label: '◇ Spiritual Advice', desc: 'Brief direction or answer' },
-  { value: 'visit', label: '⊕ Pastoral Visit', desc: 'Home or hospital visit' },
-  { value: 'phone', label: '◈ Phone / Video Call', desc: 'Remote check-in' },
-  { value: 'group', label: '◉ Group Encounter', desc: 'Retreat, group study, etc.' },
+type IconComp = React.ComponentType<{ size?: number; color?: string }>;
+
+const ENCOUNTER_TYPES: { value: EncounterType; label: string; desc: string; Icon: IconComp }[] = [
+  { value: 'confession', label: 'Holy Confession',   desc: 'Sacramental confession',        Icon: CrossIcon },
+  { value: 'counseling', label: 'Counseling Session', desc: 'In-person pastoral guidance',    Icon: SpeechIcon },
+  { value: 'advice',     label: 'Spiritual Advice',   desc: 'Brief direction or answer',      Icon: ThoughtIcon },
+  { value: 'visit',      label: 'Pastoral Visit',     desc: 'Home or hospital visit',         Icon: HouseIcon },
+  { value: 'phone',      label: 'Phone / Video Call', desc: 'Remote check-in',                Icon: PhoneIcon },
+  { value: 'group',      label: 'Group Encounter',    desc: 'Retreat, group study, etc.',     Icon: CongregationIcon },
 ];
 
 const DEMO_MEMBERS = [
@@ -42,6 +49,7 @@ export default function LogEncounterScreen() {
   const [memberNote, setMemberNote] = useState('');
   const [privateNote, setPrivateNote] = useState('');
   const [followUpDate, setFollowUpDate] = useState('');
+  const [followUpError, setFollowUpError] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dateError, setDateError] = useState('');
@@ -73,18 +81,40 @@ export default function LogEncounterScreen() {
   );
 
   async function handleSave() {
-    if (!selectedMemberId || saving) return;
-    if (demoMode) {
-      setSaved(true);
-      setTimeout(() => router.push('/(priest)'), 1300);
+    if (saving) return;
+    if (!selectedMemberId) {
+      setSaveError('Please select a member from the list first.');
       return;
     }
-    const parsedDate = new Date(encounterDate);
-    if (isNaN(parsedDate.getTime())) {
+    if (demoMode) {
+      setSaveError('You are in demo mode — sign in with a real account to save encounters.');
+      return;
+    }
+    // parseLocalDate (not `new Date(str)`) because Hermes — React Native's JS
+    // engine — cannot parse "Jul 21, 2026" and returns Invalid Date, which was
+    // silently blocking every save on device (it only "worked" in a browser).
+    const parsedDate = parseLocalDate(encounterDate);
+    if (!parsedDate) {
       setDateError('Invalid date — use a format like "Jun 7, 2026"');
       return;
     }
     setDateError('');
+    // follow_up_date is a DATE column — a free-text reminder (e.g. "after the
+    // Feast") makes the whole insert fail silently. Parse it: a bare date is
+    // sent as YYYY-MM-DD; anything unparseable is rejected with a clear error
+    // instead of losing the encounter.
+    let followUp: string | null = null;
+    const fuRaw = followUpDate.trim();
+    if (fuRaw) {
+      const fd = parseLocalDate(fuRaw);
+      if (!fd) {
+        setFollowUpError('Enter a date like "Jun 29, 2026", or leave this blank.');
+        return;
+      }
+      const p = (n: number) => String(n).padStart(2, '0');
+      followUp = `${fd.getFullYear()}-${p(fd.getMonth() + 1)}-${p(fd.getDate())}`;
+    }
+    setFollowUpError('');
     setSaveError('');
     setSaving(true);
     const { error } = await db.insertEncounter({
@@ -95,16 +125,18 @@ export default function LogEncounterScreen() {
       member_note: memberNote.trim() || null,
       private_note: privateNote.trim() || null,
       outcomes: null,
-      follow_up_date: followUpDate.trim() || null,
+      follow_up_date: followUp,
     });
     setSaving(false);
     if (error) {
-      setSaveError('Failed to save — please try again.');
+      // Surface the real reason (RLS denial, bad date, etc.) instead of a
+      // generic message that hides what actually failed.
+      setSaveError(`Couldn't save: ${error}`);
       return;
     }
-    if (encounterType === 'confession') {
-      await db.setLastConfession(selectedMemberId, parsedDate.toISOString());
-    }
+    // No profile mirror here: RLS lets a user update only their OWN profiles
+    // row, so a priest-side setLastConfession was a silent 0-row no-op. The
+    // FOC dashboards read confession encounters directly instead.
     setSaved(true);
     setTimeout(() => router.push('/(priest)'), 1300);
   }
@@ -122,14 +154,14 @@ export default function LogEncounterScreen() {
         <Text style={styles.pageSub}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</Text>
 
         {/* Member */}
-        <Card title="Member" titleIcon="◉">
+        <Card title="Member" titleIconNode={<PersonIcon size={16} color={colors.gold} />}>
           <TextInput
             style={styles.textInput}
             value={memberSearch}
             onChangeText={t => { setMemberSearch(t); setShowMemberList(true); setSelectedMemberId(''); }}
             onFocus={() => setShowMemberList(true)}
             placeholder="Search member..."
-            placeholderTextColor="rgba(245,240,232,0.22)"
+            placeholderTextColor={colors.faint}
           />
           {showMemberList && filteredMembers.length > 0 && (
             <View style={styles.memberDropdown}>
@@ -149,40 +181,46 @@ export default function LogEncounterScreen() {
         </Card>
 
         {/* Encounter type */}
-        <Card title="Encounter Type" titleIcon="◇">
-          {ENCOUNTER_TYPES.map(opt => (
-            <TouchableOpacity
-              key={opt.value}
-              style={[styles.typeRow, encounterType === opt.value && styles.typeRowActive]}
-              onPress={() => setEncounterType(opt.value)}
-            >
-              <View style={[styles.typeRadio, encounterType === opt.value && styles.typeRadioActive]} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.typeLabel, encounterType === opt.value && styles.typeLabelActive]}>{opt.label}</Text>
-                <Text style={styles.typeDesc}>{opt.desc}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+        <Card title="Encounter Type" titleIconNode={<ClipboardIcon size={16} color={colors.gold} />}>
+          {ENCOUNTER_TYPES.map(opt => {
+            const active = encounterType === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={[styles.typeRow, active && styles.typeRowActive]}
+                onPress={() => setEncounterType(opt.value)}
+              >
+                <View style={[styles.typeRadio, active && styles.typeRadioActive]} />
+                <View style={styles.typeIcon}>
+                  <opt.Icon size={20} color={active ? colors.goldLight : colors.muted} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.typeLabel, active && styles.typeLabelActive]}>{opt.label}</Text>
+                  <Text style={styles.typeDesc}>{opt.desc}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </Card>
 
         {/* Date */}
-        <Card title="Date" titleIcon="⊕">
+        <Card title="Date" titleIconNode={<CalendarIcon size={16} color={colors.gold} />}>
           <TextInput
             style={styles.textInput}
             value={encounterDate}
             onChangeText={t => { setEncounterDate(t); setDateError(''); }}
             placeholder="E.g., Jun 7, 2026"
-            placeholderTextColor="rgba(245,240,232,0.22)"
+            placeholderTextColor={colors.faint}
           />
           {dateError ? <Text style={styles.errorText}>{dateError}</Text> : null}
         </Card>
 
         {/* Member-visible note */}
-        <Card title="Note to Member (Visible in their Timeline)" titleIcon="◈">
+        <Card title="Note to Member (Visible in their Timeline)" titleIconNode={<NotepadIcon size={16} color={colors.gold} />}>
           <TextInput
             style={[styles.textInput, { minHeight: 90, textAlignVertical: 'top' }]}
             placeholder="E.g., We discussed the importance of the Agpeya as a rhythm of prayer..."
-            placeholderTextColor="rgba(245,240,232,0.22)"
+            placeholderTextColor={colors.faint}
             multiline
             value={memberNote}
             onChangeText={setMemberNote}
@@ -191,14 +229,14 @@ export default function LogEncounterScreen() {
         </Card>
 
         {/* Private FOC note */}
-        <Card title="Private Pastoral Notes (FOC Only)" titleIcon="✎">
+        <Card title="Private Pastoral Notes (FOC Only)" titleIconNode={<PencilIcon size={16} color={colors.gold} />}>
           <View style={styles.privacyNote}>
             <Text style={styles.privacyNoteText}>✦ Never visible to the member.</Text>
           </View>
           <TextInput
             style={[styles.textInput, { minHeight: 90, textAlignVertical: 'top' }]}
             placeholder="Your private observations and pastoral notes..."
-            placeholderTextColor="rgba(245,240,232,0.22)"
+            placeholderTextColor={colors.faint}
             multiline
             value={privateNote}
             onChangeText={setPrivateNote}
@@ -206,21 +244,22 @@ export default function LogEncounterScreen() {
         </Card>
 
         {/* Follow-up */}
-        <Card title="Schedule Follow-Up (Optional)" titleIcon="⊕">
+        <Card title="Schedule Follow-Up (Optional)" titleIconNode={<CalendarIcon size={16} color={colors.gold} />}>
           <TextInput
             style={styles.textInput}
-            placeholder="E.g., Jun 29 after Feast of Peter & Paul Liturgy"
-            placeholderTextColor="rgba(245,240,232,0.22)"
+            placeholder="E.g., Jun 29, 2026"
+            placeholderTextColor={colors.faint}
             value={followUpDate}
-            onChangeText={setFollowUpDate}
+            onChangeText={(t) => { setFollowUpDate(t); if (followUpError) setFollowUpError(''); }}
           />
-          <Text style={styles.fieldHint}>Will appear as a reminder in your Flock view.</Text>
+          {followUpError ? <Text style={styles.errorText}>{followUpError}</Text> : null}
+          <Text style={styles.fieldHint}>A reminder date for your Flock view. Leave blank if none.</Text>
         </Card>
 
         {/* Confession-specific notice */}
         {encounterType === 'confession' && (
           <View style={styles.confessionNotice}>
-            <Text style={styles.confessionNoticeTitle}>✝ Sacramental Privacy</Text>
+            <Text style={styles.confessionNoticeTitle}>✝︎ Sacramental Privacy</Text>
             <Text style={styles.confessionNoticeBody}>
               Confession content is protected by holy seal. Only the date and encounter type are recorded. No content from the member's examination is stored or transmitted.
             </Text>
@@ -248,7 +287,8 @@ function today(): string {
   return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const styles = StyleSheet.create({
+
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 48 },
@@ -259,7 +299,7 @@ const styles = StyleSheet.create({
   pageTitle: { fontFamily: fonts.cormorantMedium, fontSize: 26, color: colors.cream, marginBottom: 4 },
   pageSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 20 },
 
-  textInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12 },
+  textInput: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12 },
   fieldHint: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, marginTop: 6, lineHeight: 15 },
   errorText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginTop: 6 },
 
@@ -268,9 +308,10 @@ const styles = StyleSheet.create({
   memberOptionText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted },
   memberOptionTextActive: { color: colors.goldLight, fontFamily: fonts.latoBold },
 
-  typeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 8 },
+  typeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 8 },
   typeRowActive: { backgroundColor: colors.goldDim },
-  typeRadio: { width: 16, height: 16, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginTop: 2 },
+  typeRadio: { width: 16, height: 16, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
+  typeIcon: { width: 24, alignItems: 'center', justifyContent: 'center' },
   typeRadioActive: { backgroundColor: colors.gold, borderColor: colors.gold },
   typeLabel: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.muted, marginBottom: 1 },
   typeLabelActive: { color: colors.cream },
@@ -292,4 +333,4 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: colors.gold, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   saveBtnDisabled: { opacity: 0.35 },
   saveBtnText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.navy, letterSpacing: 1 },
-});
+}));

@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
-import { PsalmStatsCard, DEMO_PSALM_STATS } from '@/components/ui/PsalmStatsCard';
-import type { PsalmStatsSnapshot } from '@/lib/psalms/stats';
+import { CandleIcon, PencilIcon, PrayingHandsIcon } from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
@@ -52,7 +51,6 @@ export default function StudentScreen() {
 
   const demo = getDemoData(studentId ?? '');
   const [canons, setCanons] = useState<any[]>(demo.canons);
-  const [psalmStats, setPsalmStats] = useState<PsalmStatsSnapshot | null>(demoMode ? DEMO_PSALM_STATS : null);
   const [notes, setNotes] = useState<db.PastoralNote[]>(
     demo.note ? [{ id: 'demo-note-1', author_id: 'demo-servant', member_id: studentId ?? '', body: demo.note, created_at: new Date(Date.now() - 86400000 * 5).toISOString(), updated_at: new Date(Date.now() - 86400000 * 5).toISOString() }] : []
   );
@@ -75,7 +73,6 @@ export default function StudentScreen() {
     if (demoMode) {
       const d = getDemoData(studentId ?? '');
       setCanons(d.canons);
-      setPsalmStats(DEMO_PSALM_STATS);
       setNotes(d.note ? [{ id: 'demo-note-1', author_id: 'demo-servant', member_id: studentId ?? '', body: d.note, created_at: new Date(Date.now() - 86400000 * 5).toISOString(), updated_at: new Date(Date.now() - 86400000 * 5).toISOString() }] : []);
       setPrayer(d.prayer.map(p => ({ topic: p, date: '' })));
       setNewNoteText('');
@@ -88,18 +85,17 @@ export default function StudentScreen() {
     if (!user || !studentId) return;
     setLoading(true);
 
-    const [canonData, notesData, prayerData, psalmPayload] = await Promise.all([
-      db.getStudentActiveCanons(studentId),
+    const [canonData, notesData, prayerData] = await Promise.all([
+      db.getStudentActiveCanons(studentId, user.id),
       db.getPastoralNotes(user.id, studentId),
       db.getServantSharedPrayer(studentId),
-      db.getAgentProgress(studentId, 'psalm-stats'),
     ]);
 
     if (canonData) {
       const enriched = await Promise.all(canonData.map(async c => {
         const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
         const count = await db.countCanonCompletionsSince(c.id, sevenDaysAgo);
-        return { id: c.id, component: c.component, frequency: c.frequency, startDate: c.start_date, completions: count, totalDays: 7, selfAdded: c.priest_id == null };
+        return { id: c.id, component: c.component, frequency: c.frequency, startDate: c.start_date, completions: count, totalDays: 7 };
       }));
       setCanons(enriched);
     }
@@ -113,7 +109,6 @@ export default function StudentScreen() {
       })));
       setPrayer(decryptedPrayer);
     }
-    setPsalmStats((psalmPayload as PsalmStatsSnapshot | null) ?? null);
 
     setLoading(false);
   }
@@ -217,7 +212,7 @@ export default function StudentScreen() {
                     <Text style={styles.btnGoldText}>+ ASSIGN CANON</Text>
                   </TouchableOpacity>
                 </View>
-                <Card title={`Assigned Canons (${canons.length})`} titleIcon="📜">
+                <Card title={`Assigned Canons (${canons.length})`} titleIconNode={<CandleIcon size={16} color={colors.gold} />}>
                   {canons.length === 0 ? (
                     <View style={styles.emptyState}>
                       <Text style={styles.emptyTitle}>No canons assigned yet</Text>
@@ -229,14 +224,7 @@ export default function StudentScreen() {
                       return (
                         <View key={c.id} style={[styles.canonRow, i < canons.length - 1 && styles.canonBorder]}>
                           <View style={{ flex: 1 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                              <Text style={styles.canonComponent}>{c.component}</Text>
-                              {c.selfAdded && (
-                                <View style={styles.selfAddedBadge}>
-                                  <Text style={styles.selfAddedBadgeText}>ADDED BY STUDENT</Text>
-                                </View>
-                              )}
-                            </View>
+                            <Text style={styles.canonComponent}>{c.component}</Text>
                             <Text style={styles.canonMeta}>{c.frequency} · since {c.startDate}</Text>
                             <View style={styles.progressRow}>
                               <View style={styles.progressTrack}>
@@ -247,24 +235,20 @@ export default function StudentScreen() {
                               </Text>
                             </View>
                           </View>
-                          {!c.selfAdded && (
-                            <TouchableOpacity style={styles.removeBtn} onPress={() => handleDeactivateCanon(c.id)}>
-                              <Text style={styles.removeBtnText}>Remove</Text>
-                            </TouchableOpacity>
-                          )}
+                          <TouchableOpacity style={styles.removeBtn} onPress={() => handleDeactivateCanon(c.id)}>
+                            <Text style={styles.removeBtnText}>Remove</Text>
+                          </TouchableOpacity>
                         </View>
                       );
                     })
                   )}
                 </Card>
-
-                <PsalmStatsCard stats={psalmStats} />
               </>
             )}
 
             {/* ── My Notes ── */}
             {tab === 'notes' && (
-              <Card title="My Notes" titleIcon="✎">
+              <Card title="My Notes" titleIconNode={<PencilIcon size={16} color={colors.gold} />}>
                 <Text style={styles.privacyNote}>✦ Private to you — not visible to the student or their FOC.</Text>
 
                 {notes.length === 0 && (
@@ -291,7 +275,7 @@ export default function StudentScreen() {
                     </View>
                     {editingId === note.id ? (
                       <>
-                        <TextInput style={styles.noteInput} value={editText} onChangeText={setEditText} multiline autoFocus placeholderTextColor="rgba(245,240,232,0.22)" />
+                        <TextInput style={styles.noteInput} value={editText} onChangeText={setEditText} multiline autoFocus placeholderTextColor={colors.faint} />
                         {editError ? <Text style={styles.noteError}>{editError}</Text> : null}
                         <View style={styles.editActions}>
                           <TouchableOpacity style={[styles.btnGold, { opacity: (!editText.trim() || savingEdit) ? 0.4 : 1 }]} onPress={handleSaveEdit} disabled={!editText.trim() || savingEdit}>
@@ -312,7 +296,7 @@ export default function StudentScreen() {
                   <TextInput
                     style={styles.noteInput}
                     placeholder="Add a note from today's meeting or call…"
-                    placeholderTextColor="rgba(245,240,232,0.22)"
+                    placeholderTextColor={colors.faint}
                     multiline
                     numberOfLines={4}
                     value={newNoteText}
@@ -332,7 +316,7 @@ export default function StudentScreen() {
 
             {/* ── Prayer Requests ── */}
             {tab === 'prayer' && (
-              <Card title="Prayer Requests" titleIcon="◇">
+              <Card title="Prayer Requests" titleIconNode={<PrayingHandsIcon size={16} color={colors.gold} />}>
                 <Text style={styles.privacyNote}>✦ Requests {displayName.split(' ')[0]} has explicitly shared with their Sunday school servant.</Text>
                 {prayer.length === 0 ? (
                   <View style={styles.emptyState}>
@@ -367,7 +351,7 @@ export default function StudentScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
@@ -382,7 +366,7 @@ const styles = StyleSheet.create({
   heroName: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 2 },
   heroMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
 
-  tabs: { flexDirection: 'row', backgroundColor: 'rgba(10,16,30,0.6)', borderRadius: 10, padding: 4, marginBottom: 16, gap: 2 },
+  tabs: { flexDirection: 'row', backgroundColor: colors.panel, borderRadius: 10, padding: 4, marginBottom: 16, gap: 2 },
   tab: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   tabActive: { backgroundColor: colors.navyMid, borderWidth: 1, borderColor: colors.border },
   tabText: { fontFamily: fonts.latoBold, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.muted },
@@ -401,16 +385,14 @@ const styles = StyleSheet.create({
   canonComponent: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2 },
   canonMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 8 },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  progressTrack: { flex: 1, height: 4, backgroundColor: 'rgba(245,240,232,0.08)', borderRadius: 4, overflow: 'hidden' },
+  progressTrack: { flex: 1, height: 4, backgroundColor: colors.creamDim, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: colors.gold, borderRadius: 4 },
   progressPct: { fontFamily: fonts.latoBold, fontSize: 11, flexShrink: 0 },
   removeBtn: { borderWidth: 1, borderColor: 'rgba(192,57,43,0.3)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   removeBtnText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.red, letterSpacing: 0.5 },
-  selfAddedBadge: { backgroundColor: 'rgba(201,168,76,0.12)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.25)', borderRadius: 20, paddingHorizontal: 6, paddingVertical: 2 },
-  selfAddedBadgeText: { fontFamily: fonts.latoBold, fontSize: 8, letterSpacing: 0.6, color: colors.gold },
 
   privacyNote: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 12, opacity: 0.7 },
-  noteCard: { backgroundColor: 'rgba(10,16,30,0.4)', borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 10 },
+  noteCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 10 },
   noteCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   noteCardDate: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1, color: colors.gold, opacity: 0.8 },
   noteCardBody: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, lineHeight: 20 },
@@ -421,7 +403,7 @@ const styles = StyleSheet.create({
   btnCancel: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
   btnCancelText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.muted, letterSpacing: 0.8 },
   addNoteSection: { marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
-  noteInput: { backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', minHeight: 90 },
+  noteInput: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 13, padding: 12, textAlignVertical: 'top', minHeight: 90 },
   noteError: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginTop: 6 },
 
   prayerRow: { flexDirection: 'row', gap: 10, paddingVertical: 12, alignItems: 'flex-start' },
@@ -433,4 +415,4 @@ const styles = StyleSheet.create({
 
   scopeNote: { backgroundColor: 'rgba(201,168,76,0.05)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)', borderRadius: 10, padding: 14, marginTop: 8 },
   scopeNoteText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 17, letterSpacing: 0.2 },
-});
+}));

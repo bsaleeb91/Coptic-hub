@@ -1,14 +1,11 @@
+// app/index.tsx
+// Explicit root route: '/' lands on the sign-in screen, where the user chooses
+// congregant / priest / servant. Without this, expo-router resolves the bare
+// '/' to the alphabetically-first group index — (priest)/index — which exposed
+// the priest dashboard on web deep links. Signed-in users never see sign-in:
+// the root layout redirects any active session straight to their home.
 import { Redirect } from 'expo-router';
-import { useSession } from '@/lib/auth';
-import { useDemoMode } from '@/lib/demo';
 
 export default function Index() {
-  const { profile } = useSession();
-  const { demoMode, demoRole } = useDemoMode();
-
-  const role = demoMode ? demoRole : profile?.role;
-
-  if (role === 'priest' || role === 'admin') return <Redirect href="/(priest)" />;
-  if (role === 'servant') return <Redirect href="/(servant)" />;
-  return <Redirect href="/(drawer)" />;
+  return <Redirect href="/sign-in" />;
 }

@@ -1,38 +1,34 @@
-# Archived migrations (superseded 2026-07-13)
+# Archived migrations (superseded, reconciled 2026-07-22)
 
-These are the original migration files. **They do not describe the live database** and
-must not be replayed. They are kept only as a historical record of intent.
+These are pre-baseline migration files that were carried over from before Poimen's
+schema was squashed. **They do not describe the live database** and must not be
+replayed. They are kept only as a historical record of intent.
 
 ## What happened
 
-At some point the RLS layer was rewritten by hand in the Supabase dashboard rather than
-through the CLI, and the migration files were never updated to match. By July 2026 the two
-had diverged badly:
+Poimen's own migration history diverged from production (RLS was rewritten by hand in
+the Supabase dashboard) and was squashed into a single verified baseline on 2026-07-13
+— see the fuller account in `Coptic-hub/poimen/supabase/migrations_archive/README.md`
+(same repo family, main Poimen branch). This merge branch (`Poimen-nepsis-merge`) still
+had the old, pre-squash migration files sitting alongside genuinely new ones written
+after the baseline. On 2026-07-22 those two were reconciled:
 
-- ~20 policies existed in production that appeared in **no** migration file
-  (e.g. `canons: priest owns`, `canons: servant insert restricted`, `priest sees flock`).
-- ~23 policies that these files create had been **dropped** from production and replaced
-  with differently-named equivalents (e.g. old `Priest/servant writes canons`
-  → live `canons: priest owns`).
-- The remote migration history table had no record of any of them, so `supabase db push`
-  would have tried to replay all 16 from scratch against a database that already had them.
+- The 18 files in this folder predate the 2026-07-13 baseline and are fully superseded
+  by it (confirmed for at least one, `002_servant_role.sql` from the repo's now-archived
+  top-level `supabase/` folder — its `servant_id` column/policies exist verbatim in the
+  baseline).
+- 6 files were genuinely new and had never been applied to production. They were
+  applied via `supabase db push` on 2026-07-22 and now live in the parent
+  `migrations/` folder alongside the baseline: `20260717_assigned_canon_categories.sql`,
+  `20260719010000_foc_reads_confession_dates.sql`,
+  `20260719030000_foc_reads_personal_rule.sql`,
+  `20260719040000_member_reads_own_encounters.sql`,
+  `20260719050000_signup_role_selection.sql`, `20260720_foc_reads_visit_requests.sql`.
+  (Three of these were renamed from a bare-date prefix to a full timestamp to avoid a
+  version collision in Supabase's migration tracking — the remote history table was
+  repaired via `supabase migration repair` to match, no SQL was re-run.)
 
-## Resolution
+## What's authoritative instead
 
-The schema was squashed to a single baseline generated from the live database:
-
-    supabase/migrations/20260713010000_baseline_remote_schema.sql
-
-That baseline was verified against production with `supabase db diff --linked` (empty diff),
-and the migration history table was repaired so local and remote now agree. New migrations
-build on top of the baseline.
-
-## Two things worth knowing
-
-- The baseline includes tables Poimen does not own (`conversations`, `messages`, `sources`,
-  `source_chunks`, and the `match_chunks` function). This Supabase project is **shared** with
-  the Coptic-hub main app.
-- `supabase db dump` only emits the `public` schema, so it silently omits the
-  `on_auth_user_created` trigger on `auth.users`. That trigger is appended manually at the end
-  of the baseline. If you ever regenerate the baseline, **re-add it** — without it, signup
-  creates an auth user with no `profiles` row and the app breaks on first load.
+`poimen/supabase/migrations/` — matches production exactly as of 2026-07-22 (verified
+via `supabase migration list`, all versions showing local == remote).

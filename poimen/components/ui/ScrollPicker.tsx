@@ -1,11 +1,14 @@
-// A horizontal, snap-scrolling picker over a list of string options. The option
-// centered in the highlighted box is the selected one.
+// components/ui/ScrollPicker.tsx
+// A horizontal, snap-scrolling picker over a list of string options (ported from
+// Nepsis, re-skinned to Poimen's theme). The option centered in the highlighted
+// box is the selected one.
+
 import React, { useRef, useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
   NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 
 interface Props {
   options: string[];
@@ -14,7 +17,7 @@ interface Props {
   itemWidth?: number;
 }
 
-export function ScrollPicker({ options, value, onChange, itemWidth = 96 }: Props) {
+export default function ScrollPicker({ options, value, onChange, itemWidth = 96 }: Props) {
   const ref = useRef<ScrollView>(null);
   const [w, setW] = useState(0);
   const [active, setActive] = useState(Math.max(0, options.indexOf(value)));
@@ -30,7 +33,7 @@ export function ScrollPicker({ options, value, onChange, itemWidth = 96 }: Props
 
   return (
     <View onLayout={e => setW(e.nativeEvent.layout.width)} style={styles.wrap}>
-      <View pointerEvents="none" style={[styles.highlight, { width: itemWidth, marginLeft: -itemWidth / 2 }]} />
+      <View pointerEvents="none" style={[styles.highlight, { width: itemWidth, marginLeft: -itemWidth / 2, borderColor: colors.gold }]} />
       <ScrollView
         ref={ref}
         horizontal
@@ -44,11 +47,7 @@ export function ScrollPicker({ options, value, onChange, itemWidth = 96 }: Props
       >
         {options.map((opt, i) => (
           <View key={opt} style={[styles.item, { width: itemWidth }]}>
-            <Text style={{
-              fontFamily: i === active ? fonts.latoBold : fonts.latoLight,
-              fontSize: i === active ? 16 : 13,
-              color: i === active ? colors.gold : colors.muted,
-            }}>{opt}</Text>
+            <Text style={{ fontSize: i === active ? 18 : 14, fontFamily: fonts.latoBold, color: i === active ? colors.goldLight : colors.muted }}>{opt}</Text>
           </View>
         ))}
       </ScrollView>
@@ -56,8 +55,8 @@ export function ScrollPicker({ options, value, onChange, itemWidth = 96 }: Props
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   wrap:      { height: 52, justifyContent: 'center' },
-  highlight: { position: 'absolute', left: '50%', height: 40, borderRadius: 10, borderWidth: 1.5, borderColor: colors.gold },
+  highlight: { position: 'absolute', left: '50%', height: 40, borderRadius: 10, borderWidth: 1.5 },
   item:      { height: 52, alignItems: 'center', justifyContent: 'center' },
-});
+}));

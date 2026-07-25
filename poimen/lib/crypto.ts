@@ -4,8 +4,19 @@
 // private key stays on device. Only the intended recipient's device can decrypt.
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64, encodeUTF8, decodeUTF8 } from 'tweetnacl-util';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import * as ExpoCrypto from 'expo-crypto';
 import { Platform } from 'react-native';
+
+// Hermes (native) has no Web Crypto API, so tweetnacl finds no PRNG at import
+// time and every nacl.randomBytes call throws "no PRNG" — encryption silently
+// fails on iOS/Android while working on web. Seed nacl from expo-crypto when
+// crypto.getRandomValues is missing; on web the browser PRNG is used as before.
+if (typeof (globalThis as any).crypto?.getRandomValues !== 'function') {
+  nacl.setPRNG((x, n) => {
+    x.set(ExpoCrypto.getRandomBytes(n));
+  });
+}
 
 const KEY_ID = 'poimen_notes_key_v1';
 const KEYPAIR_ID = 'poimen_box_keypair_v1';
@@ -14,12 +25,12 @@ const BOX_PREFIX = 'box1:';
 
 async function loadKey(): Promise<string | null> {
   if (Platform.OS === 'web') return localStorage.getItem(KEY_ID);
-  return AsyncStorage.getItem(KEY_ID);
+  return SecureStore.getItemAsync(KEY_ID);
 }
 
 async function saveKey(key: string): Promise<void> {
   if (Platform.OS === 'web') { localStorage.setItem(KEY_ID, key); return; }
-  await AsyncStorage.setItem(KEY_ID, key);
+  await SecureStore.setItemAsync(KEY_ID, key);
 }
 
 async function getOrCreateKey(): Promise<Uint8Array> {
@@ -35,7 +46,7 @@ async function getOrCreateKey(): Promise<Uint8Array> {
 async function loadBoxKeypair(): Promise<nacl.BoxKeyPair | null> {
   const stored = Platform.OS === 'web'
     ? localStorage.getItem(KEYPAIR_ID)
-    : await AsyncStorage.getItem(KEYPAIR_ID);
+    : await SecureStore.getItemAsync(KEYPAIR_ID);
   if (!stored) return null;
   const bytes = decodeBase64(stored);
   return { secretKey: bytes.slice(0, 32), publicKey: bytes.slice(32, 64) };
@@ -47,7 +58,7 @@ async function saveBoxKeypair(kp: nacl.BoxKeyPair): Promise<void> {
   combined.set(kp.publicKey, 32);
   const encoded = encodeBase64(combined);
   if (Platform.OS === 'web') { localStorage.setItem(KEYPAIR_ID, encoded); return; }
-  await AsyncStorage.setItem(KEYPAIR_ID, encoded);
+  await SecureStore.setItemAsync(KEYPAIR_ID, encoded);
 }
 
 export async function getOrCreateBoxKeypair(): Promise<nacl.BoxKeyPair> {

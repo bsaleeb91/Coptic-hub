@@ -2,21 +2,21 @@ import React from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { useSession } from '@/lib/auth';
 
-const PORTALS = [
+const PORTALS = lazyThemed(() => [
   {
     icon: '◉',
     title: 'Congregant',
     subtitle: 'Your personal view',
     desc: 'Dashboard · Confession prep · Spiritual canon · Journal · Prayer requests',
-    route: '/(drawer)',
+    route: '/(tabs)',
     accentColor: colors.gold,
     accentBg: colors.goldDim,
   },
   {
-    icon: '✝',
+    icon: '✝︎',
     title: 'Priest',
     subtitle: 'Father of Confession portal',
     desc: 'Member roster · Pastoral encounter log · Canon assignment · Pastoral notes',
@@ -33,7 +33,7 @@ const PORTALS = [
     accentColor: colors.green,
     accentBg: colors.greenBg,
   },
-] as const;
+] as const);
 
 export default function PortalsScreen() {
   const router = useRouter();

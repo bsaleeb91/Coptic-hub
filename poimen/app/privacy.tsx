@@ -1,7 +1,7 @@
 import React from 'react';
 import { ScrollView, View, Text, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 
 const LAST_UPDATED = 'July 1, 2026';
 const APP_NAME = 'Poimen';
@@ -135,7 +135,7 @@ function Bullet({ children }: { children: React.ReactNode }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: {
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
   footerSub: {
     fontFamily: fonts.latoLight,
     fontSize: 11,
-    color: 'rgba(245,240,232,0.2)',
+    color: colors.faint,
     marginTop: 4,
   },
-});
+}));

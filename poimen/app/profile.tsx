@@ -10,9 +10,11 @@ import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
 import { Switch } from 'react-native';
 import * as db from '@/lib/db';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts, ThemeMode, loadThemeMode, saveThemeMode , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useTutorial } from '@/lib/tutorial-context';
+import { isBiometricAvailable, loadFaceIdLockEnabled, saveFaceIdLockEnabled } from '@/lib/biometrics';
+import * as Updates from 'expo-updates';
 
 const LIFE_STAGES = ['single', 'engaged', 'married', 'widowed', 'divorced'] as const;
 type LifeStageType = typeof LIFE_STAGES[number];
@@ -34,6 +36,50 @@ export default function ProfileScreen() {
     : profile?.role === 'priest' || profile?.role === 'admin' ? 'priest'
     : profile?.role === 'servant' ? 'servant'
     : 'congregant';
+
+  // ── Appearance ─────────────────────────────────────────────
+  // Screen styles capture the palette when their module loads, so applying a
+  // new theme needs a full JS reload (web: location.reload; native: dev
+  // reload — production builds would use expo-updates' reloadAsync).
+  const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
+  useEffect(() => { loadThemeMode().then(setThemeMode); }, []);
+
+  // ── Face ID lock ───────────────────────────────────────────
+  const [faceIdAvailable, setFaceIdAvailable] = useState(false);
+  const [faceIdEnabled, setFaceIdEnabled] = useState(false);
+  useEffect(() => {
+    isBiometricAvailable().then(setFaceIdAvailable);
+    loadFaceIdLockEnabled().then(setFaceIdEnabled);
+  }, []);
+
+  async function toggleFaceId(value: boolean) {
+    setFaceIdEnabled(value);
+    await saveFaceIdLockEnabled(value);
+  }
+
+  async function switchTheme(mode: ThemeMode) {
+    if (mode === themeMode) return;
+    setThemeMode(mode);
+    await saveThemeMode(mode);
+    if (Platform.OS === 'web') {
+      window.location.reload();
+      return;
+    }
+    // DevSettings.reload() only works with a Metro/dev-client attached — it's
+    // a silent no-op in a production build (TestFlight/App Store), which is
+    // why switching themes there looked like it did nothing. expo-updates'
+    // reloadAsync() is the one that actually works in a release build.
+    if (Updates.isEnabled) {
+      await Updates.reloadAsync();
+      return;
+    }
+    try {
+      const { DevSettings } = require('react-native');
+      DevSettings.reload();
+    } catch {
+      Alert.alert('Theme saved', 'Close and reopen the app to apply the new appearance.');
+    }
+  }
 
   // ── FOC name ──────────────────────────────────────────────
   const [focName, setFocName] = useState<string | null>(null);
@@ -227,6 +273,11 @@ export default function ProfileScreen() {
           <View style={styles.roleBadge}>
             <Text style={styles.roleBadgeText}>{profile?.role ?? 'congregant'}</Text>
           </View>
+          {profile?.requested_role === 'priest' && profile.role === 'congregant' && (
+            <View style={styles.pendingBadge}>
+              <Text style={styles.pendingBadgeText}>PRIEST VERIFICATION PENDING</Text>
+            </View>
+          )}
         </View>
 
         {/* ── Account Details ── */}
@@ -238,7 +289,7 @@ export default function ProfileScreen() {
               value={fullName}
               onChangeText={setFullName}
               placeholder="Your name"
-              placeholderTextColor="rgba(245,240,232,0.22)"
+              placeholderTextColor={colors.faint}
               autoCapitalize="words"
             />
           </View>
@@ -264,7 +315,7 @@ export default function ProfileScreen() {
                 value={churchName}
                 onChangeText={setChurchName}
                 placeholder="E.g., St. Mary's Coptic Orthodox Church"
-                placeholderTextColor="rgba(245,240,232,0.22)"
+                placeholderTextColor={colors.faint}
               />
             )}
           </View>
@@ -291,7 +342,7 @@ export default function ProfileScreen() {
               value={phone}
               onChangeText={setPhone}
               placeholder="(555) 000-0000"
-              placeholderTextColor="rgba(245,240,232,0.22)"
+              placeholderTextColor={colors.faint}
               keyboardType="phone-pad"
             />
           </View>
@@ -302,7 +353,7 @@ export default function ProfileScreen() {
               value={contactEmail}
               onChangeText={setContactEmail}
               placeholder="preferred@email.com"
-              placeholderTextColor="rgba(245,240,232,0.22)"
+              placeholderTextColor={colors.faint}
               keyboardType="email-address"
               autoCapitalize="none"
             />
@@ -314,14 +365,14 @@ export default function ProfileScreen() {
               value={addressLine1}
               onChangeText={setAddressLine1}
               placeholder="Street address"
-              placeholderTextColor="rgba(245,240,232,0.22)"
+              placeholderTextColor={colors.faint}
             />
             <TextInput
               style={[styles.input, { marginBottom: 8 }]}
               value={addressLine2}
               onChangeText={setAddressLine2}
               placeholder="Apt, suite, etc. (optional)"
-              placeholderTextColor="rgba(245,240,232,0.22)"
+              placeholderTextColor={colors.faint}
             />
             <View style={styles.addressRow}>
               <TextInput
@@ -329,14 +380,14 @@ export default function ProfileScreen() {
                 value={city}
                 onChangeText={setCity}
                 placeholder="City"
-                placeholderTextColor="rgba(245,240,232,0.22)"
+                placeholderTextColor={colors.faint}
               />
               <TextInput
                 style={[styles.input, { flex: 1 }]}
                 value={stateVal}
                 onChangeText={setStateVal}
                 placeholder="ST"
-                placeholderTextColor="rgba(245,240,232,0.22)"
+                placeholderTextColor={colors.faint}
                 autoCapitalize="characters"
                 maxLength={2}
               />
@@ -345,7 +396,7 @@ export default function ProfileScreen() {
                 value={zip}
                 onChangeText={setZip}
                 placeholder="ZIP"
-                placeholderTextColor="rgba(245,240,232,0.22)"
+                placeholderTextColor={colors.faint}
                 keyboardType="numeric"
                 maxLength={10}
               />
@@ -391,7 +442,7 @@ export default function ProfileScreen() {
                 value={spouseName}
                 onChangeText={setSpouseName}
                 placeholder="Full name"
-                placeholderTextColor="rgba(245,240,232,0.22)"
+                placeholderTextColor={colors.faint}
                 autoCapitalize="words"
               />
             </View>
@@ -420,7 +471,7 @@ export default function ProfileScreen() {
                 value={newChildName}
                 onChangeText={setNewChildName}
                 placeholder="Name"
-                placeholderTextColor="rgba(245,240,232,0.22)"
+                placeholderTextColor={colors.faint}
                 autoCapitalize="words"
               />
               <TextInput
@@ -428,7 +479,7 @@ export default function ProfileScreen() {
                 value={newChildYear}
                 onChangeText={setNewChildYear}
                 placeholder="Year"
-                placeholderTextColor="rgba(245,240,232,0.22)"
+                placeholderTextColor={colors.faint}
                 keyboardType="numeric"
                 maxLength={4}
               />
@@ -455,6 +506,35 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </Card>
 
+        {/* ── Appearance ── */}
+        <Card title="Appearance" titleIcon="◐">
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {([
+              { mode: 'dark' as ThemeMode, label: 'Dark Mode' },
+              { mode: 'light' as ThemeMode, label: 'Light Mode' },
+            ]).map(opt => (
+              <TouchableOpacity
+                key={opt.mode}
+                onPress={() => switchTheme(opt.mode)}
+                style={{
+                  flex: 1, alignItems: 'center', paddingVertical: 13, borderRadius: 10, borderWidth: 1,
+                  borderColor: themeMode === opt.mode ? colors.gold : colors.border,
+                  backgroundColor: themeMode === opt.mode ? colors.goldDim : 'transparent',
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontFamily: fonts.latoBold, fontSize: 13, color: themeMode === opt.mode ? colors.goldLight : colors.muted }}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={{ fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 10, lineHeight: 16 }}>
+            Dark mode is Nepsis's navy and gold; light mode is a bright Byzantine palette —
+            warm parchment, sepia ink, and liturgical crimson. Switching reloads the app.
+          </Text>
+        </Card>
+
         {/* ── Privacy ── */}
         <Card title="Privacy" titleIcon="✦">
           <Text style={styles.privacyText}>
@@ -476,7 +556,7 @@ export default function ProfileScreen() {
 
         {/* FOC linking — shown to congregants */}
         {(profile?.role === 'congregant' || !profile?.role) && (
-          <Card title="Father of Confession" titleIcon="✝">
+          <Card title="Father of Confession" titleIcon="✝︎">
             {profile?.foc_id ? (
               <>
                 <View style={styles.linkedRow}>
@@ -500,8 +580,8 @@ export default function ProfileScreen() {
                       await db.setVitalsConsent(user.id, val);
                       await refreshProfile();
                     }}
-                    trackColor={{ false: 'rgba(245,240,232,0.1)', true: 'rgba(201,168,76,0.4)' }}
-                    thumbColor={profile?.vitals_consent === true ? colors.gold : 'rgba(245,240,232,0.4)'}
+                    trackColor={{ false: colors.creamDim, true: 'rgba(201,168,76,0.4)' }}
+                    thumbColor={profile?.vitals_consent === true ? colors.gold : colors.faint}
                   />
                 </View>
               </>
@@ -541,6 +621,21 @@ export default function ProfileScreen() {
           <Text style={styles.tutorialBtnText}>View App Tutorial</Text>
         </TouchableOpacity>
 
+        {faceIdAvailable && (
+          <View style={styles.demoRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.demoLabel}>Face ID Lock</Text>
+              <Text style={styles.demoSub}>Require Face ID to open the app</Text>
+            </View>
+            <Switch
+              value={faceIdEnabled}
+              onValueChange={toggleFaceId}
+              trackColor={{ false: colors.creamDim, true: 'rgba(201,168,76,0.4)' }}
+              thumbColor={faceIdEnabled ? colors.gold : colors.faint}
+            />
+          </View>
+        )}
+
         {/* Demo mode toggle */}
         <View style={styles.demoRow}>
           <View style={{ flex: 1 }}>
@@ -550,8 +645,8 @@ export default function ProfileScreen() {
           <Switch
             value={demoMode}
             onValueChange={setDemoMode}
-            trackColor={{ false: 'rgba(245,240,232,0.1)', true: 'rgba(201,168,76,0.4)' }}
-            thumbColor={demoMode ? colors.gold : 'rgba(245,240,232,0.4)'}
+            trackColor={{ false: colors.creamDim, true: 'rgba(201,168,76,0.4)' }}
+            thumbColor={demoMode ? colors.gold : colors.faint}
           />
         </View>
 
@@ -599,7 +694,7 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 48 },
@@ -622,20 +717,25 @@ const styles = StyleSheet.create({
     borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4,
   },
   roleBadgeText: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold },
+  pendingBadge: {
+    marginTop: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 4, backgroundColor: colors.panel,
+  },
+  pendingBadgeText: { fontFamily: fonts.latoBold, fontSize: 8, letterSpacing: 1.2, color: colors.muted },
 
   sectionHint: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 16, opacity: 0.8 },
 
   field: { gap: 6, marginBottom: 14 },
   label: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.muted },
   input: {
-    backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border,
     borderRadius: 8, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 14, padding: 12,
   },
   inputReadOnly: {
-    backgroundColor: 'rgba(10,16,30,0.3)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.1)',
+    backgroundColor: colors.panel, borderWidth: 1, borderColor: 'rgba(201,168,76,0.1)',
     borderRadius: 8, padding: 12,
   },
-  inputReadOnlyText: { fontFamily: fonts.latoLight, fontSize: 14, color: 'rgba(245,240,232,0.4)' },
+  inputReadOnlyText: { fontFamily: fonts.latoLight, fontSize: 14, color: colors.faint },
   fieldHint: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, opacity: 0.6 },
   fieldError: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.red, marginBottom: 8 },
 
@@ -680,7 +780,7 @@ const styles = StyleSheet.create({
 
   inviteCodeLabel: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 14, lineHeight: 18 },
   inviteCodeBox: {
-    backgroundColor: 'rgba(10,16,30,0.6)', borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border,
     borderRadius: 10, paddingVertical: 18, alignItems: 'center',
   },
   inviteCode: { fontFamily: fonts.latoBold, fontSize: 32, color: colors.goldLight, letterSpacing: 10 },
@@ -704,11 +804,11 @@ const styles = StyleSheet.create({
 
   churchPicker: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(10,16,30,0.7)', borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border,
     borderRadius: 8, padding: 12,
   },
   churchPickerText: { flex: 1, fontFamily: fonts.latoLight, fontSize: 14, color: colors.cream },
-  churchPickerPlaceholder: { flex: 1, fontFamily: fonts.latoLight, fontSize: 14, color: 'rgba(245,240,232,0.22)' },
+  churchPickerPlaceholder: { flex: 1, fontFamily: fonts.latoLight, fontSize: 14, color: colors.faint },
   churchPickerChevron: { fontFamily: fonts.cormorant, fontSize: 20, color: colors.muted },
 
   pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
@@ -733,4 +833,4 @@ const styles = StyleSheet.create({
   },
   vitalsToggleLabel: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2 },
   vitalsToggleHint: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
-});
+}));

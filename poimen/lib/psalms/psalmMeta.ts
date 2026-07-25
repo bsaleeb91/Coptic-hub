@@ -1,7 +1,7 @@
-// lib/psalms/psalmMeta.ts
+// src/data/psalmMeta.ts
 // A primary "type" for each Psalm so the user knows its character — repentance,
 // praise, thanksgiving, etc. Uses LXX (Septuagint) numbering to match the
-// Agpeya text and Orthodox liturgical usage. Classifications are approximate,
+// Brenton text and Orthodox liturgical usage. Classifications are approximate,
 // following the broad consensus of the psalm genres.
 
 export type PsalmCategory =
@@ -20,16 +20,28 @@ export interface CategoryMeta {
   blurb: string;
 }
 
-// Tag colors chosen to read against Poimen's navy background.
+// Kinds for the non-psalm Agpeya items (Gospels, litanies, absolutions, and
+// the fixed prayers of the hours), with the same tag/blurb treatment.
+export type PrayerKind = 'gospel' | 'litany' | 'absolution' | 'prayer' | 'creed' | 'epistle';
+
+export const PRAYER_KIND_META: Record<PrayerKind, CategoryMeta> = {
+  gospel:     { label: 'Gospel',     color: '#A8842C', blurb: 'The Gospel reading of this hour, as prayed in the Agpeya.' },
+  litany:     { label: 'Litany',     color: '#1F4E8C', blurb: 'A litany of the hour — prayed after the Gospel.' },
+  absolution: { label: 'Absolution', color: '#1D7A5C', blurb: 'The absolution that concludes this hour.' },
+  prayer:     { label: 'Prayer',     color: '#6A3D8F', blurb: 'A fixed prayer of the hour.' },
+  creed:      { label: 'Creed',      color: '#7A1F2B', blurb: 'The confession of the faith of the Church.' },
+  epistle:    { label: 'Epistle',    color: '#993C1D', blurb: 'The reading from the epistles of St. Paul.' },
+};
+
 export const CATEGORY_META: Record<PsalmCategory, CategoryMeta> = {
-  repentance:   { label: 'Repentance',      color: '#e08585', blurb: 'Penitential — sorrow for sin and a plea for mercy.' },
-  praise:       { label: 'Praise',          color: '#e2c97e', blurb: 'Glorifying God for who He is.' },
-  thanksgiving: { label: 'Thanksgiving',    color: '#5dca87', blurb: 'Gratitude for God’s deliverance and gifts.' },
-  trust:        { label: 'Trust',           color: '#7fc4e8', blurb: 'Confidence and refuge in God.' },
-  supplication: { label: 'Supplication',    color: '#c9a0dc', blurb: 'Lament and prayer for help.' },
-  wisdom:       { label: 'Wisdom',          color: '#d4b36a', blurb: 'The way of the righteous and the law of God.' },
-  messianic:    { label: 'Messianic',       color: '#e8a97b', blurb: 'Royal psalms pointing to Christ the King.' },
-  ascents:      { label: 'Song of Ascents', color: '#6eccc4', blurb: 'Sung by pilgrims going up to the Lord.' },
+  repentance:   { label: 'Repentance',      color: '#7A1F2B', blurb: 'Penitential — sorrow for sin and a plea for mercy.' },
+  praise:       { label: 'Praise',          color: '#A8842C', blurb: 'Glorifying God for who He is.' },
+  thanksgiving: { label: 'Thanksgiving',    color: '#1D7A5C', blurb: 'Gratitude for God’s deliverance and gifts.' },
+  trust:        { label: 'Trust',           color: '#1F4E8C', blurb: 'Confidence and refuge in God.' },
+  supplication: { label: 'Supplication',    color: '#6A3D8F', blurb: 'Lament and prayer for help.' },
+  wisdom:       { label: 'Wisdom',          color: '#8A6516', blurb: 'The way of the righteous and the law of God.' },
+  messianic:    { label: 'Messianic',       color: '#993C1D', blurb: 'Royal psalms pointing to Christ the King.' },
+  ascents:      { label: 'Song of Ascents', color: '#2C6E6E', blurb: 'Sung by pilgrims going up to the Lord.' },
 };
 
 const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);

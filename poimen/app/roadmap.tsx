@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { colors, fonts } from '@/lib/theme';
+import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { useSession } from '@/lib/auth';
 
 const STORAGE_KEY = 'poimen:roadmap:checked';
@@ -207,7 +207,7 @@ export default function RoadmapScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = lazyThemed(() => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.navy },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 60, maxWidth: 680 as any, width: '100%' as any, alignSelf: 'center' as any },
@@ -244,5 +244,5 @@ const styles = StyleSheet.create({
 
   footer: { marginTop: 24, paddingTop: 20, borderTopWidth: 1, borderTopColor: colors.border, alignItems: 'center' },
   footerText: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, color: colors.muted, textTransform: 'uppercase' as any },
-  footerSub: { fontFamily: fonts.latoLight, fontSize: 11, color: 'rgba(245,240,232,0.2)', marginTop: 4 },
-});
+  footerSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.faint, marginTop: 4 },
+}));

@@ -1,10 +1,14 @@
-// lib/psalms/psalmStore.ts
-// Spaced-repetition store for memorizing the Psalms. The unit of selection and
-// tracking is an "item" — either a whole psalm ("5") or a single section of
-// Psalm 118 ("118#3"). Persisted with AsyncStorage.
+// lib/psalms/store.ts
+// Spaced-repetition store for memorizing the Psalms, ported from Nepsis. The
+// unit of selection and tracking is an "item" — either a whole psalm ("5") or a
+// single section of Psalm 118 ("118#3"). Persisted with AsyncStorage; a summary
+// + full snapshot is mirrored to Supabase agent_progress by lib/psalms/sync.ts
+// so progress survives a reinstall and can surface to the Father of Confession.
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { itemUnitCount as unitCount } from './agpeyaPsalter';
+// Per-user-scoped storage (see lib/storage.ts) — keeps one account's spiritual
+// data from bleeding into another's on a shared device.
+import { userStorage as AsyncStorage, onStorageScopeChange } from '@/lib/storage';
+import { itemUnitCount as unitCount } from './psalter';
 
 const K_SELECTION = 'poimen.psalm.selection';
 const K_CARDS     = 'poimen.psalm.cards';
@@ -13,6 +17,7 @@ const K_STREAK    = 'poimen.psalm.streak';
 const K_NEWPERDAY = 'poimen.psalm.newPerDay';
 
 export const NEW_PER_SESSION = 5;
+export const NEW_PER_DAY_OPTIONS = [1, 3, 5, 10, 15, 20];
 export const MAX_REVIEWS_PER_SESSION = 20;
 export const MASTERED_INTERVAL = 21; // days — a part is considered "mature"
 
@@ -29,11 +34,19 @@ export interface PartCard {
 
 export const cardId = (item: string, part: number) => `${item}:${part}`;
 
-function todayStr(): string { return new Date().toISOString().slice(0, 10); }
+// LOCAL calendar date (not UTC) — reviews unlock on the next local calendar
+// day, not 24h after the moment a portion was learned. Using toISOString here
+// mixed UTC (todayStr) with local (setDate), which pushed evening-learned
+// portions a day late in timezones behind UTC.
+function localStr(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function todayStr(): string { return localStr(new Date()); }
 function addDaysStr(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return localStr(d);
 }
 
 async function readJSON<T>(key: string, fallback: T): Promise<T> {
@@ -52,7 +65,7 @@ async function writeJSON(key: string, value: unknown): Promise<void> {
 
 export async function loadSelection(): Promise<string[]> {
   const arr = await readJSON<any[]>(K_SELECTION, []);
-  return arr.map(String);
+  return arr.map(String); // migrate legacy number[] → string ids
 }
 
 export async function saveSelection(items: string[]): Promise<void> {
@@ -62,6 +75,11 @@ export async function saveSelection(items: string[]): Promise<void> {
 // ─── Cards ────────────────────────────────────────────────────────────────────
 
 let _cards: Record<string, PartCard> | null = null;
+
+// Drop the in-memory card cache whenever the account (storage scope) changes, so
+// the next account re-reads its own namespace instead of seeing the previous
+// user's cards left in memory from this JS runtime.
+onStorageScopeChange(() => { _cards = null; });
 
 async function cards(): Promise<Record<string, PartCard>> {
   if (!_cards) _cards = await readJSON<Record<string, PartCard>>(K_CARDS, {});
@@ -169,30 +187,56 @@ export function learningItem(selection: string[], cardMap: Record<string, PartCa
   return null;
 }
 
-// Due review cards, from every learned item (capped).
+// Every portion of an item has reached the mature interval — the item graduates
+// from portion review to whole-passage recitation.
+export function isFullyMature(item: string, cardMap: Record<string, PartCard>): boolean {
+  const { mature, total } = portionsMature(item, cardMap);
+  return total > 0 && mature === total;
+}
+
+// Due portion reviews. A portion is reviewable only once it has been *learned*
+// (answered correctly at least once, reps >= 1) and its scheduled date has
+// arrived — so a portion learned today (due tomorrow at the earliest) is never
+// reviewed the same day, and a portion still being learned (no card, or graded
+// "Wrong" so reps is still 0) stays in the learning queue, not here. Fully
+// mature passages are excluded: they are reviewed as a whole recitation instead.
 export function dueQueue(selection: string[], cardMap: Record<string, PartCard>): { item: string; part: number }[] {
   const due: { item: string; part: number }[] = [];
   for (const it of selection) {
+    if (isFullyMature(it, cardMap)) continue;
     const parts = unitCount(it);
     for (let i = 0; i < parts; i++) {
       const c = cardMap[cardId(it, i)];
-      if (c && isDue(c)) due.push({ item: it, part: i });
+      if (c && c.reps >= 1 && isDue(c)) due.push({ item: it, part: i });
     }
   }
   return due.slice(0, MAX_REVIEWS_PER_SESSION);
 }
 
-// Brand-new cards, only from the item currently being learned, in order.
+// Brand-new cards, only from the one item currently being learned, in order, up
+// to the daily budget — you learn one passage at a time. A portion counts as
+// still-to-learn until it has been answered correctly once (no card, or reps <
+// 1 after a "Wrong"), so a passage isn't finished — and the next one doesn't
+// begin — until every portion has been graded Hard/Good/Easy at least once.
 export function newQueue(selection: string[], cardMap: Record<string, PartCard>, newLimit: number = NEW_PER_SESSION): { item: string; part: number }[] {
   const fresh: { item: string; part: number }[] = [];
   const lp = learningItem(selection, cardMap);
   if (lp != null) {
     const parts = unitCount(lp);
     for (let i = 0; i < parts && fresh.length < newLimit; i++) {
-      if (!cardMap[cardId(lp, i)]) fresh.push({ item: lp, part: i });
+      const c = cardMap[cardId(lp, i)];
+      if (!c || c.reps < 1) fresh.push({ item: lp, part: i });
     }
   }
   return fresh;
+}
+
+export function buildQueue(
+  selection: string[],
+  cardMap: Record<string, PartCard>,
+  newLimit: number = NEW_PER_SESSION,
+): { item: string; part: number }[] {
+  return [...dueQueue(selection, cardMap), ...newQueue(selection, cardMap, newLimit)];
 }
 
 // ─── Whole-item recitation test ───────────────────────────────────────────────
@@ -248,6 +292,36 @@ export async function reviewRecite(item: string, existing: ReciteCard | undefine
   return card;
 }
 
+// ─── Unified review queue (portion clozes + whole-passage recitations) ────────
+// A review unit is either a single due portion (cloze) of a passage still being
+// matured, or a whole-passage recitation for a passage whose portions are all
+// mature (reviewed in full, not portion by portion). Passages are visited in
+// selection order so each one's review comes up as a unit in turn.
+
+export type ReviewUnit =
+  | { item: string; kind: 'portion'; part: number }
+  | { item: string; kind: 'recite' };
+
+export function reviewQueue(
+  selection: string[],
+  cardMap: Record<string, PartCard>,
+  reciteMap: Record<string, ReciteCard>,
+): ReviewUnit[] {
+  const units: ReviewUnit[] = [];
+  for (const it of selection) {
+    const st = reciteState(it, cardMap, reciteMap);
+    if (st === 'ready' || st === 'retest') {
+      units.push({ item: it, kind: 'recite' });          // recite the whole passage
+    } else if (st === 'learning') {
+      for (const { part } of dueQueue([it], cardMap)) {   // due portions only
+        units.push({ item: it, kind: 'portion', part });
+      }
+    }
+    // 'memorized' — recited recently, nothing due now
+  }
+  return units.slice(0, MAX_REVIEWS_PER_SESSION);
+}
+
 // ─── Streak ───────────────────────────────────────────────────────────────────
 
 export interface Streak { current: number; last: string | null; }
@@ -275,4 +349,40 @@ export async function loadNewPerDay(): Promise<number> {
 
 export async function saveNewPerDay(n: number): Promise<void> {
   await writeJSON(K_NEWPERDAY, n);
+}
+
+// ─── Snapshot import/export (for cloud sync in lib/psalms/sync.ts) ─────────────
+
+export interface PsalmSnapshot {
+  selection: string[];
+  cards: Record<string, PartCard>;
+  recite: Record<string, ReciteCard>;
+  streak: Streak;
+  newPerDay: number;
+}
+
+export async function exportState(): Promise<PsalmSnapshot> {
+  const [selection, cardMap, recite, streak, newPerDay] = await Promise.all([
+    loadSelection(), loadCards(), loadRecite(), loadStreak(), loadNewPerDay(),
+  ]);
+  return { selection, cards: cardMap, recite, streak, newPerDay };
+}
+
+// Overwrite local state with a snapshot (last-write-wins from the cloud). Resets
+// the in-memory card cache so subsequent reads reflect the imported data.
+export async function importState(snap: PsalmSnapshot): Promise<void> {
+  _cards = snap.cards ?? {};
+  await Promise.all([
+    writeJSON(K_SELECTION, snap.selection ?? []),
+    writeJSON(K_CARDS, snap.cards ?? {}),
+    writeJSON(K_RECITE, snap.recite ?? {}),
+    writeJSON(K_STREAK, snap.streak ?? { current: 0, last: null }),
+    writeJSON(K_NEWPERDAY, snap.newPerDay ?? NEW_PER_SESSION),
+  ]);
+}
+
+export async function isLocalEmpty(): Promise<boolean> {
+  const sel = await loadSelection();
+  const c = await loadCards();
+  return sel.length === 0 && Object.keys(c).length === 0;
 }

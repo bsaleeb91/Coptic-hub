@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Poimen",
+    "name": "Nepsis",
     "slug": "poimen",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.coptic.poimen",
       "buildNumber": "1",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSFaceIDUsageDescription": "Nepsis uses Face ID to keep your pastoral and confession data private after sign-in."
       }
     },
     "android": {
@@ -45,6 +46,12 @@
       "eas": {
         "projectId": "6557a462-5807-40e8-b87a-b14a70ac5a95"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/6557a462-5807-40e8-b87a-b14a70ac5a95"
     }
   }
 }
