@@ -14,3 +14,4 @@ export * from './canons';
 export * from './prayer';
 export * from './progress';
 export * from './admin';
+export * from './scheduling';
