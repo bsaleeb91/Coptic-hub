@@ -11,7 +11,7 @@ import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawe
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, lazyThemed } from '@/lib/theme';
 import Harp from '@/components/ui/Harp';
-import { HouseIcon, NotepadIcon, PrayingHandsIcon, CandleIcon } from '@/components/ui/TabIcons';
+import { HouseIcon, NotepadIcon, PrayingHandsIcon, CandleIcon, CalendarIcon } from '@/components/ui/TabIcons';
 
 function DrawerHeader() {
   const insets = useSafeAreaInsets();
@@ -59,6 +59,10 @@ export default function DrawerLayout() {
       <Drawer.Screen name="confession" options={{
         title: 'Confession',
         drawerIcon: ({ color }: IconProps) => <Text style={{ fontSize: 18, color, width: 20, textAlign: 'center' }}>✝︎</Text>,
+      }} />
+      <Drawer.Screen name="appointments" options={{
+        title: 'Appointments',
+        drawerIcon: ({ color }: IconProps) => <CalendarIcon size={20} color={color} />,
       }} />
       <Drawer.Screen name="journal" options={{
         title: 'Journal',
