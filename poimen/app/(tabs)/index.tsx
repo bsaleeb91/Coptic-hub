@@ -21,8 +21,8 @@ import { loadTodayChecks } from '@/lib/canon/checks';
 import { loadPostponements, loadServiceDone } from '@/lib/canon/postpone';
 import { recordCanonDay, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
 import { lastConfessionDate, loadConfessionDates, hydrateConfessionDatesFromCloud, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
-import { upcomingFeasts } from '@/lib/feasts';
-import { upcomingCommemorations } from '@/lib/synaxarium';
+import { upcomingFeasts, feastOn } from '@/lib/feasts';
+import { upcomingCommemorations, gregorianToCoptic, commemorationOn } from '@/lib/synaxarium';
 import Harp from '@/components/ui/Harp';
 import { CrossIcon, CandleIcon } from '@/components/ui/TabIcons';
 
@@ -59,20 +59,33 @@ const nextCommemRows = () => upcomingCommemorations(new Date(), 4).map(toDateRow
 function getDashboardSubtitle(): string {
   const today = new Date();
   const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const c = gregorianToCoptic(today);
+  const dateStr2 = `${dateStr} · ${c.day} ${c.monthName}`;   // Gregorian + Coptic date
   const apostlesStart = new Date(2026, 4, 25);
   const apostlesEnd = new Date(2026, 6, 11);
   if (today >= apostlesStart && today <= apostlesEnd) {
     const day = Math.round((today.getTime() - apostlesStart.getTime()) / 86400000) + 1;
-    return `${dateStr} · Apostles' Fast · Day ${day}`;
+    return `${dateStr2} · Apostles' Fast · Day ${day}`;
   }
   const m = today.getMonth() + 1; const d = today.getDate();
-  if (m === 8 && d >= 1 && d <= 14) return `${dateStr} · St. Mary's Fast · Day ${d}`;
+  if (m === 8 && d >= 1 && d <= 14) return `${dateStr2} · St. Mary's Fast · Day ${d}`;
   if ((m === 11 && d >= 25) || m === 12 || (m === 1 && d <= 6)) {
     const y = m === 1 ? today.getFullYear() - 1 : today.getFullYear();
     const day = Math.round((today.getTime() - new Date(y, 10, 25).getTime()) / 86400000) + 1;
-    return `${dateStr} · Advent Fast · Day ${day}`;
+    return `${dateStr2} · Advent Fast · Day ${day}`;
   }
-  return dateStr;
+  return dateStr2;
+}
+
+// What the Church celebrates today, for the header: a feast of the Lord takes
+// precedence over a Synaxarium commemoration. Fast openings are skipped here —
+// the ongoing fast already shows in the date line above.
+function getTodayCelebration(): string | null {
+  const today = new Date();
+  const f = feastOn(today);
+  if (f && f.kind !== 'fast') return f.title;
+  const c = commemorationOn(today);
+  return c ? c.title : null;
 }
 
 // ── VitalRow — canon adherence over the trailing window ──────
@@ -174,6 +187,7 @@ export default function DashboardScreen() {
   const { profile, user, refreshProfile } = useSession();
   const { demoMode, demoRole } = useDemoMode();
   const firstName = profile?.full_name?.split(' ')[0] ?? 'friend';
+  const todayCelebration = getTodayCelebration();
 
   const [vitalStats, setVitalStats] = useState<VitalStat[] | null>(null);
   const [vitalsEpoch, setVitalsEpoch] = useState<string | null>(null);
@@ -426,6 +440,9 @@ export default function DashboardScreen() {
           <View style={{ flex: 1, marginRight: 12 }}>
             <Text style={styles.subtitle}>{getDashboardSubtitle()}</Text>
             <Text style={styles.greeting}>{firstName}</Text>
+            {todayCelebration && (
+              <Text style={styles.feastLine}>✝︎ {todayCelebration}</Text>
+            )}
           </View>
           <View style={styles.topbarBtns}>
             {role === 'priest' && (
@@ -722,6 +739,7 @@ const styles = lazyThemed(() => StyleSheet.create({
   avatarBtnText: { fontFamily: fonts.cormorantMedium, fontSize: 16, color: colors.goldLight },
   subtitle: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: colors.gold, opacity: 0.7, marginBottom: 4 },
   greeting: { fontFamily: fonts.cormorantMedium, fontSize: 30, color: colors.cream, lineHeight: 36 },
+  feastLine: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.goldLight, marginTop: 3, letterSpacing: 0.3 },
 
   // Tile pair
   tileRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
