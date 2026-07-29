@@ -23,6 +23,38 @@ function nayrouz(y: number): Date {
   return new Date(y, 8, y % 4 === 3 ? 12 : 11, 12, 0, 0);
 }
 
+export interface CopticDate {
+  year: number;       // Anno Martyrum (year of the Martyrs)
+  month: number;      // 1-based (13 = Nasie, the epagomenal days)
+  day: number;        // 1-based
+  monthName: string;
+}
+
+// Convert a Gregorian date to its Coptic (Anno Martyrum) date by day arithmetic
+// from the preceding Nayrouz. Twelve 30-day months plus the 5–6 epagomenal days
+// of Nasie; accurate for 1900–2099 (Julian/Gregorian leap days coincide).
+export function gregorianToCoptic(g: Date): CopticDate {
+  const noon = new Date(g.getFullYear(), g.getMonth(), g.getDate(), 12, 0, 0);
+  let y = g.getFullYear();
+  let ny = nayrouz(y);
+  if (noon < ny) { y -= 1; ny = nayrouz(y); }   // still in last Coptic year
+  const dayDiff = Math.round((noon.getTime() - ny.getTime()) / 86400000);
+  const month = Math.floor(dayDiff / 30) + 1;
+  const day = (dayDiff % 30) + 1;
+  return { year: y - 283, month, day, monthName: COPTIC_MONTHS[month - 1] };
+}
+
+const sameDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+// The Synaxarium commemoration falling on `date`, if any (searches the two
+// Coptic years that can overlap a Gregorian date). Returns the first match.
+export function commemorationOn(date: Date): Commemoration | null {
+  const y = date.getFullYear();
+  const all = [...commemorationsForCopticYear(y - 1), ...commemorationsForCopticYear(y)];
+  return all.find(c => sameDay(c.date, date)) ?? null;
+}
+
 // Gregorian date of Coptic month `m` (1-based), day `d`, for the Coptic year
 // beginning in Gregorian year `nayrouzYear`.
 export function copticToGregorian(nayrouzYear: number, m: number, d: number): Date {

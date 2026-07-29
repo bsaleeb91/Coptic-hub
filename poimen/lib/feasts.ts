@@ -75,6 +75,21 @@ export function feastsForYear(y: number): Feast[] {
   return list.sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
+// The feast (or fast opening) falling on `date`, if any. When more than one
+// lands on the same day, the most significant wins (major > minor >
+// commemoration > fast).
+export function feastOn(date: Date): Feast | null {
+  const matches = feastsForYear(date.getFullYear()).filter(f =>
+    f.date.getFullYear() === date.getFullYear() &&
+    f.date.getMonth() === date.getMonth() &&
+    f.date.getDate() === date.getDate(),
+  );
+  if (!matches.length) return null;
+  const rank: Record<Feast['kind'], number> = { major: 0, minor: 1, commemoration: 2, fast: 3 };
+  matches.sort((a, b) => rank[a.kind] - rank[b.kind]);
+  return matches[0];
+}
+
 // The next `count` entries on or after `from` (looks across the year boundary).
 export function upcomingFeasts(from: Date, count = 4): Feast[] {
   const start = new Date(from);

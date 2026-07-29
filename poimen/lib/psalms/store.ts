@@ -82,8 +82,57 @@ let _cards: Record<string, PartCard> | null = null;
 onStorageScopeChange(() => { _cards = null; });
 
 async function cards(): Promise<Record<string, PartCard>> {
-  if (!_cards) _cards = await readJSON<Record<string, PartCard>>(K_CARDS, {});
+  if (!_cards) {
+    _cards = await readJSON<Record<string, PartCard>>(K_CARDS, {});
+    // Repair any pre-existing (or cloud-hydrated) data that violates the
+    // monotone-maturity rule below.
+    if (enforceMonotoneMaturity(_cards)) await writeJSON(K_CARDS, _cards);
+  }
   return _cards;
+}
+
+// ─── Monotone maturity ────────────────────────────────────────────────────────
+// A passage is memorized front to back: reviewing a later portion shows the
+// earlier portions as lead-up context (their "answers"), so a later portion
+// must never be more mature than any portion before it — the weakest earlier
+// portion is the limiting factor for everything after it. Concretely, a
+// portion's review interval is capped by the previous portion's interval, and
+// an unlearned (or missing) earlier portion caps every later one at 1 day.
+
+// The largest interval part `part` of `item` may hold, given the parts before it.
+function maturityCap(item: string, part: number, map: Record<string, PartCard>): number {
+  if (part <= 0) return Infinity;
+  const prev = map[cardId(item, part - 1)];
+  if (!prev || prev.reps < 1) return 1;
+  // The stored map already satisfies the invariant, so the immediate
+  // predecessor carries the whole chain's minimum.
+  return Math.max(1, prev.intervalDays);
+}
+
+// Walk every item's parts in order and cap each learned portion's interval by
+// the chain so far; pull the due date in when the interval shrank. Returns
+// true when anything changed.
+function enforceMonotoneMaturity(map: Record<string, PartCard>): boolean {
+  const maxPart = new Map<string, number>();
+  for (const c of Object.values(map)) {
+    maxPart.set(c.item, Math.max(maxPart.get(c.item) ?? 0, c.part));
+  }
+  let changed = false;
+  for (const [item, max] of maxPart) {
+    let cap = Infinity;
+    for (let p = 0; p <= max; p++) {
+      const c = map[cardId(item, p)];
+      if (!c || c.reps < 1) { cap = 1; continue; }
+      if (c.intervalDays > cap) {
+        c.intervalDays = cap;
+        const pulledDue = addDaysStr(cap);
+        if (c.due > pulledDue) c.due = pulledDue;
+        changed = true;
+      }
+      cap = Math.min(cap, c.intervalDays);
+    }
+  }
+  return changed;
 }
 
 export async function loadCards(): Promise<Record<string, PartCard>> {
@@ -120,9 +169,14 @@ export async function review(item: string, part: number, existing: PartCard | un
       break;
   }
 
-  const card: PartCard = { item, part, reps, intervalDays, ease, due: addDaysStr(intervalDays) };
   const map = await cards();
+  // Monotone maturity: never let this portion's interval outgrow the portion
+  // before it (see enforceMonotoneMaturity above).
+  intervalDays = Math.min(intervalDays, maturityCap(item, part, map));
+  const card: PartCard = { item, part, reps, intervalDays, ease, due: addDaysStr(intervalDays) };
   map[cardId(item, part)] = card;
+  // A lapse ("Wrong") on this portion demotes everything after it too.
+  if (grade === 'again') enforceMonotoneMaturity(map);
   await writeJSON(K_CARDS, map);
   return card;
 }
@@ -194,12 +248,15 @@ export function isFullyMature(item: string, cardMap: Record<string, PartCard>): 
   return total > 0 && mature === total;
 }
 
-// Due portion reviews. A portion is reviewable only once it has been *learned*
-// (answered correctly at least once, reps >= 1) and its scheduled date has
-// arrived — so a portion learned today (due tomorrow at the earliest) is never
-// reviewed the same day, and a portion still being learned (no card, or graded
-// "Wrong" so reps is still 0) stays in the learning queue, not here. Fully
-// mature passages are excluded: they are reviewed as a whole recitation instead.
+// Due portion reviews. A portion is reviewable once it has been introduced (it
+// has a card) and its scheduled date has arrived — a portion graded today (due
+// tomorrow at the earliest) is never re-served the same day, and a portion
+// never introduced (no card) waits in the learning queue. Lapsed portions
+// (graded "Wrong", reps back to 0) ARE served here: under monotone maturity a
+// lapsed portion caps every portion after it, so Review must be able to reach
+// it — parts run front-to-back, so it always comes up before the portions it
+// is holding back. Fully mature passages are excluded: they are reviewed as a
+// whole recitation instead.
 export function dueQueue(selection: string[], cardMap: Record<string, PartCard>): { item: string; part: number }[] {
   const due: { item: string; part: number }[] = [];
   for (const it of selection) {
@@ -207,7 +264,7 @@ export function dueQueue(selection: string[], cardMap: Record<string, PartCard>)
     const parts = unitCount(it);
     for (let i = 0; i < parts; i++) {
       const c = cardMap[cardId(it, i)];
-      if (c && c.reps >= 1 && isDue(c)) due.push({ item: it, part: i });
+      if (c && isDue(c)) due.push({ item: it, part: i });
     }
   }
   return due.slice(0, MAX_REVIEWS_PER_SESSION);
@@ -372,6 +429,7 @@ export async function exportState(): Promise<PsalmSnapshot> {
 // the in-memory card cache so subsequent reads reflect the imported data.
 export async function importState(snap: PsalmSnapshot): Promise<void> {
   _cards = snap.cards ?? {};
+  enforceMonotoneMaturity(_cards);   // cloud snapshots may predate the rule
   await Promise.all([
     writeJSON(K_SELECTION, snap.selection ?? []),
     writeJSON(K_CARDS, snap.cards ?? {}),

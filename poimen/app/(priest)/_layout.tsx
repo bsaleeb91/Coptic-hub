@@ -9,7 +9,7 @@ import { Drawer } from 'expo-router/drawer';
 import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, lazyThemed } from '@/lib/theme';
-import { CongregationIcon, PersonIcon, CandleIcon, CrossIcon } from '@/components/ui/TabIcons';
+import { CongregationIcon, PersonIcon, CandleIcon, CrossIcon, CalendarIcon } from '@/components/ui/TabIcons';
 
 function DrawerHeader() {
   const insets = useSafeAreaInsets();
@@ -53,6 +53,10 @@ export default function PriestLayout() {
       <Drawer.Screen name="index" options={{
         title: 'Flock',
         drawerIcon: ({ color }: IconProps) => <CongregationIcon size={20} color={color} />,
+      }} />
+      <Drawer.Screen name="schedule" options={{
+        title: 'Schedule',
+        drawerIcon: ({ color }: IconProps) => <CalendarIcon size={20} color={color} />,
       }} />
       <Drawer.Screen name="member" options={{
         title: 'Member',
