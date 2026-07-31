@@ -275,7 +275,11 @@ function RootLayoutNav() {
     // auth-callback must render session-less: it's the deep-link landing spot
     // while lib/auth.tsx exchanges the URL tokens for a session.
     const onAuthCallback = segments[0] === 'auth-callback';
-    if (!session && !onSignIn && !onAuthCallback) return <Redirect href="/sign-in" />;
+    // privacy must render session-less: it's a public legal document — the
+    // App Store Connect "Privacy Policy URL" and prospective users reading it
+    // before signing up must be able to reach it while signed out.
+    const onPrivacy = segments[0] === 'privacy';
+    if (!session && !onSignIn && !onAuthCallback && !onPrivacy) return <Redirect href="/sign-in" />;
     if (session && onSignIn) return <Redirect href="/(tabs)" />;
   }
 
