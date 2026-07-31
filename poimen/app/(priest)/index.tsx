@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Modal } from 'react-native';
 import * as H from '@/lib/haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useNavigation } from 'expo-router';
+import { useRouter, useNavigation, useFocusEffect } from 'expo-router';
 import { DrawerActions } from '@react-navigation/native';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { latestConfessionMs, daysSinceMs } from '@/lib/confession/dates';
 import { Card } from '@/components/ui/Card';
+import { Avatar } from '@/components/ui/Avatar';
 import { CrossIcon, CandleIcon, PersonIcon } from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
@@ -26,6 +27,8 @@ interface FlockMember {
   visitRequested: boolean;
   status: StatusType;
   note: string;
+  // Member's own picture, else this priest's roster photo (member_photos).
+  avatarUrl?: string | null;
 }
 
 const FLOCK_DEMO: FlockMember[] = [
@@ -70,13 +73,17 @@ export default function FlockScreen() {
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const greeting = profile?.full_name ? `Fr. ${profile.full_name.split(' ').slice(-1)[0]}` : 'Father';
 
-  useEffect(() => {
-    if (demoMode) {
-      setMembers(FLOCK_DEMO);
-    } else {
-      loadFlock();
-    }
-  }, [user]);
+  // Reload on focus (not just mount) so changes made in the member detail —
+  // e.g. a roster photo added there — show up when returning to the list.
+  useFocusEffect(
+    useCallback(() => {
+      if (demoMode) {
+        setMembers(FLOCK_DEMO);
+      } else {
+        loadFlock();
+      }
+    }, [user, demoMode]) // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   async function loadFlock() {
     if (!user) return;
@@ -88,6 +95,9 @@ export default function FlockScreen() {
 
     // Which members have an open "Request Pastoral Visit" flag.
     const visitReqs = await db.getFlockVisitRequests(profiles.map(p => p.id));
+
+    // Roster photos this priest set for members without a picture of their own.
+    const myPhotos = await db.getMyMemberPhotos(user.id);
 
     const now = new Date();
     const latestByMember: Record<string, string> = {};
@@ -107,7 +117,7 @@ export default function FlockScreen() {
         daysSince < 60 ? 'due' : 'overdue';
       const parts = (p.full_name ?? '?').split(' ');
       const initials = (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
-      return { id: p.id, initials: initials.toUpperCase(), name: p.full_name ?? 'Unknown', stage: '', daysSince, canonPct: null, flagged: false, visitRequested: !!visitReqs[p.id], status, note: '' };
+      return { id: p.id, initials: initials.toUpperCase(), name: p.full_name ?? 'Unknown', stage: '', daysSince, canonPct: null, flagged: false, visitRequested: !!visitReqs[p.id], status, note: '', avatarUrl: p.avatar_url ?? myPhotos[p.id] ?? null };
     });
 
     setMembers(mapped);
@@ -194,9 +204,7 @@ export default function FlockScreen() {
                 onLongPress={() => { H.heavy(); setContextMember(member); }}
                 activeOpacity={0.7}
               >
-                <View style={[styles.avatar, member.flagged && styles.avatarFlagged]}>
-                  <Text style={styles.avatarText}>{member.initials}</Text>
-                </View>
+                <Avatar url={member.avatarUrl} initials={member.initials} size={40} style={[styles.avatar, member.flagged && styles.avatarFlagged]} textStyle={styles.avatarText} />
                 <View style={{ flex: 1 }}>
                   <View style={styles.memberTop}>
                     <Text style={styles.memberName}>{member.name}</Text>

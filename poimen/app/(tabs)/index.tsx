@@ -8,6 +8,7 @@ import { useRouter, useFocusEffect, useNavigation } from 'expo-router';
 import { DrawerActions } from '@react-navigation/native';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { Avatar } from '@/components/ui/Avatar';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
@@ -458,8 +459,8 @@ export default function DashboardScreen() {
             <TouchableOpacity style={styles.chipBtn} onPress={enterCustomize}>
               <Text style={styles.chipBtnText}>⊞</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.avatarBtn} onPress={() => { H.tap(); router.push('/profile'); }}>
-              <Text style={styles.avatarBtnText}>{firstName.charAt(0).toUpperCase()}</Text>
+            <TouchableOpacity onPress={() => { H.tap(); router.push('/profile'); }}>
+              <Avatar url={profile?.avatar_url} initials={firstName.charAt(0).toUpperCase()} size={34} style={styles.avatarBtn} textStyle={styles.avatarBtnText} />
             </TouchableOpacity>
           </View>
         </View>
