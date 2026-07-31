@@ -54,6 +54,15 @@ export async function recordConfession(date: Date = new Date()): Promise<string[
   return next;
 }
 
+// Remove a self-reported date (e.g. logged by mistake). Returns the
+// remaining dates, newest first, so the caller can re-mirror the newest one.
+export async function deleteConfessionDate(dateKey: string): Promise<string[]> {
+  const list = await loadConfessionDates();
+  const next = list.filter(d => d !== dateKey).sort().reverse();
+  try { await AsyncStorage.setItem(KEY, JSON.stringify(next)); } catch {}
+  return next;
+}
+
 export async function lastConfessionDate(): Promise<string | null> {
   const list = await loadConfessionDates();
   return list[0] ?? null;

@@ -32,17 +32,21 @@ export default function PrivacyScreen() {
           <Bullet>Church affiliation and Father of Confession (FOC) linkage, set by you in the app.</Bullet>
           <Bullet>Spiritual wellness data (prayer frequency, fasting, scripture reading) that you choose to share with your FOC. This sharing requires your explicit consent and can be revoked at any time.</Bullet>
           <Bullet>Prayer requests you submit. The body of each prayer request is end-to-end encrypted — only you and your designated recipients can read the content. The server stores only ciphertext.</Bullet>
-          <Bullet>Pastoral and encounter notes written by your priest or servant. These are end-to-end encrypted and are never readable by the server.</Bullet>
+          <Bullet>Pastoral and encounter notes written by your priest or servant about you. These are private to their author — restricted so only they can access them through the app — but they are not end-to-end encrypted; they are stored as regular records on our servers.</Bullet>
           <Bullet>The date of your last confession, if you choose to self-report it.</Bullet>
           <Bullet>Your last active timestamp (used to display your online status to your FOC only).</Bullet>
         </Section>
 
+        <Section title="What We Don't Collect">
+          <Bullet>Your confession journal and examination of conscience stay on your device only, encrypted with a key that never leaves your phone. We never receive or store their content.</Bullet>
+        </Section>
+
         <Section title="End-to-End Encryption">
           <Body>
-            Sensitive spiritual content — prayer request bodies, pastoral notes, and encounter notes —
-            is encrypted on your device before being stored. The encryption keys are generated on your
-            device and are never transmitted to our servers. Even if our database were compromised,
-            the content of these fields would remain unreadable.
+            Prayer request bodies are encrypted on your device before being stored. The encryption
+            keys are generated on your device and are never transmitted to our servers. Even if our
+            database were compromised, the content of these fields would remain unreadable. Pastoral
+            and encounter notes are not end-to-end encrypted (see above).
           </Body>
           <Body>
             Your encryption keypair is protected by a PIN you set during onboarding. A backup of

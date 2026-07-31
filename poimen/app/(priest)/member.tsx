@@ -869,7 +869,7 @@ const styles = lazyThemed(() => StyleSheet.create({
   lastVisitVal: { fontFamily: fonts.lato, fontSize: 13, color: colors.cream },
   statDivider: { width: 1, backgroundColor: colors.border },
 
-  actionRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 12, marginBottom: 16 },
   btnGold: { backgroundColor: colors.gold, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, alignItems: 'center' },
   btnGoldText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.navy, letterSpacing: 0.8 },
   btnMenu: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 9, alignItems: 'center', justifyContent: 'center' },

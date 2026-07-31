@@ -30,6 +30,17 @@ const { width: SW } = Dimensions.get('window');
 const TILE_W = (SW - 48) / 2;
 
 // ── Demo data ────────────────────────────────────────────────
+// First given name, skipping a leading clergy title (e.g. "Fr. Mina Youssef"
+// → "Mina"). A priest whose request is still pending sees this dashboard
+// under their still-congregant role, and often types their title as part of
+// their name at sign-up — without this, the greeting reads as just "Fr.".
+const NAME_TITLES = new Set(['fr.', 'fr', 'father', 'rev.', 'rev', 'abouna', 'dn.', 'dn']);
+function firstGivenName(fullName?: string | null): string {
+  const parts = (fullName ?? '').trim().split(/\s+/).filter(Boolean);
+  const given = parts.find(p => !NAME_TITLES.has(p.toLowerCase()));
+  return given ?? parts[0] ?? '';
+}
+
 // Local YYYY-MM-DD of a timestamp, for same-day confession dedupe.
 function localDayOf(iso: string): string {
   const d = new Date(iso);
@@ -186,7 +197,7 @@ export default function DashboardScreen() {
   const navigation = useNavigation();
   const { profile, user, refreshProfile } = useSession();
   const { demoMode, demoRole } = useDemoMode();
-  const firstName = profile?.full_name?.split(' ')[0] ?? 'friend';
+  const firstName = firstGivenName(profile?.full_name) || 'friend';
   const todayCelebration = getTodayCelebration();
 
   const [vitalStats, setVitalStats] = useState<VitalStat[] | null>(null);

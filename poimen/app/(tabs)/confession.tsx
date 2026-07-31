@@ -21,7 +21,7 @@ import { useDemoMode } from '@/lib/demo';
 import { SIN_CATALOGUE } from '@/lib/confession/sinCatalogue';
 import { resetVitalsEpoch } from '@/lib/canon/history';
 import { confirmDestructive } from '@/lib/confirm';
-import { recordConfession, loadConfessionDates, lastConfessionDate, pushConfessionDatesToCloud, hydrateConfessionDatesFromCloud, parseLocalDate } from '@/lib/confession/dates';
+import { recordConfession, loadConfessionDates, deleteConfessionDate, lastConfessionDate, pushConfessionDatesToCloud, hydrateConfessionDatesFromCloud, parseLocalDate } from '@/lib/confession/dates';
 import { foldOnConfession } from '@/lib/canon/assigned';
 import {
   NotepadIcon, ClipboardIcon, PrayingHandsIcon, LockIcon, CrossIcon, HeartIcon,
@@ -176,6 +176,27 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
     setTimeout(() => setSelfReportSaved(false), 2000);
   }
 
+  // Self-reported dates only (id `local_${dateKey}`) — a date the priest has
+  // already logged for the same day shows as their encounter instead (see
+  // loadHistory) and isn't deletable here.
+  function handleDeleteConfession(dateKey: string) {
+    confirmDestructive(
+      'Delete confession date',
+      'This removes it from your history and cannot be undone.',
+      'Delete',
+      async () => {
+        const remaining = await deleteConfessionDate(dateKey);
+        if (!demoMode && user) {
+          pushConfessionDatesToCloud(user.id);
+          const newest = remaining[0] ?? null;
+          await db.setLastConfession(user.id, newest ? new Date(`${newest}T12:00:00`).toISOString() : null);
+          await refreshProfile();
+        }
+        await loadHistory();
+      },
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
@@ -269,10 +290,19 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
             <>
               {history.map((item, i) => (
                 <View key={item.id} style={[styles.histItem, i < history.length - 1 && styles.histBorder]}>
-                  <Text style={styles.histDate}>{item.date}</Text>
-                  <Text style={styles.histTitle}>Holy Confession</Text>
-                  {item.note ? <Text style={styles.histNote}>{item.note}</Text> : null}
-                  <View style={styles.histTag}><Text style={styles.histTagText}>✝︎ Received</Text></View>
+                  <View style={styles.histRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.histDate}>{item.date}</Text>
+                      <Text style={styles.histTitle}>Holy Confession</Text>
+                      {item.note ? <Text style={styles.histNote}>{item.note}</Text> : null}
+                      <View style={styles.histTag}><Text style={styles.histTagText}>✝︎ Received</Text></View>
+                    </View>
+                    {item.id.startsWith('local_') && (
+                      <TouchableOpacity onPress={() => handleDeleteConfession(item.dateKey)} hitSlop={10}>
+                        <Text style={{ fontSize: 16, color: colors.muted }}>✕</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               ))}
               <Text style={styles.histFooter}>Dates only. Content protected by the holy seal.</Text>
@@ -911,6 +941,7 @@ const styles = lazyThemed(() => StyleSheet.create({
 
   histItem: { paddingVertical: 12 },
   histBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  histRow: { flexDirection: 'row', alignItems: 'flex-start' },
   histDate: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.7, marginBottom: 3 },
   histTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2 },
   histNote: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },

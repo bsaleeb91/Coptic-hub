@@ -94,7 +94,7 @@ export async function setFocConsent(userId: string): Promise<{ error: string | n
   return { error: error?.message ?? null };
 }
 
-export async function setLastConfession(userId: string, isoDate: string): Promise<{ error: string | null }> {
+export async function setLastConfession(userId: string, isoDate: string | null): Promise<{ error: string | null }> {
   const { error } = await supabase
     .from('profiles')
     .update({ last_confession_at: isoDate })
