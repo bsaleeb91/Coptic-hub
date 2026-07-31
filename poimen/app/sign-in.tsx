@@ -6,7 +6,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useSession } from '@/lib/auth';
-import { useDemoMode } from '@/lib/demo';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import type { SignupRole } from '@/lib/db';
 import { EyeIcon, EyeOffIcon } from '@/components/ui/TabIcons';
@@ -21,7 +20,6 @@ const SIGNUP_ROLES: { key: SignupRole; label: string; desc: string }[] = [
 
 export default function SignInScreen() {
   const { signInWithEmail, signUpWithEmail, signInWithMagicLink, resetPassword } = useSession();
-  const { setDemoMode, setDemoRole } = useDemoMode();
   const router = useRouter();
 
   const [mode, setMode] = useState<Mode>('signin');
@@ -210,39 +208,6 @@ export default function SignInScreen() {
             )}
           </View>
 
-          {/* Demo divider */}
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>EXPLORE WITHOUT ACCOUNT</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <View style={styles.demoGrid}>
-            <TouchableOpacity
-              style={[styles.demoBtn, styles.demoBtnCong]}
-              onPress={() => { setDemoRole('congregant'); setDemoMode(true); router.replace('/(tabs)'); }}
-            >
-              <Text style={styles.demoBtnRole}>Congregant</Text>
-              <Text style={styles.demoBtnDesc}>My spiritual life</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.demoBtn, styles.demoBtnPriest]}
-              onPress={() => { setDemoRole('priest'); setDemoMode(true); router.replace('/(priest)'); }}
-            >
-              <Text style={styles.demoBtnRole}>Priest</Text>
-              <Text style={styles.demoBtnDesc}>FOC pastoral view</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.demoBtn, styles.demoBtnServant]}
-              onPress={() => { setDemoRole('servant'); setDemoMode(true); router.replace('/(servant)'); }}
-            >
-              <Text style={styles.demoBtnRole}>Servant</Text>
-              <Text style={styles.demoBtnDesc}>Students + my life</Text>
-            </TouchableOpacity>
-          </View>
-
           <Text style={styles.footer}>
             A ministry of the Coptic Orthodox Church.{'\n'}All spiritual data is private and protected.
           </Text>
@@ -326,27 +291,6 @@ const styles = lazyThemed(() => StyleSheet.create({
   linksRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 16, flexWrap: 'wrap' },
   link: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted },
   linkSep: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.faint },
-
-  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 36, marginBottom: 20 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
-  dividerText: { fontFamily: fonts.latoBold, fontSize: 8, color: colors.faint, letterSpacing: 1.5 },
-
-  demoGrid: { flexDirection: 'row', gap: 8 },
-  demoBtn: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    gap: 4,
-  },
-  demoBtnCong:    { borderColor: 'rgba(201,168,76,0.25)' },
-  demoBtnPriest:  { borderColor: 'rgba(127,196,232,0.3)', backgroundColor: 'rgba(127,196,232,0.05)' },
-  demoBtnServant: { borderColor: 'rgba(93,202,135,0.3)',  backgroundColor: 'rgba(93,202,135,0.04)' },
-  demoBtnRole: { fontFamily: fonts.cormorantMedium, fontSize: 15, color: colors.cream },
-  demoBtnDesc: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, textAlign: 'center' },
 
   footer: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.faint, textAlign: 'center', lineHeight: 17, marginTop: 32 },
 }));

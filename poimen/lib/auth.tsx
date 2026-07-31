@@ -165,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signUpWithEmail(email: string, password: string, fullName: string, requestedRole: SignupRole = 'congregant') {
-    return db.signUp(email, password, fullName, requestedRole);
+    return db.signUp(email, password, fullName, requestedRole, Linking.createURL('auth-callback'));
   }
 
   async function signInWithMagicLink(email: string) {
