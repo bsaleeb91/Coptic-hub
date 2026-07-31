@@ -18,7 +18,7 @@ import ScrollPicker from '@/components/ui/ScrollPicker';
 import {
   RuleConfig, DEFAULT_RULE, ReadMode,
   AGPEYA_HOURS, SERVICES, CONFESSION_OPTIONS, SERVICE_FREQUENCY_OPTIONS,
-  FAST_UNTIL_OPTIONS, WEEKDAYS,
+  FAST_UNTIL_OPTIONS, WEEKDAYS, MAX_SERVICE_COUNT, setServicesMode,
 } from '@/lib/canon/rule-store';
 import {
   AssignedCategory, CATEGORY_LABEL, STRUCTURED_CATEGORIES,
@@ -40,11 +40,16 @@ const R = { md: 10, lg: 12, full: 999 };
 function Stepper({ value, onChange, min = 0, max = 999, step = 1, unit }: {
   value: number; onChange: (n: number) => void; min?: number; max?: number; step?: number; unit?: string;
 }) {
+  // One bordered pill so −/value/+ read as a single control; the value box only
+  // widens when it carries a unit ("60 min"), which keeps the buttons snug
+  // around a bare number instead of stranded at the card's edges.
   return (
     <View style={s.stepperRow}>
-      <TouchableOpacity style={s.stepBtn} onPress={() => onChange(Math.max(min, value - step))}><Text style={s.stepBtnText}>−</Text></TouchableOpacity>
-      <Text style={s.stepValue}>{value}{unit ? ` ${unit}` : ''}</Text>
-      <TouchableOpacity style={s.stepBtn} onPress={() => onChange(Math.min(max, value + step))}><Text style={s.stepBtnText}>+</Text></TouchableOpacity>
+      <View style={s.stepperBox}>
+        <TouchableOpacity style={s.stepBtn} onPress={() => onChange(Math.max(min, value - step))}><Text style={s.stepBtnText}>−</Text></TouchableOpacity>
+        <Text style={[s.stepValue, unit ? s.stepValueWide : null]}>{value}{unit ? ` ${unit}` : ''}</Text>
+        <TouchableOpacity style={s.stepBtn} onPress={() => onChange(Math.min(max, value + step))}><Text style={s.stepBtnText}>+</Text></TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -160,7 +165,10 @@ export default function AssignCanonScreen() {
       case 'book':             return w.book ? { title: w.book.title, mode: w.book.mode, amount: w.book.amount } : null;
       case 'confession':       return { frequency: w.confession };
       case 'agpeya_hours':     return { days: Object.fromEntries(w.days.map((d, i) => [i, d.hours])) };
-      case 'services':         return { days: Object.fromEntries(w.days.map((d, i) => [i, d.services])) };
+      // Either shape, never both — see RuleConfig.servicesMode.
+      case 'services':         return w.servicesMode === 'counts'
+                                 ? { mode: 'counts', counts: w.serviceCounts ?? {} }
+                                 : { mode: 'days', days: Object.fromEntries(w.days.map((d, i) => [i, d.services])) };
       case 'heart_of_service': return { days: Object.fromEntries(w.days.map((d, i) => [i, d.serving])) };
       default:                 return null;
     }
@@ -175,7 +183,9 @@ export default function AssignCanonScreen() {
       case 'book':             return w.book?.title || 'a spiritual book';
       case 'confession':       return w.confession;
       case 'agpeya_hours':     return `${w.days.reduce((n, d) => n + d.hours.length, 0)} hour-days`;
-      case 'services':         return `${w.days.reduce((n, d) => n + d.services.length, 0)} service-days`;
+      case 'services':         return w.servicesMode === 'counts'
+                                 ? `${Object.values(w.serviceCounts ?? {}).reduce((n, c) => n + c, 0)}× / week`
+                                 : `${w.days.reduce((n, d) => n + d.services.length, 0)} service-days`;
       case 'heart_of_service': return `${w.days.reduce((n, d) => n + d.serving.filter(x => x.text.trim()).length, 0)} commitments`;
       default:                 return '';
     }
@@ -280,9 +290,9 @@ export default function AssignCanonScreen() {
           <View style={s.chipRow}>
             <Chip label="Chapters" on={work.bible.mode === 'chapters'} onPress={() => patch({ bible: { ...work.bible, mode: 'chapters' as ReadMode } })} />
             <Chip label="Minutes" on={work.bible.mode === 'minutes'} onPress={() => patch({ bible: { ...work.bible, mode: 'minutes' as ReadMode } })} />
-            <View style={{ flex: 1 }} />
-            <Stepper value={work.bible.amount} onChange={n => patch({ bible: { ...work.bible, amount: n } })} step={work.bible.mode === 'minutes' ? 5 : 1} max={180} />
           </View>
+          <Stepper value={work.bible.amount} onChange={n => patch({ bible: { ...work.bible, amount: n } })} step={work.bible.mode === 'minutes' ? 5 : 1} max={180}
+            unit={work.bible.mode === 'minutes' ? 'min' : work.bible.amount === 1 ? 'chapter' : 'chapters'} />
         </CatCard>
 
         <CatCard category="book" assigned={enabled.has('book')} onToggle={o => { toggle('book', o); if (o && !work.book) patch({ book: { title: '', mode: 'chapters', amount: 1 } }); }} summary={summarize('book', work)}>
@@ -291,9 +301,9 @@ export default function AssignCanonScreen() {
           <View style={[s.chipRow, { marginTop: SP.sm }]}>
             <Chip label="Chapters" on={work.book?.mode === 'chapters'} onPress={() => patch({ book: { title: work.book?.title ?? '', mode: 'chapters', amount: work.book?.amount ?? 1 } })} />
             <Chip label="Minutes" on={work.book?.mode === 'minutes'} onPress={() => patch({ book: { title: work.book?.title ?? '', mode: 'minutes', amount: work.book?.amount ?? 1 } })} />
-            <View style={{ flex: 1 }} />
-            <Stepper value={work.book?.amount ?? 1} onChange={n => patch({ book: { title: work.book?.title ?? '', mode: work.book?.mode ?? 'chapters', amount: n } })} step={work.book?.mode === 'minutes' ? 5 : 1} max={180} />
           </View>
+          <Stepper value={work.book?.amount ?? 1} onChange={n => patch({ book: { title: work.book?.title ?? '', mode: work.book?.mode ?? 'chapters', amount: n } })} step={work.book?.mode === 'minutes' ? 5 : 1} max={180}
+            unit={work.book?.mode === 'minutes' ? 'min' : (work.book?.amount ?? 1) === 1 ? 'chapter' : 'chapters'} />
         </CatCard>
 
         <CatCard category="confession" assigned={enabled.has('confession')} onToggle={o => toggle('confession', o)} summary={summarize('confession', work)}>
@@ -305,8 +315,42 @@ export default function AssignCanonScreen() {
         {/* Day-based categories */}
         {(['agpeya_hours', 'services', 'heart_of_service'] as AssignedCategory[]).map(cat => (
           <CatCard key={cat} category={cat} assigned={enabled.has(cat)} onToggle={o => toggle(cat, o)} summary={summarize(cat, work)}>
+            {/* Services can be committed either to specific weekdays OR to a
+                number of times per week the member logs — never both. */}
+            {cat === 'services' && (
+              <>
+                <View style={[s.chipRow, { flexWrap: 'wrap', marginBottom: SP.xs }]}>
+                  <Chip label="Specific days" on={work.servicesMode === 'days'}
+                    onPress={() => setWork(w => w ? setServicesMode(w, 'days') : w)} />
+                  <Chip label="Times per week" on={work.servicesMode === 'counts'}
+                    onPress={() => setWork(w => w ? setServicesMode(w, 'counts') : w)} />
+                </View>
+                {work.servicesMode === 'counts' && (
+                  <>
+                    <Text style={s.fieldNote}>How many times a week to attend each service. The member logs each one as they attend.</Text>
+                    {SERVICES.map(sv => (
+                      <View key={sv.key} style={s.countRow}>
+                        <Text style={s.countLabel}>{sv.name}</Text>
+                        <Stepper
+                          value={work.serviceCounts?.[sv.key] ?? 0}
+                          onChange={n => {
+                            const counts = { ...(work.serviceCounts ?? {}) };
+                            if (n > 0) counts[sv.key] = n; else delete counts[sv.key];
+                            patch({ serviceCounts: counts });
+                          }}
+                          max={MAX_SERVICE_COUNT}
+                          unit="× / week"
+                        />
+                      </View>
+                    ))}
+                  </>
+                )}
+              </>
+            )}
+            {cat === 'services' && work.servicesMode === 'counts' ? null : (
             <Text style={s.fieldNote}>Set what's prayed/served on each weekday. Tap a day to edit it.</Text>
-            {WEEKDAYS.map((name, i) => {
+            )}
+            {(cat === 'services' && work.servicesMode === 'counts' ? [] : WEEKDAYS).map((name, i) => {
               const d = work.days[i];
               const open = expandDay === cat && expandDayIdx === i;
               const count = cat === 'agpeya_hours' ? d.hours.length : cat === 'services' ? d.services.length : d.serving.filter(x => x.text.trim()).length;
@@ -463,10 +507,14 @@ const s = lazyThemed(() => StyleSheet.create({
   toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.muted },
   toggleKnobOn: { backgroundColor: colors.navy, alignSelf: 'flex-end' },
 
-  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: SP.sm, justifyContent: 'flex-end' },
-  stepBtn: { width: 34, height: 34, borderRadius: R.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  countRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SP.sm, marginBottom: SP.xs },
+  countLabel: { flex: 1, fontFamily: fonts.lato, fontSize: 13, color: colors.textSecond },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  stepperBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: R.md, backgroundColor: colors.panel, overflow: 'hidden' },
+  stepBtn: { width: 38, height: 36, alignItems: 'center', justifyContent: 'center' },
   stepBtnText: { fontSize: 20, fontFamily: fonts.latoBold, color: colors.gold },
-  stepValue: { fontFamily: fonts.latoBold, fontSize: 15, minWidth: 90, textAlign: 'center', color: colors.cream },
+  stepValue: { fontFamily: fonts.latoBold, fontSize: 15, minWidth: 40, textAlign: 'center', color: colors.cream },
+  stepValueWide: { minWidth: 84 },
 
   chipRow: { flexDirection: 'row', alignItems: 'center', gap: SP.xs },
   chip: { borderWidth: 1, borderRadius: R.full, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6, marginBottom: 6 },

@@ -65,10 +65,18 @@ function ruleSummaryLines(r: RuleConfig): { label: string; value: string }[] {
     .filter(Boolean) as string[];
   if (agpeya.length) lines.push({ label: 'Agpeya hours', value: agpeya.join('\n') });
 
-  const services = r.days
-    .map((d, i) => (d.services.length ? `${dayName(i)} · ${d.services.map(svcName).join(', ')}` : null))
-    .filter(Boolean) as string[];
-  if (services.length) lines.push({ label: 'Church services', value: services.join('\n') });
+  // Services are committed either by weekday or by times-per-week, never both.
+  if (r.servicesMode === 'counts') {
+    const counts = SERVICES
+      .filter(sv => (r.serviceCounts?.[sv.key] ?? 0) > 0)
+      .map(sv => `${svcName(sv.key)} · ${r.serviceCounts[sv.key]}× per week`);
+    if (counts.length) lines.push({ label: 'Church services', value: counts.join('\n') });
+  } else {
+    const services = r.days
+      .map((d, i) => (d.services.length ? `${dayName(i)} · ${d.services.map(svcName).join(', ')}` : null))
+      .filter(Boolean) as string[];
+    if (services.length) lines.push({ label: 'Church services', value: services.join('\n') });
+  }
 
   const serving = r.days
     .map((d, i) => (d.serving.length ? `${dayName(i)} · ${d.serving.map(s => `${s.text} (${s.freq})`).join(', ')}` : null))

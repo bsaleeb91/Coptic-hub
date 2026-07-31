@@ -16,7 +16,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as db from '@/lib/db';
-import { RuleConfig, ServiceCommitment, ReadMode, loadRule, saveRule } from './rule-store';
+import { RuleConfig, ServiceCommitment, ReadMode, loadRule, saveRule, normalizeServiceCounts } from './rule-store';
 import { pushRuleToCloud } from './rule-sync';
 import { lastConfessionDate } from '@/lib/confession/dates';
 
@@ -74,6 +74,12 @@ export interface CanonOverlay {
   lockedDays: Record<'agpeya_hours' | 'services' | 'heart_of_service', Set<number>>;
   customComponents: CustomComponent[];       // priest-added free-text lines
   hasAssignment: boolean;                    // any active assignment at all
+  // HOW services are committed (specific days vs times per week) is the
+  // priest's to set whenever he has assigned services at all — even a
+  // weekday assignment, which locks only its own days, still fixes the mode.
+  // Otherwise the member could switch to the other mode and quietly discard
+  // the shape of what was assigned.
+  servicesModeLocked: boolean;
 }
 
 function emptyLockedDays(): CanonOverlay['lockedDays'] {
@@ -138,12 +144,35 @@ function cloneRule(rule: RuleConfig): RuleConfig {
     ...rule,
     bible: { ...rule.bible },
     book: rule.book ? { ...rule.book } : null,
+    serviceCounts: { ...(rule.serviceCounts ?? {}) },
     days: rule.days.map(d => ({
       hours: [...d.hours],
       services: [...d.services],
       serving: d.serving.map(s => ({ ...s })),
     })),
   };
+}
+
+// A services assignment made by count-per-week has no weekday granularity, so
+// it locks the whole category rather than specific days — but only when it
+// actually sets a count, otherwise it would lock the member out of services
+// while assigning nothing.
+const isCountServices = (a: AssignedCanon) =>
+  a.category === 'services'
+  && a.payload?.mode === 'counts'
+  && Object.keys(normalizeServiceCounts(a.payload?.counts)).length > 0;
+
+// Whether a services assignment actually sets anything — an empty one applies
+// nothing and locks nothing.
+function servicesAssignmentApplies(a: AssignedCanon): boolean {
+  if (a.category !== 'services') return false;
+  if (a.payload?.mode === 'counts') return isCountServices(a);
+  const map = a.payload?.days ?? {};
+  for (let i = 0; i < 7; i++) {
+    const v = map[i] ?? map[String(i)];
+    if (Array.isArray(v) && v.length > 0) return true;
+  }
+  return false;
 }
 
 function daysFromPayload<T>(payload: any, fallback: () => T): T[] {
@@ -174,7 +203,24 @@ export function applyCategoryToRule(rule: RuleConfig, a: AssignedCanon): void {
       break;
     }
     case 'services': {
+      // Two shapes, mutually exclusive (see RuleConfig.servicesMode):
+      //   { mode: 'counts', counts: { liturgy: 2, … } } — times per week
+      //   { mode: 'days', days: { 0: [...], … } }       — specific weekdays
+      // An assignment that sets nothing (all counts 0, or no weekday picked)
+      // applies nothing: it must not flip the member out of the mode they
+      // chose, and must not silently wipe their own commitment.
+      if (p.mode === 'counts') {
+        const counts = normalizeServiceCounts(p.counts);
+        if (Object.keys(counts).length === 0) break;
+        rule.servicesMode = 'counts';
+        rule.serviceCounts = counts;
+        rule.days = rule.days.map(d => ({ ...d, services: [] }));
+        break;
+      }
       const days = daysFromPayload<string[]>(p, () => []);
+      if (!days.some(list => list.length > 0)) break;
+      rule.servicesMode = 'days';
+      rule.serviceCounts = {};
       rule.days = rule.days.map((d, i) => (days[i].length > 0 ? { ...d, services: days[i] } : d));
       break;
     }
@@ -193,6 +239,7 @@ export function applyOverlay(rule: RuleConfig, assigned: AssignedCanon[], lastCo
   const lockedCategories = new Set<AssignedCategory>();
   const lockedDays = emptyLockedDays();
   const customComponents: CustomComponent[] = [];
+  let servicesModeLocked = false;
   for (const a of assigned) {
     const locked = isLocked(a, lastConfession);
     if (a.category === 'custom') {
@@ -203,7 +250,11 @@ export function applyOverlay(rule: RuleConfig, assigned: AssignedCanon[], lastCo
       continue;
     }
     if (!locked) continue;   // member has confessed since — their own (folded) value stands
-    if (DAY_CATEGORIES.includes(a.category)) {
+    if (servicesAssignmentApplies(a)) servicesModeLocked = true;
+    if (isCountServices(a)) {
+      lockedCategories.add('services');
+      applyCategoryToRule(eff, a);
+    } else if (DAY_CATEGORIES.includes(a.category)) {
       applyCategoryToRule(eff, a);
       const set = lockedDays[a.category as 'agpeya_hours' | 'services' | 'heart_of_service'];
       for (const i of assignedDayIndices(a)) set.add(i);
@@ -212,7 +263,7 @@ export function applyOverlay(rule: RuleConfig, assigned: AssignedCanon[], lastCo
       applyCategoryToRule(eff, a);
     }
   }
-  return { rule: eff, lockedCategories, lockedDays, customComponents, hasAssignment: (assigned ?? []).length > 0 };
+  return { rule: eff, lockedCategories, lockedDays, customComponents, hasAssignment: (assigned ?? []).length > 0, servicesModeLocked };
 }
 
 // Map a today's-canon item key (from lib/canon/today) back to the assigned
@@ -224,7 +275,7 @@ export function categoryForItemKey(key: string): AssignedCategory | null {
   if (key === 'bible') return 'bible';
   if (key === 'book') return 'book';
   if (key.startsWith('hour_')) return 'agpeya_hours';
-  if (key.startsWith('svc_')) return 'services';
+  if (key.startsWith('svc_') || key.startsWith('svcw_')) return 'services';
   if (key.startsWith('serve_')) return 'heart_of_service';
   return null;
 }

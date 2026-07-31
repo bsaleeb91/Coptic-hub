@@ -8,7 +8,8 @@
 // Per-user-scoped storage (see lib/storage.ts) — keeps one account's spiritual
 // data from bleeding into another's on a shared device.
 import { userStorage as AsyncStorage } from '@/lib/storage';
-import { RuleItem } from './today';
+import { RuleItem, isWeeklyServiceKey, weeklyServiceKey } from './today';
+import { ServiceLog, unfinalizedWeeks, markFinalized } from './service-log';
 import { localDateStr } from './postpone';
 
 const KEY = 'poimen.canon.history';
@@ -28,16 +29,66 @@ export async function loadCanonHistory(): Promise<CanonHistory> {
 
 // Upsert today's record. Called whenever today's due list and check state are
 // both known — Canon tab load, Home load, and every check-off.
+//
+// Services committed by COUNT per week (`svcw_` keys) are deliberately left out
+// of the daily record: a "twice a week" liturgy commitment is not a miss on the
+// five days you don't attend. Those are scored per week instead, by
+// finalizeWeeklyServices below.
 export async function recordCanonDay(items: RuleItem[], checked: Set<string>): Promise<void> {
   try {
     const map = await loadCanonHistory();
+    const daily = items.filter(it => !isWeeklyServiceKey(it.key));
     map[localDateStr(new Date())] = {
-      due: items.map(it => it.key),
-      done: items.filter(it => checked.has(`rule_${it.key}`)).map(it => it.key),
+      due: daily.map(it => it.key),
+      done: daily.filter(it => checked.has(`rule_${it.key}`)).map(it => it.key),
     };
     const cutoff = localDateStr(new Date(Date.now() - KEEP_DAYS * 86400000));
     for (const k of Object.keys(map)) if (k < cutoff) delete map[k];
     await AsyncStorage.setItem(KEY, JSON.stringify(map));
+  } catch {}
+}
+
+// Score count-committed services for every week that has fully elapsed, so
+// "attended 1 of 2" reads as 50% for that week rather than penalizing the days
+// in between. The result is written under the week's Saturday, repeating each
+// service key `target` times in `due` and `attended` times in `done` — the same
+// shape computeVitals already counts.
+//
+// Each week is scored against the targets STORED WITH THAT WEEK (see
+// service-log.ensureWeek), never against the rule's current values, so:
+//   • a week the member attended nothing still counts as a miss (the week
+//     exists because ensureWeek wrote its targets),
+//   • changing a target, or leaving counts mode entirely, can't rescore or
+//     strand past weeks.
+// Weeks are marked finalized so this is idempotent across app focuses.
+export async function finalizeWeeklyServices(log: ServiceLog, now = new Date()): Promise<void> {
+  try {
+    const weeks = unfinalizedWeeks(log, now);
+    if (!weeks.length) return;
+
+    const map = await loadCanonHistory();
+    const cutoff = localDateStr(new Date(now.getTime() - KEEP_DAYS * 86400000));
+    const scored: string[] = [];
+
+    for (const week of weeks) {
+      const satDate = new Date(`${week}T12:00:00`);
+      satDate.setDate(satDate.getDate() + 6);
+      const sat = localDateStr(satDate);
+      scored.push(week);
+      if (sat < cutoff) continue;                     // older than history keeps
+      const rec: DayRecord = map[sat] ?? { due: [], done: [] };
+      for (const [svKey, target] of Object.entries(log[week].targets)) {
+        const key = weeklyServiceKey(svKey);
+        const attended = Math.min((log[week].attended?.[svKey] ?? []).length, target);
+        for (let i = 0; i < target; i++) rec.due.push(key);
+        for (let i = 0; i < attended; i++) rec.done.push(key);
+      }
+      map[sat] = rec;
+    }
+
+    for (const k of Object.keys(map)) if (k < cutoff) delete map[k];
+    await AsyncStorage.setItem(KEY, JSON.stringify(map));
+    await markFinalized(scored);
   } catch {}
 }
 
@@ -55,7 +106,7 @@ export const VITAL_CATEGORIES: {
   { key: 'quiet',      label: 'Quiet Time',            match: (k) => k === 'quiet' },
   { key: 'scripture',  label: 'Scripture Reading',     match: (k) => k === 'bible' },
   { key: 'book',       label: 'Spiritual Book',        match: (k) => k === 'book' },
-  { key: 'liturgy',    label: 'Liturgical Services',   match: (k) => k.startsWith('svc_') },
+  { key: 'liturgy',    label: 'Liturgical Services',   match: (k) => k.startsWith('svc_') || isWeeklyServiceKey(k) },
   { key: 'fasting',    label: 'Fasting',               match: (k) => k === 'fast' },
   { key: 'service',    label: 'Service / Diakonia',    match: (k) => k.startsWith('serve_') },
   { key: 'confession', label: 'Confession',            match: () => false },

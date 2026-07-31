@@ -15,12 +15,13 @@ import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 import { loadSections, saveSections, SECTION_DEFS, DEFAULT_SECTIONS, type SectionId } from '@/lib/dashboard-layout';
 import * as H from '@/lib/haptics';
-import { loadRule } from '@/lib/canon/rule-store';
-import { todayItems, customDueToday, RuleItem } from '@/lib/canon/today';
+import { loadRule, SERVICES } from '@/lib/canon/rule-store';
+import { todayItems, customDueToday, RuleItem, weeklyServiceKey } from '@/lib/canon/today';
 import { loadAssignedForMember, applyOverlay } from '@/lib/canon/assigned';
 import { loadTodayChecks } from '@/lib/canon/checks';
 import { loadPostponements, loadServiceDone } from '@/lib/canon/postpone';
-import { recordCanonDay, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
+import { loadServiceLog, ensureWeek, weekCounts, loggedOn } from '@/lib/canon/service-log';
+import { recordCanonDay, finalizeWeeklyServices, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
 import { lastConfessionDate, loadConfessionDates, hydrateConfessionDatesFromCloud, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
 import { upcomingFeasts, feastOn } from '@/lib/feasts';
 import { upcomingCommemorations, gregorianToCoptic, commemorationOn } from '@/lib/synaxarium';
@@ -243,10 +244,10 @@ export default function DashboardScreen() {
       // Journey + FOC card refresh on every focus, so a confession recorded
       // moments ago on the Confession tab appears in the timeline immediately.
       if (!demoMode) loadAll();
-      const [rule, checks, postponed, serviceDone, assigned, last] = await Promise.all([
+      const [rule, checks, postponed, serviceDone, assigned, last, loadedLog] = await Promise.all([
         loadRule(), loadTodayChecks(), loadPostponements(), loadServiceDone(),
         loadAssignedForMember(user?.id ?? '', demoMode, profile?.foc_id ?? undefined),
-        lastConfessionDate(),
+        lastConfessionDate(), loadServiceLog(),
       ]);
       // Same EFFECTIVE canon as the Canon tab: the member's rule with the
       // FOC's locked assignments overlaid, plus scheduled custom components.
@@ -254,7 +255,22 @@ export default function DashboardScreen() {
       // it from the bare rule here made the tile and the adherence history
       // disagree with the Canon tab depending on which screen focused last.
       const overlay = applyOverlay(rule, assigned, last);
-      const structured = todayItems(overlay.rule, new Date(), postponed, serviceDone);
+      // Count-committed services are tracked in the attendance log, not the
+      // daily checks — mirror the Canon tab so the tile agrees with it.
+      const nowDate = new Date();
+      const svcLog = overlay.rule.servicesMode === 'counts'
+        ? await ensureWeek(overlay.rule.serviceCounts ?? {}, nowDate)
+        : loadedLog;
+      const weekServices = {
+        counts: weekCounts(svcLog, nowDate),
+        loggedToday: new Set(SERVICES.filter(sv => loggedOn(svcLog, sv.key, nowDate)).map(sv => sv.key)),
+      };
+      for (const sv of SERVICES) {
+        const id = `rule_${weeklyServiceKey(sv.key)}`;
+        const target = overlay.rule.serviceCounts?.[sv.key] ?? 0;
+        target > 0 && (weekServices.counts[sv.key] ?? 0) >= target ? checks.add(id) : checks.delete(id);
+      }
+      const structured = todayItems(overlay.rule, nowDate, postponed, serviceDone, weekServices);
       const customItems: RuleItem[] = overlay.customComponents
         .filter(c => customDueToday(c.frequency, c.days, new Date(), serviceDone, `assigned_${c.id}`, postponed))
         .map(c => ({ key: `assigned_${c.id}`, icon: 'quiet', label: c.text }));
@@ -268,6 +284,7 @@ export default function DashboardScreen() {
 
 
       await recordCanonDay(items, checks);
+      await finalizeWeeklyServices(svcLog, nowDate);
       const epoch = await loadVitalsEpoch();
       setVitalsEpoch(epoch);
       const stats = computeVitals(await loadCanonHistory(), epoch);
