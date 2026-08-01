@@ -12,7 +12,7 @@
 //    Jan 7; the Church adjusts the Koiahk date after Coptic leap years so the
 //    Gregorian day never moves).
 
-import { orthodoxPascha } from './canon/fasting';
+import { orthodoxPascha, churchFastsForYear } from './canon/fasting';
 
 export interface Feast {
   date: Date;
@@ -27,6 +27,15 @@ const offset = (base: Date, days: number) => {
   x.setDate(x.getDate() + days);
   x.setHours(12, 0, 0, 0);
   return x;
+};
+
+// How each fasting season from lib/canon/fasting is announced on the calendar.
+const FAST_OPENINGS: Record<string, { title: string; desc: string }> = {
+  "Jonah's Fast":    { title: 'Fast of Nineveh begins',  desc: 'Three days of fasting recalling the repentance of Nineveh (Jonah’s Fast).' },
+  'Great Lent':      { title: 'Great Lent begins',       desc: 'The Great Fast — fifty-five days of preparation ending in the Resurrection.' },
+  "Apostles' Fast":  { title: 'Apostles’ Fast begins',   desc: 'The fast of the disciples, from after Pentecost until the Feast of the Apostles.' },
+  "St. Mary's Fast": { title: 'St. Mary’s Fast begins',  desc: 'Fifteen days of fasting in honor of the Theotokos (1–15 Mesra).' },
+  'Nativity Fast':   { title: 'Nativity Fast begins',    desc: 'Forty-three days of fasting before the Feast of the Nativity.' },
 };
 
 // Every feast and fast opening in Gregorian year `y`.
@@ -45,11 +54,17 @@ export function feastsForYear(y: number): Feast[] {
     { date: at(y, 7, 12),  kind: 'commemoration', title: 'Feast of the Apostles', desc: 'Martyrdom of Sts. Peter and Paul (5 Epip). End of the Apostles’ Fast — breaking of the fast after Divine Liturgy.' },
     { date: at(y, 8, 19),  kind: 'minor', title: 'Feast of the Transfiguration', desc: 'The Transfiguration of our Lord on Mount Tabor (13 Mesra). Minor Feast of the Lord.' },
     { date: at(y, 8, 22),  kind: 'commemoration', title: 'Assumption of St. Mary', desc: 'The assumption of the body of the Theotokos (16 Mesra). End of St. Mary’s Fast.' },
-
-    // ── Fast openings (fixed) ──
-    { date: at(y, 8, 7),   kind: 'fast', title: 'St. Mary’s Fast begins', desc: 'Fifteen days of fasting in honor of the Theotokos (1–15 Mesra).' },
-    { date: at(y, 11, 25), kind: 'fast', title: 'Nativity Fast begins', desc: 'Forty-three days of fasting before the Feast of the Nativity.' },
   ];
+
+  // ── Fast openings ──
+  // Dates come from lib/canon/fasting (the single source of truth for fasting
+  // seasons); only the wording lives here.
+  for (const f of churchFastsForYear(y)) {
+    const copy = FAST_OPENINGS[f.name];
+    const date = new Date(f.start);
+    date.setHours(12, 0, 0, 0);
+    list.push({ date, kind: 'fast', title: copy.title, desc: copy.desc });
+  }
 
   // ── Thout feasts — shift with Nayrouz ──
   const nayrouzDay = y % 4 === 3 ? 12 : 11;
@@ -63,13 +78,10 @@ export function feastsForYear(y: number): Feast[] {
   const pascha = orthodoxPascha(y);
   pascha.setHours(12, 0, 0, 0);
   list.push(
-    { date: offset(pascha, -69), kind: 'fast',  title: 'Fast of Nineveh begins', desc: 'Three days of fasting recalling the repentance of Nineveh (Jonah’s Fast).' },
-    { date: offset(pascha, -55), kind: 'fast',  title: 'Great Lent begins', desc: 'The Great Fast — fifty-five days of preparation ending in the Resurrection.' },
     { date: offset(pascha, -7),  kind: 'major', title: 'Palm Sunday (Hosanna)', desc: 'The entrance of our Lord into Jerusalem. Major Feast of the Lord — Holy Week begins.' },
     { date: pascha,              kind: 'major', title: 'Feast of the Resurrection', desc: 'The glorious Resurrection of our Lord Jesus Christ — the Feast of Feasts.' },
     { date: offset(pascha, 39),  kind: 'major', title: 'Feast of the Ascension', desc: 'The Ascension of our Lord into heaven, forty days after the Resurrection.' },
     { date: offset(pascha, 49),  kind: 'major', title: 'Feast of Pentecost', desc: 'The descent of the Holy Spirit upon the disciples. End of the Holy Fifty.' },
-    { date: offset(pascha, 50),  kind: 'fast',  title: 'Apostles’ Fast begins', desc: 'The fast of the disciples, from after Pentecost until the Feast of the Apostles.' },
   );
 
   return list.sort((a, b) => a.date.getTime() - b.date.getTime());

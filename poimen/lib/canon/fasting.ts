@@ -31,35 +31,64 @@ export function isHolyFifty(date: Date): boolean {
   return d >= start && d <= end;
 }
 
-// The Church's multi-day fasting seasons. Paramoun days are not included.
-// The movable fasts (Jonah, Great Lent, Apostles') are recomputed for each
-// year from that year's Pascha, so they land on different Gregorian dates
-// every year. Nativity and St. Mary's are fixed in the Coptic calendar
-// (Hatour 16–Koiahk 28 and Mesra 1–15); their Gregorian equivalents are
-// stable for 1900–2099, which this app treats as fixed ranges.
-export function isChurchFast(date: Date): boolean {
-  const d = dayOnly(date);
-  const y = d.getFullYear();
-  const m = d.getMonth() + 1;
-  const day = d.getDate();
+// A multi-day fasting season, as a closed range of whole days.
+export interface FastPeriod {
+  name: string;
+  start: Date;  // first fasting day
+  end: Date;    // last fasting day, inclusive
+}
 
-  // Nativity Fast: Nov 25 – Jan 6 (feast Jan 7)
-  if ((m === 11 && day >= 25) || m === 12 || (m === 1 && day <= 6)) return true;
-  // St. Mary's Fast: Mesra 1–15 = Aug 7–21 (feast Aug 22)
-  if (m === 8 && day >= 7 && day <= 21) return true;
+// A fasting season plus where `date` sits inside it.
+export interface CurrentFast extends FastPeriod {
+  day: number;     // 1-based day within the fast
+  length: number;  // total days in the fast
+}
 
+// THE definition of the Church's multi-day fasting seasons — every caller that
+// needs a fast's dates, name, or day number must go through this. Paramoun days
+// are not included.
+//
+// The movable fasts (Jonah, Great Lent, Apostles') are recomputed for each year
+// from that year's Pascha, so they land on different Gregorian dates every year.
+// Nativity and St. Mary's are fixed in the Coptic calendar (Hatour 16–Koiahk 28
+// and Mesra 1–15); their Gregorian equivalents are stable for 1900–2099, which
+// this app treats as fixed ranges.
+//
+// Returns the seasons that BEGIN in Gregorian year `y` — the Nativity Fast runs
+// past New Year, so it ends in y+1.
+export function churchFastsForYear(y: number): FastPeriod[] {
   const pascha = dayOnly(orthodoxPascha(y));
   const off = (n: number) => { const x = new Date(pascha); x.setDate(x.getDate() + n); return x; };
-  const between = (a: Date, b: Date) => d >= a && d <= b;
+  return [
+    // Jonah's Fast (Nineveh): Mon–Wed, 69–67 days before Pascha
+    { name: "Jonah's Fast",    start: off(-69),             end: off(-67) },
+    // Great Lent + Holy Week: 55 days before Pascha through Holy Saturday
+    { name: 'Great Lent',      start: off(-55),             end: off(-1) },
+    // Apostles' Fast: day after Pentecost through Jul 11 (feast Jul 12)
+    { name: "Apostles' Fast",  start: off(50),              end: new Date(y, 6, 11) },
+    // St. Mary's Fast: Mesra 1–15 = Aug 7–21 (feast Aug 22)
+    { name: "St. Mary's Fast", start: new Date(y, 7, 7),    end: new Date(y, 7, 21) },
+    // Nativity Fast: Nov 25 – Jan 6 (feast Jan 7)
+    { name: 'Nativity Fast',   start: new Date(y, 10, 25),  end: new Date(y + 1, 0, 6) },
+  ];
+}
 
-  // Jonah's Fast (Nineveh): Mon–Wed, 69–67 days before Pascha
-  if (between(off(-69), off(-67))) return true;
-  // Great Lent + Holy Week: 55 days before Pascha through Holy Saturday
-  if (between(off(-55), off(-1))) return true;
-  // Apostles' Fast: day after Pentecost through Jul 11 (feast Jul 12)
-  if (between(off(50), new Date(y, 6, 11))) return true;
+// The fasting season `date` falls in, with its 1-based day number, or null.
+export function currentFast(date: Date): CurrentFast | null {
+  const d = dayOnly(date);
+  const y = d.getFullYear();
+  const span = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / 86400000);
+  // Last year's list too: the Nativity Fast runs into January.
+  for (const f of [...churchFastsForYear(y - 1), ...churchFastsForYear(y)]) {
+    if (d >= f.start && d <= f.end) {
+      return { ...f, day: span(f.start, d) + 1, length: span(f.start, f.end) + 1 };
+    }
+  }
+  return null;
+}
 
-  return false;
+export function isChurchFast(date: Date): boolean {
+  return currentFast(date) !== null;
 }
 
 // Fasting days: every day of a church fasting season, plus Wednesdays (3) and
