@@ -79,7 +79,7 @@ function getDashboardSubtitle(): string {
     return `${dateStr2} · Apostles' Fast · Day ${day}`;
   }
   const m = today.getMonth() + 1; const d = today.getDate();
-  if (m === 8 && d >= 1 && d <= 14) return `${dateStr2} · St. Mary's Fast · Day ${d}`;
+  if (m === 8 && d >= 7 && d <= 21) return `${dateStr2} · St. Mary's Fast · Day ${d - 6}`;
   if ((m === 11 && d >= 25) || m === 12 || (m === 1 && d <= 6)) {
     const y = m === 1 ? today.getFullYear() - 1 : today.getFullYear();
     const day = Math.round((today.getTime() - new Date(y, 10, 25).getTime()) / 86400000) + 1;
