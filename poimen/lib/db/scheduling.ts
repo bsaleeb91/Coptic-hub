@@ -5,6 +5,7 @@
 // Confession's types/rules (consent-gated by RLS) and request slots through
 // SECURITY DEFINER RPCs. See supabase/migrations/20260723_scheduling.sql.
 import { supabase } from '../supabase';
+import { SCHEDULE_HORIZON_DAYS } from '../scheduling/slots';
 
 export interface AppointmentType {
   id: string;
@@ -163,7 +164,7 @@ export async function cancelAppointment(id: string): Promise<{ error: string | n
   return { error: error?.message ?? null };
 }
 
-export async function getFocBusyRanges(days = 21): Promise<{ starts_at: string; duration_minutes: number }[]> {
+export async function getFocBusyRanges(days = SCHEDULE_HORIZON_DAYS): Promise<{ starts_at: string; duration_minutes: number }[]> {
   const { data } = await supabase.rpc('foc_busy_ranges', { p_days: days });
   return (data as { starts_at: string; duration_minutes: number }[]) ?? [];
 }

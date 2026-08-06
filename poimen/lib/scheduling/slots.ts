@@ -37,6 +37,16 @@ export interface OpenSlot {
 export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 export const WEEKDAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// How far ahead a congregant can book. A priest's rules recur weekly and never
+// expire, so this is purely how much of that recurrence we materialize — a full
+// year, browsed a month at a time (see groupDaysByMonth).
+export const SCHEDULE_HORIZON_DAYS = 365;
+
+// Identifies the priest's "visitation" type among his own labels ("Home
+// Visitation", "Pastoral Visit", …). Shared so the home screen's link and the
+// Appointments filter can't drift apart.
+export const VISIT_TYPE_KEYWORD = 'visit';
+
 // Minutes-past-midnight → "2:00 PM".
 export function formatMinute(m: number): string {
   const h24 = Math.floor(m / 60);
@@ -55,9 +65,15 @@ export function formatTime(d: Date): string {
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
-// A Date → "Sun, Jul 26".
-export function formatDayLabel(d: Date): string {
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+// A Date → "Sun, Jul 26", or "Sun, Jan 3, 2027" once it crosses into another
+// year — with a year-long booking horizon a bare "Sun, Jan 3" is ambiguous.
+// Pass { year: false } where a heading already gives the year.
+export function formatDayLabel(d: Date, opts: { year?: boolean } = {}): string {
+  const showYear = opts.year ?? (d.getFullYear() !== new Date().getFullYear());
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+    ...(showYear ? { year: 'numeric' as const } : {}),
+  });
 }
 
 const overlaps = (aStart: number, aEnd: number, bStart: number, bEnd: number) =>
@@ -71,7 +87,7 @@ export function generateOpenSlots(
   busy: BusyRange[],
   opts: { days?: number; now?: Date } = {},
 ): OpenSlot[] {
-  const days = opts.days ?? 21;
+  const days = opts.days ?? SCHEDULE_HORIZON_DAYS;
   const now = opts.now ?? new Date();
   const typeById = new Map(types.filter(t => t.active).map(t => [t.id, t]));
   const busyRanges = busy.map(b => {
@@ -105,21 +121,59 @@ export function generateOpenSlots(
   }
 
   out.sort((a, b) => a.start.getTime() - b.start.getTime());
-  return out;
+
+  // setHours above works in local wall-clock, and on the spring-forward day the
+  // skipped hour has no local representation — every minute inside it
+  // normalizes onto the next hour, so two different `m` values land on the same
+  // instant and the day would show a duplicate tile that can't be booked twice.
+  // (Once a year per timezone, now that the horizon is a full year.) Keying on
+  // the type too keeps genuinely different types offered at the same time.
+  const seen = new Set<string>();
+  return out.filter(s => {
+    const key = `${s.typeId}@${s.start.getTime()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
+export interface DayGroup { key: string; label: string; date: Date; slots: OpenSlot[]; }
+export interface MonthGroup { key: string; label: string; date: Date; days: DayGroup[]; }
+
 // Group open slots by calendar day for sectioned rendering.
-export function groupSlotsByDay(slots: OpenSlot[]): { key: string; label: string; date: Date; slots: OpenSlot[] }[] {
-  const groups = new Map<string, { key: string; label: string; date: Date; slots: OpenSlot[] }>();
+export function groupSlotsByDay(slots: OpenSlot[]): DayGroup[] {
+  const groups = new Map<string, DayGroup>();
   for (const s of slots) {
     const key = `${s.start.getFullYear()}-${s.start.getMonth()}-${s.start.getDate()}`;
     let g = groups.get(key);
     if (!g) {
       const dayStart = new Date(s.start.getFullYear(), s.start.getMonth(), s.start.getDate());
-      g = { key, label: formatDayLabel(s.start), date: dayStart, slots: [] };
+      g = { key, label: formatDayLabel(s.start, { year: false }), date: dayStart, slots: [] };
       groups.set(key, g);
     }
     g.slots.push(s);
+  }
+  return [...groups.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+// Roll the day groups up into months. A year of availability is far too much to
+// put on screen at once, so the screen shows the first month's days and offers
+// the rest as headers you can open.
+export function groupDaysByMonth(days: DayGroup[]): MonthGroup[] {
+  const groups = new Map<string, MonthGroup>();
+  for (const d of days) {
+    const key = `${d.date.getFullYear()}-${d.date.getMonth()}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = {
+        key,
+        label: d.date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        date: new Date(d.date.getFullYear(), d.date.getMonth(), 1),
+        days: [],
+      };
+      groups.set(key, g);
+    }
+    g.days.push(d);
   }
   return [...groups.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
 }
