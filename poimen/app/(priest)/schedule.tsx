@@ -11,16 +11,39 @@ import { useNavigation } from 'expo-router';
 import { DrawerActions } from '@react-navigation/native';
 import { colors, fonts, lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import ScrollPicker from '@/components/ui/ScrollPicker';
 import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
 import { confirmDestructive } from '@/lib/confirm';
 import * as H from '@/lib/haptics';
 import * as db from '@/lib/db';
-import type { AppointmentType, AvailabilityRuleRow, Appointment } from '@/lib/db';
-import { WEEKDAYS, WEEKDAYS_SHORT, formatMinute, formatMinuteRange, formatTime, formatDayLabel } from '@/lib/scheduling/slots';
+import type { AppointmentType, AvailabilityRuleRow, Appointment, AvailabilityException } from '@/lib/db';
+import {
+  WEEKDAYS, WEEKDAYS_SHORT, formatMinute, formatMinuteRange, formatTime, formatDayLabel,
+  monthCells, dateKey, closuresOn, isClosedAllDay, extraWindowsOn, SCHEDULE_HORIZON_DAYS,
+} from '@/lib/scheduling/slots';
 
 const DURATION_OPTS = [15, 30, 45, 60, 90];
-const clampMin = (m: number) => Math.max(0, Math.min(1440, m));
+
+// Quarter-hour times as picker labels. A window's start can be any time up to
+// 11:45 PM and its end anything from 12:15 AM to midnight, so neither list ever
+// offers a value that couldn't begin or end a window.
+const SLIDER_STEP = 15;
+const TIME_VALUES = Array.from({ length: 1440 / SLIDER_STEP + 1 }, (_, i) => i * SLIDER_STEP);
+const TIME_LABELS = TIME_VALUES.map(formatMinute);
+const START_OPTIONS = TIME_LABELS.slice(0, -1);   // 12:00 AM … 11:45 PM
+const END_OPTIONS = TIME_LABELS.slice(1);         // 12:15 AM … midnight
+// Labels are unique (1440 renders "midnight", not a second "12:00 AM"), so this
+// round-trips exactly.
+const minutesFor = (label: string) => TIME_VALUES[TIME_LABELS.indexOf(label)] ?? 0;
+
+// How far ahead the availability calendar goes — the same year a member can
+// book into, so there is no stretch of time he can request and the priest
+// can't close.
+const CALENDAR_MONTHS = Math.ceil(SCHEDULE_HORIZON_DAYS / 30);
+const startOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
+const addMonths = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth() + n, 1);
+const monthLabel = (d: Date) => d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
 // ── Demo seed ────────────────────────────────────────────────
 const demoTypes = (): AppointmentType[] => ([
@@ -38,6 +61,17 @@ const demoAppts = (): Appointment[] => {
   return [
     { id: 'da-1', priest_id: 'demo', congregant_id: 'demo-pb', type_id: 'dt-conf', type_label: 'Holy Confession', starts_at: soon.toISOString(), duration_minutes: 30, status: 'requested', note: 'Would like to confess before the feast.', created_at: '', updated_at: '' },
     { id: 'da-2', priest_id: 'demo', congregant_id: 'demo-sg', type_id: 'dt-visit', type_label: 'Home Visitation', starts_at: later.toISOString(), duration_minutes: 60, status: 'confirmed', note: null, created_at: '', updated_at: '' },
+  ];
+};
+const demoExceptions = (): AvailabilityException[] => {
+  const p = (n: number) => String(n).padStart(2, '0');
+  const key = (offset: number) => {
+    const d = new Date(); d.setDate(d.getDate() + offset);
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  };
+  return [
+    { id: 'de-1', priest_id: 'demo', on_date: key(9), start_minute: null, end_minute: null, kind: 'block', type_id: null, note: 'Travelling', created_at: '' },
+    { id: 'de-2', priest_id: 'demo', on_date: key(4), start_minute: 840, end_minute: 900, kind: 'block', type_id: null, note: null, created_at: '' },
   ];
 };
 const DEMO_NAMES: Record<string, string> = {
@@ -66,28 +100,54 @@ export default function ScheduleScreen() {
   const [ruleEnd, setRuleEnd] = useState(960);        // 4:00 PM
   const [ruleErr, setRuleErr] = useState('');
 
+  // Date-specific exceptions: the year-ahead calendar, the day being edited,
+  // and the window for a partial closure.
+  const [exceptions, setExceptions] = useState<AvailabilityException[]>([]);
+  const [calMonth, setCalMonth] = useState<Date>(() => startOfMonth(new Date()));
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [exStart, setExStart] = useState(540);        // 9:00 AM
+  const [exEnd, setExEnd] = useState(720);            // 12:00 PM
+  const [exErr, setExErr] = useState('');
+  // Extra hours opened on a single date, over the weekly pattern.
+  const [addTypeId, setAddTypeId] = useState<string | null>(null);
+  const [addStart, setAddStart] = useState(1080);     // 6:00 PM
+  const [addEnd, setAddEnd] = useState(1200);         // 8:00 PM
+  const [addErr, setAddErr] = useState('');
+
   const load = useCallback(async () => {
     if (demoMode) {
       setOpen(true); setTypes(demoTypes()); setRules(demoRules()); setAppts(demoAppts());
-      setNames(DEMO_NAMES); setRuleTypeId('dt-conf'); setLoading(false);
+      setNames(DEMO_NAMES); setRuleTypeId('dt-conf'); setExceptions(demoExceptions()); setLoading(false);
       return;
     }
     if (!user) return;
     setLoading(true);
-    const [o, t, r, a, flock] = await Promise.all([
+    const [o, t, r, a, flock, ex] = await Promise.all([
       db.getSchedulingOpen(user.id),
       db.getAppointmentTypes(user.id),
       db.getAvailabilityRules(user.id),
       db.getPriestAppointments(user.id),
       db.getFlock(user.id),
+      db.getAvailabilityExceptions(user.id),
     ]);
-    setOpen(o); setTypes(t); setRules(r); setAppts(a);
+    setOpen(o); setTypes(t); setRules(r); setAppts(a); setExceptions(ex);
     setNames(Object.fromEntries(flock.map(m => [m.id, m.full_name ?? 'Member'])));
     if (!ruleTypeId && t.length) setRuleTypeId(t[0].id);
     setLoading(false);
   }, [demoMode, user, ruleTypeId]);
 
   useEffect(() => { load(); }, [demoMode, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A "from" that reaches or passes its "to" pushes the end ahead of it, so a
+  // range can never invert while you drag. The gap is preserved where the day
+  // still has room for it, and never shrinks below one step.
+  const moveFrom = (v: number, end: number, setStart: (n: number) => void, setEnd: (n: number) => void) => {
+    setStart(v);
+    if (end > v) return;
+    setEnd(Math.min(1440, v + SLIDER_STEP));
+  };
+  const moveTo = (v: number, start: number, setEnd: (n: number) => void) =>
+    setEnd(Math.max(v, Math.min(1440, start + SLIDER_STEP)));
 
   const memberName = (id: string) => names[id] ?? 'Member';
   const typeLabel = (id: string | null) => types.find(t => t.id === id)?.label ?? '';
@@ -152,6 +212,117 @@ export default function ScheduleScreen() {
     });
   }
 
+  // ── Date exceptions ──
+  // Each of these applies optimistically, then reconciles. A failed write puts
+  // the previous state back and says so, rather than leaving the priest looking
+  // at a closure that was never saved — the case that matters, because a day he
+  // believes is closed is a day members can still book.
+  //
+  // Re-reading only the exceptions (not the full load()) keeps `loading` false,
+  // so the screen isn't torn down and scrolled back to the top after every tap.
+  async function refreshExceptions() {
+    if (demoMode || !user) return;
+    setExceptions(await db.getAvailabilityExceptions(user.id));
+  }
+
+  const failed = (msg: string | null, revert: AvailabilityException[]) => {
+    setExceptions(revert);
+    setExErr(msg ?? 'Could not save that — check your connection and try again.');
+  };
+
+  // Closing the whole day supersedes any partial closures on it. The all-day row
+  // goes in FIRST and the partials are cleared after: deleting first meant a
+  // failed insert (no signal, or this migration not yet applied) destroyed the
+  // existing closures AND created nothing, leaving the day wide open in silence.
+  async function closeWholeDay(date: Date) {
+    H.tap();
+    setExErr('');
+    const on_date = dateKey(date);
+    const before = exceptions;
+    const row: AvailabilityException = {
+      id: `de-${Date.now()}`, priest_id: user?.id ?? 'demo', on_date,
+      start_minute: null, end_minute: null, kind: 'block', type_id: null, note: null, created_at: '',
+    };
+    // Drop this date's CLOSURES only — extra hours opened on it are a separate
+    // thing and the server keeps them, so the optimistic state must too.
+    setExceptions(p => [...p.filter(e => e.on_date !== on_date || e.kind === 'open'), row]);
+    if (demoMode || !user) return;
+    const { error } = await db.createAvailabilityException(user.id, { on_date });
+    if (error) return failed(error, before);
+    await db.clearPartialExceptions(user.id, on_date);   // tidy-up; harmless if it fails
+    await refreshExceptions();
+  }
+
+  async function closePartOfDay(date: Date) {
+    setExErr('');
+    if (exEnd <= exStart) { setExErr('End time must be after the start time.'); return; }
+    if (isClosedAllDay(exceptions, date)) { setExErr('That day is already closed entirely.'); return; }
+    H.tap();
+    const on_date = dateKey(date);
+    const before = exceptions;
+    const row: AvailabilityException = {
+      id: `de-${Date.now()}`, priest_id: user?.id ?? 'demo', on_date,
+      start_minute: exStart, end_minute: exEnd, kind: 'block', type_id: null, note: null, created_at: '',
+    };
+    setExceptions(p => [...p, row]);
+    if (demoMode || !user) return;
+    const { error } = await db.createAvailabilityException(user.id, { on_date, start_minute: exStart, end_minute: exEnd });
+    if (error) return failed(error, before);
+    await refreshExceptions();
+  }
+
+  async function reopenDay(date: Date) {
+    H.tap();
+    setExErr('');
+    const on_date = dateKey(date);
+    const before = exceptions;
+    // Reopening lifts the closures; extra hours on the date stay put.
+    setExceptions(p => p.filter(e => e.on_date !== on_date || e.kind === 'open'));
+    if (demoMode || !user) return;
+    const { error } = await db.clearAvailabilityExceptions(user.id, on_date);
+    if (error) return failed(error, before);
+    await refreshExceptions();
+  }
+
+  // Extra hours on one date — the mirror of a closure: hours the weekly pattern
+  // doesn't offer, added for this date alone.
+  async function openExtraHours(date: Date) {
+    setAddErr('');
+    const typeId = addTypeId ?? activeTypes[0]?.id ?? null;
+    if (!typeId) { setAddErr('Add an active appointment type first.'); return; }
+    if (addEnd <= addStart) { setAddErr('End time must be after the start time.'); return; }
+    if (isClosedAllDay(exceptions, date)) { setAddErr('That day is closed — reopen it first.'); return; }
+    H.tap();
+    const on_date = dateKey(date);
+    const before = exceptions;
+    const row: AvailabilityException = {
+      id: `de-${Date.now()}`, priest_id: user?.id ?? 'demo', on_date,
+      start_minute: addStart, end_minute: addEnd, kind: 'open', type_id: typeId, note: null, created_at: '',
+    };
+    setExceptions(p => [...p, row]);
+    if (demoMode || !user) return;
+    const { error } = await db.createExtraHours(user.id, { on_date, type_id: typeId, start_minute: addStart, end_minute: addEnd });
+    if (error) { setExceptions(before); setAddErr(error); return; }
+    await refreshExceptions();
+  }
+
+  async function removeException(ex: AvailabilityException) {
+    H.tap();
+    setExErr('');
+    const before = exceptions;
+    setExceptions(p => p.filter(e => e.id !== ex.id));
+    if (demoMode || !user) return;
+    const { error } = await db.deleteAvailabilityException(ex.id);
+    if (error) return failed(error, before);
+    await refreshExceptions();
+  }
+
+  // Does the recurring schedule offer anything on this weekday at all? Days it
+  // never covers are dimmed — there is nothing there to close.
+  const weekdayHasAvailability = (date: Date) =>
+    rules.some(r => r.active && r.weekday === date.getDay()
+      && types.some(t => t.id === r.type_id && t.active));
+
   // ── Requests ──
   async function respond(a: Appointment, confirm: boolean) {
     H.tap();
@@ -164,6 +335,18 @@ export default function ScheduleScreen() {
       if (!demoMode) await db.cancelAppointment(a.id);
     });
   }
+
+  const todayKey = dateKey(new Date());
+  const firstMonth = startOfMonth(new Date());
+  const lastMonth = addMonths(firstMonth, CALENDAR_MONTHS - 1);
+  const canGoBack = calMonth > firstMonth;
+  const canGoForward = calMonth < lastMonth;
+  const activeTypes = types.filter(t => t.active);
+  const onSelectedDay = selectedDay
+    ? exceptions.filter(e => e.on_date === dateKey(selectedDay)).sort((a, b) => (a.start_minute ?? -1) - (b.start_minute ?? -1))
+    : [];
+  const selectedDayClosures = onSelectedDay.filter(e => e.kind !== 'open');
+  const selectedDayExtras = onSelectedDay.filter(e => e.kind === 'open');
 
   const nowMs = Date.now();
   const pending = appts.filter(a => a.status === 'requested').sort((a, b) => a.starts_at.localeCompare(b.starts_at));
@@ -308,9 +491,9 @@ export default function ScheduleScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <View style={styles.stepperRow}>
-                <TimeStepper label="Start" value={ruleStart} onChange={v => setRuleStart(clampMin(v))} />
-                <TimeStepper label="End" value={ruleEnd} onChange={v => setRuleEnd(clampMin(v))} />
+              <View style={styles.pickerGroup}>
+                <TimePicker label="Start" options={START_OPTIONS} value={ruleStart} onChange={v => moveFrom(v, ruleEnd, setRuleStart, setRuleEnd)} />
+                <TimePicker label="End" options={END_OPTIONS} value={ruleEnd} onChange={v => moveTo(v, ruleStart, setRuleEnd)} />
               </View>
               {ruleErr ? <Text style={styles.errText}>{ruleErr}</Text> : null}
               <TouchableOpacity style={styles.addBtn} onPress={addRule}>
@@ -319,21 +502,196 @@ export default function ScheduleScreen() {
             </>
           )}
         </Card>
+
+        {/* Date exceptions — one-off closures over the recurring schedule */}
+        <Card title="Days Away & Extra Hours" titleIcon="⊘">
+          <Text style={styles.empty}>
+            Change a single date without touching your weekly pattern. Close a day, or
+            part of one, when you're travelling or otherwise unavailable — or open extra
+            hours on a date your weekly pattern doesn't cover.
+          </Text>
+
+          <View style={styles.monthNav}>
+            <TouchableOpacity
+              style={[styles.navBtn, !canGoBack && styles.btnDisabled]}
+              disabled={!canGoBack}
+              onPress={() => { H.tap(); setSelectedDay(null); setCalMonth(m => addMonths(m, -1)); }}
+              hitSlop={8}
+            >
+              <Text style={styles.navBtnText}>‹</Text>
+            </TouchableOpacity>
+            <Text style={styles.monthTitle}>{monthLabel(calMonth)}</Text>
+            <TouchableOpacity
+              style={[styles.navBtn, !canGoForward && styles.btnDisabled]}
+              disabled={!canGoForward}
+              onPress={() => { H.tap(); setSelectedDay(null); setCalMonth(m => addMonths(m, 1)); }}
+              hitSlop={8}
+            >
+              <Text style={styles.navBtnText}>›</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.calHeadRow}>
+            {WEEKDAYS_SHORT.map(w => (
+              <Text key={w} style={styles.calHead}>{w[0]}</Text>
+            ))}
+          </View>
+          <View style={styles.calGrid}>
+            {monthCells(calMonth.getFullYear(), calMonth.getMonth()).map((d, i) => {
+              if (!d) return <View key={`pad-${i}`} style={styles.calCell} />;
+              const past = dateKey(d) < todayKey;
+              const allDay = isClosedAllDay(exceptions, d);
+              const partial = !allDay && closuresOn(exceptions, d).length > 0;
+              const extra = !allDay && extraWindowsOn(exceptions, d).length > 0;
+              const available = weekdayHasAvailability(d);
+              const sel = selectedDay != null && dateKey(selectedDay) === dateKey(d);
+              return (
+                <TouchableOpacity
+                  key={dateKey(d)}
+                  style={[
+                    styles.calCell,
+                    available && !past && styles.calCellAvail,
+                    extra && !past && styles.calCellExtra,
+                    allDay && styles.calCellClosed,
+                    partial && styles.calCellPartial,
+                    sel && styles.calCellSelected,
+                  ]}
+                  disabled={past}
+                  activeOpacity={0.8}
+                  onPress={() => { H.tap(); setExErr(''); setSelectedDay(sel ? null : d); }}
+                >
+                  <Text style={[
+                    styles.calCellText,
+                    past && styles.calCellTextPast,
+                    allDay && styles.calCellTextClosed,
+                  ]}>{d.getDate()}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendSwatch, styles.calCellAvail]} /><Text style={styles.legendText}>open</Text>
+            <View style={[styles.legendSwatch, styles.calCellExtra]} /><Text style={styles.legendText}>extra hours</Text>
+            <View style={[styles.legendSwatch, styles.calCellPartial]} /><Text style={styles.legendText}>partly closed</Text>
+            <View style={[styles.legendSwatch, styles.calCellClosed]} /><Text style={styles.legendText}>closed</Text>
+          </View>
+
+          {selectedDay && (
+            <View style={styles.dayPanel}>
+              <Text style={styles.dayPanelTitle}>
+                {selectedDay.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              </Text>
+              {!weekdayHasAvailability(selectedDay) && selectedDayExtras.length === 0 && (
+                <Text style={styles.hint}>
+                  Nothing recurring on this weekday — there's nothing to close, but you can open extra hours below.
+                </Text>
+              )}
+
+              {selectedDayClosures.length > 0 && (
+                <>
+                  {selectedDayClosures.map(ex => (
+                    <View key={ex.id} style={styles.listRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.rowTitle}>
+                          {ex.start_minute == null ? 'Closed all day' : `Closed ${formatMinuteRange(ex.start_minute!, ex.end_minute!)}`}
+                        </Text>
+                        {ex.note ? <Text style={styles.rowSub}>{ex.note}</Text> : null}
+                      </View>
+                      <TouchableOpacity hitSlop={8} onPress={() => removeException(ex)}>
+                        <Text style={styles.removeX}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  <TouchableOpacity style={styles.reopenBtn} onPress={() => reopenDay(selectedDay)}>
+                    <Text style={styles.reopenBtnText}>REOPEN THIS DAY</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {!isClosedAllDay(exceptions, selectedDay) && (
+                <>
+                  <TouchableOpacity style={styles.closeDayBtn} onPress={() => closeWholeDay(selectedDay)}>
+                    <Text style={styles.closeDayBtnText}>CLOSE THE WHOLE DAY</Text>
+                  </TouchableOpacity>
+                  <Text style={[styles.formLabel, { marginTop: 14 }]}>OR CLOSE PART OF IT</Text>
+                  <View style={styles.pickerGroup}>
+                    <TimePicker label="From" options={START_OPTIONS} value={exStart} onChange={v => moveFrom(v, exEnd, setExStart, setExEnd)} />
+                    <TimePicker label="To" options={END_OPTIONS} value={exEnd} onChange={v => moveTo(v, exStart, setExEnd)} />
+                  </View>
+                  {exErr ? <Text style={styles.errText}>{exErr}</Text> : null}
+                  <TouchableOpacity style={styles.addBtn} onPress={() => closePartOfDay(selectedDay)}>
+                    <Text style={styles.addBtnText}>CLOSE THIS TIME</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {/* Extra hours — the other direction: time this date offers that
+                  the weekly pattern doesn't. */}
+              <View style={styles.divider} />
+              {selectedDayExtras.map(ex => (
+                <View key={ex.id} style={styles.listRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rowTitleExtra}>
+                      + Extra {formatMinuteRange(ex.start_minute!, ex.end_minute!)}
+                    </Text>
+                    <Text style={styles.rowSub}>{typeLabel(ex.type_id)}</Text>
+                  </View>
+                  <TouchableOpacity hitSlop={8} onPress={() => removeException(ex)}>
+                    <Text style={styles.removeX}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              {isClosedAllDay(exceptions, selectedDay) ? (
+                <Text style={styles.hint}>This day is closed — reopen it to add extra hours.</Text>
+              ) : activeTypes.length === 0 ? (
+                <Text style={styles.hint}>Add an active appointment type above to open extra hours.</Text>
+              ) : (
+                <>
+                  <Text style={styles.formLabel}>OPEN EXTRA HOURS</Text>
+                  <View style={styles.pillRow}>
+                    {activeTypes.map(t => {
+                      const on = (addTypeId ?? activeTypes[0].id) === t.id;
+                      return (
+                        <TouchableOpacity key={t.id} style={[styles.pill, on && styles.pillActive]} onPress={() => { H.tap(); setAddTypeId(t.id); }}>
+                          <Text style={[styles.pillText, on && styles.pillTextActive]}>{t.label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <View style={styles.pickerGroup}>
+                    <TimePicker label="From" options={START_OPTIONS} value={addStart} onChange={v => moveFrom(v, addEnd, setAddStart, setAddEnd)} />
+                    <TimePicker label="To" options={END_OPTIONS} value={addEnd} onChange={v => moveTo(v, addStart, setAddEnd)} />
+                  </View>
+                  {addErr ? <Text style={styles.errText}>{addErr}</Text> : null}
+                  <TouchableOpacity style={styles.openHoursBtn} onPress={() => openExtraHours(selectedDay)}>
+                    <Text style={styles.openHoursBtnText}>OPEN THIS TIME</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          )}
+        </Card>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// ── Time stepper (−/+ 15 min) ────────────────────────────────
-function TimeStepper({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+// ── Time picker ──────────────────────────────────────────────
+// Stepping a whole afternoon 15 minutes at a time took dozens of taps, so times
+// are scrolled instead — the same snap-scrolling picker used for "fast until"
+// in the canon builder and new-cards-per-day in Psalms.
+function TimePicker({ label, value, onChange, options }: {
+  label: string; value: number; onChange: (v: number) => void; options: string[];
+}) {
   return (
-    <View style={styles.stepper}>
-      <Text style={styles.stepperLabel}>{label}</Text>
-      <View style={styles.stepperCtl}>
-        <TouchableOpacity style={styles.stepBtn} onPress={() => { H.tap(); onChange(value - 15); }}><Text style={styles.stepBtnText}>−</Text></TouchableOpacity>
-        <Text style={styles.stepperVal}>{formatMinute(value)}</Text>
-        <TouchableOpacity style={styles.stepBtn} onPress={() => { H.tap(); onChange(value + 15); }}><Text style={styles.stepBtnText}>+</Text></TouchableOpacity>
-      </View>
+    <View style={styles.picker}>
+      <Text style={styles.pickerLabel}>{label}</Text>
+      <ScrollPicker
+        options={options}
+        value={formatMinute(value)}
+        onChange={s => onChange(minutesFor(s))}
+      />
     </View>
   );
 }
@@ -395,16 +753,45 @@ const styles = lazyThemed(() => StyleSheet.create({
   weekdayRow: { flexDirection: 'row', gap: 6, marginTop: 10 },
   dayPill: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
 
-  stepperRow: { flexDirection: 'row', gap: 12, marginTop: 14 },
-  stepper: { flex: 1 },
-  stepperLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: colors.muted, marginBottom: 6 },
-  stepperCtl: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: 8, backgroundColor: colors.panel },
-  stepBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  stepBtnText: { fontFamily: fonts.latoBold, fontSize: 20, color: colors.gold },
-  stepperVal: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream },
+  pickerGroup: { marginTop: 14 },
+  picker: { marginBottom: 6 },
+  pickerLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: colors.muted, marginBottom: 2 },
 
   errText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.red, marginTop: 10 },
   addBtn: { backgroundColor: colors.gold, borderRadius: 8, padding: 13, alignItems: 'center', marginTop: 16 },
   addBtnText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.navy, letterSpacing: 0.8 },
   btnDisabled: { opacity: 0.35 },
+
+  // ── Days Away calendar ──
+  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 10 },
+  navBtn: { width: 34, height: 34, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  navBtnText: { fontSize: 18, color: colors.gold, lineHeight: 20 },
+  monthTitle: { fontFamily: fonts.cormorantMedium, fontSize: 19, color: colors.cream },
+
+  calHeadRow: { flexDirection: 'row' },
+  calHead: { flex: 1, textAlign: 'center', fontFamily: fonts.latoBold, fontSize: 10, color: colors.muted, paddingBottom: 6 },
+  calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calCell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 8, borderWidth: 1, borderColor: 'transparent' },
+  calCellAvail: { backgroundColor: colors.goldDim, borderColor: colors.gold + '55' },
+  calCellExtra: { backgroundColor: colors.greenBg, borderColor: colors.green },
+  calCellPartial: { backgroundColor: 'rgba(196,130,26,0.22)', borderColor: '#C4821A' },
+  calCellClosed: { backgroundColor: colors.surface, borderColor: colors.red + '77' },
+  calCellSelected: { borderColor: colors.cream, borderWidth: 2 },
+  calCellText: { fontFamily: fonts.lato, fontSize: 13, color: colors.cream },
+  calCellTextPast: { color: colors.faint },
+  calCellTextClosed: { color: colors.red, textDecorationLine: 'line-through' },
+
+  legendRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 12 },
+  legendSwatch: { width: 12, height: 12, borderRadius: 3, borderWidth: 1 },
+  legendText: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, marginRight: 8 },
+
+  dayPanel: { marginTop: 16, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 14 },
+  dayPanelTitle: { fontFamily: fonts.cormorantMedium, fontSize: 18, color: colors.cream, marginBottom: 10 },
+  closeDayBtn: { borderWidth: 1, borderColor: colors.red + '88', borderRadius: 8, padding: 13, alignItems: 'center', marginTop: 12 },
+  closeDayBtnText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.red, letterSpacing: 0.8 },
+  reopenBtn: { borderWidth: 1, borderColor: colors.green, borderRadius: 8, padding: 13, alignItems: 'center', marginTop: 12 },
+  reopenBtnText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.green, letterSpacing: 0.8 },
+  openHoursBtn: { backgroundColor: colors.greenBg, borderWidth: 1, borderColor: colors.green, borderRadius: 8, padding: 13, alignItems: 'center', marginTop: 16 },
+  openHoursBtnText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.green, letterSpacing: 0.8 },
+  rowTitleExtra: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.green },
 }));

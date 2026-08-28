@@ -20,7 +20,7 @@ import type { AppointmentType, AvailabilityRuleRow, Appointment } from '@/lib/db
 import {
   generateOpenSlots, groupSlotsByDay, groupDaysByMonth, formatTime, formatDayLabel,
   SCHEDULE_HORIZON_DAYS,
-  type OpenSlot, type AvailabilityRule,
+  type OpenSlot, type AvailabilityRule, type DateException,
 } from '@/lib/scheduling/slots';
 
 const STATUS_STYLE: Record<Appointment['status'], { label: string; color: string }> = {
@@ -49,6 +49,7 @@ export default function AppointmentsScreen() {
   const [types, setTypes] = useState<AppointmentType[]>([]);
   const [rules, setRules] = useState<AvailabilityRuleRow[]>([]);
   const [busy, setBusy] = useState<{ starts_at: string; duration_minutes: number }[]>([]);
+  const [exceptions, setExceptions] = useState<DateException[]>([]);
   const [mine, setMine] = useState<Appointment[]>([]);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
@@ -75,6 +76,16 @@ export default function AppointmentsScreen() {
         { id: 'dr-3', priest_id: 'demo', type_id: 'dt-visit', weekday: 6, start_minute: 600, end_minute: 780, active: true, created_at: '' },
       ]);
       setBusy([{ starts_at: soon.toISOString(), duration_minutes: 30 }]);
+      // The FOC is away the next two Sundays: the first entirely, the second
+      // only for the 2:00 PM hour.
+      const p = (n: number) => String(n).padStart(2, '0');
+      const key = (d: Date) => `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+      const nextSunday = new Date(now); nextSunday.setDate(now.getDate() + ((7 - now.getDay()) || 7));
+      const sundayAfter = new Date(nextSunday); sundayAfter.setDate(nextSunday.getDate() + 7);
+      setExceptions([
+        { on_date: key(nextSunday), start_minute: null, end_minute: null },
+        { on_date: key(sundayAfter), start_minute: 840, end_minute: 900 },
+      ]);
       setMine([
         { id: 'ma-1', priest_id: 'demo', congregant_id: 'me', type_id: 'dt-conf', type_label: 'Holy Confession', starts_at: soon.toISOString(), duration_minutes: 30, status: 'confirmed', note: null, created_at: '', updated_at: '' },
       ]);
@@ -88,15 +99,16 @@ export default function AppointmentsScreen() {
     setFocId(foc);
     setConsented(!!profile?.foc_consent_at);
     if (!foc) { setLoading(false); return; }
-    const [o, t, r, b, m, fp] = await Promise.all([
+    const [o, t, r, b, m, fp, ex] = await Promise.all([
       db.getSchedulingOpen(foc),
       db.getAppointmentTypes(foc),
       db.getAvailabilityRules(foc),
       db.getFocBusyRanges(),
       db.getMyAppointments(user.id),
       db.getFocProfile(foc),
+      db.getAvailabilityExceptions(foc),
     ]);
-    setOpen(o); setTypes(t); setRules(r); setBusy(b); setMine(m);
+    setOpen(o); setTypes(t); setRules(r); setBusy(b); setMine(m); setExceptions(ex);
     setFocName(fp?.full_name ?? 'your Father of Confession');
     setLoading(false);
   }, [demoMode, user]);
@@ -138,8 +150,8 @@ export default function AppointmentsScreen() {
     const activeRules: AvailabilityRule[] = rules.map(r => ({
       id: r.id, type_id: r.type_id, weekday: r.weekday, start_minute: r.start_minute, end_minute: r.end_minute, active: r.active,
     }));
-    return generateOpenSlots(activeRules, types, busy, { days: SCHEDULE_HORIZON_DAYS });
-  }, [rules, types, busy, dayKey]);
+    return generateOpenSlots(activeRules, types, busy, { days: SCHEDULE_HORIZON_DAYS, exceptions });
+  }, [rules, types, busy, exceptions, dayKey]);
 
   // Dropping elapsed slots happens here rather than in generation: filtering a
   // few thousand is cheap enough to redo every minute, regenerating is not.
