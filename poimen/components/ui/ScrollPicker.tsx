@@ -22,14 +22,41 @@ export default function ScrollPicker({ options, value, onChange, itemWidth = 96 
   const [w, setW] = useState(0);
   const [active, setActive] = useState(Math.max(0, options.indexOf(value)));
   const pad = w > 0 ? (w - itemWidth) / 2 : 0;
-
-  useEffect(() => {
-    const idx = Math.max(0, options.indexOf(value));
-    if (w > 0) ref.current?.scrollTo({ x: idx * itemWidth, animated: false });
-    setActive(idx);
-  }, [w]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Where the list is ACTUALLY scrolled, so an external value change can be
+  // told apart from the picker's own. Starts at -1 (nowhere) rather than the
+  // value's index: the list really is at offset 0 until the first layout, and
+  // claiming otherwise would suppress the initial scroll into position.
+  const atIdx = useRef(-1);
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Bumped on every commit so the sync effect re-runs even when the parent
+  // REJECTS the new value (clamping it back to what it already was). Without
+  // it React bails out on the unchanged prop and the list stays parked on a
+  // value the app never accepted.
+  const [committed, setCommitted] = useState(0);
 
   const idxAt = (x: number) => Math.max(0, Math.min(options.length - 1, Math.round(x / itemWidth)));
+
+  // Commit, and stop any pending debounce so the two paths can't both fire.
+  const commit = (idx: number) => {
+    if (settle.current) { clearTimeout(settle.current); settle.current = null; }
+    onChange(options[idx]);
+    setCommitted(n => n + 1);
+  };
+
+  useEffect(() => () => { if (settle.current) clearTimeout(settle.current); }, []);
+
+  // Re-sync on `value` as well as width, so a value changed from OUTSIDE moves
+  // the picker (a paired From/To pushing its partner along). Skipped when the
+  // list already sits on that index — which is the picker's own changes — so
+  // this can never yank a scroll out from under the user mid-gesture.
+  useEffect(() => {
+    const idx = Math.max(0, options.indexOf(value));
+    setActive(idx);
+    if (w > 0 && atIdx.current !== idx) {
+      atIdx.current = idx;
+      ref.current?.scrollTo({ x: idx * itemWidth, animated: false });
+    }
+  }, [w, value, committed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <View onLayout={e => setW(e.nativeEvent.layout.width)} style={styles.wrap}>
@@ -42,8 +69,19 @@ export default function ScrollPicker({ options, value, onChange, itemWidth = 96 
         decelerationRate="fast"
         contentContainerStyle={{ paddingHorizontal: pad }}
         scrollEventThrottle={16}
-        onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => setActive(idxAt(e.nativeEvent.contentOffset.x))}
-        onMomentumScrollEnd={(e: NativeSyntheticEvent<NativeScrollEvent>) => onChange(options[idxAt(e.nativeEvent.contentOffset.x)])}
+        onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+          const idx = idxAt(e.nativeEvent.contentOffset.x);
+          atIdx.current = idx;
+          setActive(idx);
+          // react-native-web never fires onMomentumScrollEnd (its ScrollViewBase
+          // wires only onScroll), so without this the picker would never commit
+          // anything on web. Settling after a pause in scrolling covers it; on
+          // native the momentum handler below usually wins the race, and either
+          // way both commit the same index.
+          if (settle.current) clearTimeout(settle.current);
+          settle.current = setTimeout(() => commit(idx), 160);
+        }}
+        onMomentumScrollEnd={(e: NativeSyntheticEvent<NativeScrollEvent>) => commit(idxAt(e.nativeEvent.contentOffset.x))}
       >
         {options.map((opt, i) => (
           <View key={opt} style={[styles.item, { width: itemWidth }]}>
