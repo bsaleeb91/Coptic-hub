@@ -302,20 +302,36 @@ export function foldReleasedIntoRule(
 }
 
 // ─── Loading / writing (demo-aware) ───────────────────────────────────────────
-// Demo mode keeps assignments in one local key so the priest→member flow can be
-// walked on a single device. `member` is ignored in demo (the demo congregant
-// is generic), so any assign shows up in the demo member's own Canon.
-
+// Demo mode keeps assignments in local storage so the priest→member flow can be
+// walked on a single device. Keyed PER MEMBER: one shared key meant a canon
+// assigned to anyone in the demo flock came back as every member's, so opening
+// the next member showed the previous one's canon already switched on.
+//
+// The demo congregant has no id of their own (there is no account), so they read
+// the key of one designated member of the demo flock — which is what keeps the
+// cross-role demo working: assign to Peter as the priest, see it as the member.
 const DEMO_KEY = 'poimen.demo.assignedCanon';
+const DEMO_SELF_MEMBER = 'demo-pb';
 
-async function loadDemoAssigned(): Promise<AssignedCanon[]> {
+const demoKey = (memberId: string) => `${DEMO_KEY}:${memberId || DEMO_SELF_MEMBER}`;
+
+async function loadDemoAssigned(memberId: string): Promise<AssignedCanon[]> {
   try {
-    const raw = await AsyncStorage.getItem(DEMO_KEY);
-    return raw ? normalizeAssigned(JSON.parse(raw)) : [];
+    const key = demoKey(memberId);
+    const raw = await AsyncStorage.getItem(key);
+    if (raw) return normalizeAssigned(JSON.parse(raw));
+    // One-time migration off the shared key: whatever was there belongs to the
+    // member the demo congregant stands in for, not to the whole flock.
+    const legacy = await AsyncStorage.getItem(DEMO_KEY);
+    if (!legacy) return [];
+    await AsyncStorage.removeItem(DEMO_KEY);
+    if (key !== demoKey(DEMO_SELF_MEMBER)) return [];
+    await AsyncStorage.setItem(key, legacy);
+    return normalizeAssigned(JSON.parse(legacy));
   } catch { return []; }
 }
-async function saveDemoAssigned(list: AssignedCanon[]): Promise<void> {
-  try { await AsyncStorage.setItem(DEMO_KEY, JSON.stringify(list)); } catch {}
+async function saveDemoAssigned(memberId: string, list: AssignedCanon[]): Promise<void> {
+  try { await AsyncStorage.setItem(demoKey(memberId), JSON.stringify(list)); } catch {}
 }
 
 // The member reads what their FOC has assigned them. The live spiritual_canons
@@ -324,7 +340,7 @@ async function saveDemoAssigned(list: AssignedCanon[]): Promise<void> {
 // the member's actual Father of Confession lock the personal rule, so filter
 // by focId. With no FOC on the profile nothing is treated as assigned.
 export async function loadAssignedForMember(memberId: string, demoMode: boolean, focId?: string | null): Promise<AssignedCanon[]> {
-  if (demoMode) return loadDemoAssigned();
+  if (demoMode) return loadDemoAssigned(memberId);
   try {
     const rows = normalizeAssigned(await db.getAssignedCanonsForMember(memberId));
     return focId ? rows.filter(a => a.priestId === focId) : [];
@@ -334,7 +350,7 @@ export async function loadAssignedForMember(memberId: string, demoMode: boolean,
 // The priest reads what THEY have already assigned this member (editor pre-fill),
 // scoped to their own priest_id so one FOC never sees/removes another's rows.
 export async function loadAssignedForPriest(memberId: string, priestId: string, demoMode: boolean): Promise<AssignedCanon[]> {
-  if (demoMode) return loadDemoAssigned();
+  if (demoMode) return loadDemoAssigned(memberId);
   try { return normalizeAssigned(await db.getMemberActiveCanonsByPriest(memberId, priestId)); }
   catch { return []; }
 }
@@ -346,7 +362,7 @@ export async function assignCategory(params: {
 }): Promise<void> {
   const { memberId, priestId, demoMode, category, component, payload, frequency } = params;
   if (demoMode) {
-    const list = await loadDemoAssigned();
+    const list = await loadDemoAssigned(memberId);
     // Custom components accumulate; structured categories replace.
     const kept = category === 'custom' ? list : list.filter(a => a.category !== category);
     kept.push({
@@ -359,7 +375,7 @@ export async function assignCategory(params: {
       createdAt: new Date().toISOString(),
       priestId: priestId || null,
     });
-    await saveDemoAssigned(kept);
+    await saveDemoAssigned(memberId, kept);
     return;
   }
   if (category !== 'custom') {
@@ -375,11 +391,11 @@ export async function removeAssignment(params: {
 }): Promise<void> {
   const { memberId, priestId, demoMode, category, id } = params;
   if (demoMode) {
-    const list = await loadDemoAssigned();
+    const list = await loadDemoAssigned(memberId);
     const next = category === 'custom' && id
       ? list.filter(a => a.id !== id)
       : list.filter(a => a.category !== category);
-    await saveDemoAssigned(next);
+    await saveDemoAssigned(memberId, next);
     return;
   }
   if (category === 'custom' && id) {
