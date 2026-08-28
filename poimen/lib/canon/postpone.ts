@@ -84,17 +84,20 @@ export async function loadServiceDone(): Promise<Stored> {
   return read(DONE_KEY);
 }
 
-export async function recordServiceDone(itemKey: string): Promise<void> {
+// `date` is the day being checked off, which is today unless the member is
+// completing an earlier day from the Canon tab.
+export async function recordServiceDone(itemKey: string, date = new Date()): Promise<void> {
   const map = await read(DONE_KEY);
-  map[itemKey] = localDateStr(new Date());
+  map[itemKey] = localDateStr(date);
   await write(map, DONE_KEY);
 }
 
-// Undo a same-day check-off. Only a today-dated anchor is removed — the
-// previous anchor is already gone, so the item simply shows until re-checked.
-export async function clearServiceDone(itemKey: string): Promise<void> {
+// Undo a check-off. Only an anchor dated to the day being edited is removed —
+// the previous anchor is already gone, so the item simply shows until
+// re-checked.
+export async function clearServiceDone(itemKey: string, date = new Date()): Promise<void> {
   const map = await read(DONE_KEY);
-  if (map[itemKey] === localDateStr(new Date())) {
+  if (map[itemKey] === localDateStr(date)) {
     delete map[itemKey];
     await write(map, DONE_KEY);
   }

@@ -27,20 +27,28 @@ export async function loadCanonHistory(): Promise<CanonHistory> {
   } catch { return {}; }
 }
 
-// Upsert today's record. Called whenever today's due list and check state are
-// both known — Canon tab load, Home load, and every check-off.
+// Upsert a day's record — today by default, or an earlier day the member is
+// completing after the fact from the Canon tab. Called whenever a day's due
+// list and check state are both known: Canon tab load, Home load, and every
+// check-off.
 //
 // Services committed by COUNT per week (`svcw_` keys) are deliberately left out
 // of the daily record: a "twice a week" liturgy commitment is not a miss on the
 // five days you don't attend. Those are scored per week instead, by
-// finalizeWeeklyServices below.
-export async function recordCanonDay(items: RuleItem[], checked: Set<string>): Promise<void> {
+// finalizeWeeklyServices below — which writes its result onto the week's
+// Saturday. Back-dating means we can now be asked to re-record such a Saturday,
+// so those entries are carried across rather than overwritten.
+export async function recordCanonDay(items: RuleItem[], checked: Set<string>, date = new Date()): Promise<void> {
   try {
     const map = await loadCanonHistory();
+    const day = localDateStr(date);
     const daily = items.filter(it => !isWeeklyServiceKey(it.key));
-    map[localDateStr(new Date())] = {
-      due: daily.map(it => it.key),
-      done: daily.filter(it => checked.has(`rule_${it.key}`)).map(it => it.key),
+    const prev = map[day];
+    const keepDue = (prev?.due ?? []).filter(isWeeklyServiceKey);
+    const keepDone = (prev?.done ?? []).filter(isWeeklyServiceKey);
+    map[day] = {
+      due: [...keepDue, ...daily.map(it => it.key)],
+      done: [...keepDone, ...daily.filter(it => checked.has(`rule_${it.key}`)).map(it => it.key)],
     };
     const cutoff = localDateStr(new Date(Date.now() - KEEP_DAYS * 86400000));
     for (const k of Object.keys(map)) if (k < cutoff) delete map[k];
