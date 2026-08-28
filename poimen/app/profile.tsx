@@ -6,6 +6,7 @@ import {
 import type { Church } from '@/lib/db';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
 import { Switch } from 'react-native';
@@ -270,7 +271,7 @@ export default function ProfileScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backRow} onPress={() => goBack('/(tabs)')}>
           <Text style={styles.backArrow}>‹</Text>
           <Text style={styles.backText}>Home</Text>
         </TouchableOpacity>

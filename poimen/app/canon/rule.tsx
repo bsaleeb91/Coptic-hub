@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
@@ -162,7 +163,7 @@ export default function RuleScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => goBack('/(tabs)/canon')} hitSlop={8}>
           <Text style={s.headerBack}>‹ Canon</Text>
         </TouchableOpacity>
         <Text style={s.headerTitle}>Edit Rule</Text>

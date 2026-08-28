@@ -30,6 +30,19 @@ const NEVER = new Set(['sign-in', '_sitemap', '+not-found']);
 
 interface Stored { href: string; at: number; }
 
+// True once this launch has shown the sign-in screen. Signing in is a
+// deliberate entry and belongs on Home — restoring the account's last screen
+// there dropped people straight onto Profile (or wherever they had been), which
+// is not what "come back where I left off" means. Only a genuine cold start
+// into an already-signed-in session should restore.
+//
+// Module scope rather than a ref inside RouteMemory: the component unmounts
+// across the post-sign-in redirect, so a ref would be back to false by the time
+// the restore runs.
+let sawSignIn = false;
+export function noteSignInScreen(): void { sawSignIn = true; }
+export function signedInThisLaunch(): boolean { return sawSignIn; }
+
 // Build an href from expo-router segments, e.g. ['(tabs)','psalms'] → '/(tabs)/psalms'.
 // Groups are kept so '(tabs)/index' and '(priest)/index' stay distinct.
 export function hrefFromSegments(segments: string[]): string {
