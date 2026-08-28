@@ -1,10 +1,19 @@
 // app/(priest)/assign-canon.tsx
-// The Father of Confession builds a member's *personal rule* from here. Each
-// category has an "Assign" toggle: turning it on writes that part of the canon
-// to the member (locked, read-only for them until their next confession or
-// until the priest changes/removes it); leaving it off never touches what the
-// member already set for that category. A free-text custom component can be
-// added alongside, without disturbing the rest of the canon.
+// The canon builder. It runs in two modes off the same editor, so the controls
+// a priest learns in one place are the controls everywhere:
+//
+//   • With a memberId — reached from a member's screen — it builds THAT
+//     member's personal rule. Each category has an "Assign" toggle: turning it
+//     on writes that part of the canon to the member (locked, read-only for
+//     them until their next confession or until the priest changes/removes it);
+//     leaving it off never touches what the member already set for it.
+//
+//   • With no memberId — the Canon tab in the drawer — it is the template
+//     workshop: build a canon that belongs to no one and save it as a reusable
+//     template. Nothing here can touch a member.
+//
+// Either way a free-text custom component can be added alongside, without
+// disturbing the rest of the canon.
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
@@ -25,6 +34,11 @@ import {
   AssignedCanon, applyCategoryToRule, loadAssignedForPriest,
   assignCategory, removeAssignment,
 } from '@/lib/canon/assigned';
+import {
+  CanonTemplate, CanonTemplateBody, loadTemplates, saveTemplate, replaceTemplate,
+  renameTemplate, deleteTemplate, describeTemplate,
+} from '@/lib/canon/templates';
+import { confirmDestructive } from '@/lib/confirm';
 import { loadMemberRule } from '@/lib/canon/rule-sync';
 
 // Scheduling choices for custom components. The member's canon shows one on
@@ -97,6 +111,9 @@ export default function AssignCanonScreen() {
   const { user } = useSession();
   const { demoMode } = useDemoMode();
   const displayName = memberName ?? 'Member';
+  // No member behind the screen: the drawer's Canon tab, where templates are
+  // built. Nothing in this mode can reach a member's canon.
+  const templateMode = !memberId;
 
   const [work, setWork] = useState<RuleConfig | null>(null);
   const [enabled, setEnabled] = useState<Set<AssignedCategory>>(new Set());
@@ -111,8 +128,26 @@ export default function AssignCanonScreen() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
+  // Reusable canon templates this priest has saved. Applying one only fills in
+  // the editor below — nothing reaches the member until Save.
+  const [templates, setTemplates] = useState<CanonTemplate[]>([]);
+  const [templateName, setTemplateName] = useState('');
+  const [showTemplateSave, setShowTemplateSave] = useState(false);
+  const [templateMsg, setTemplateMsg] = useState('');
+  const [templateErr, setTemplateErr] = useState('');
+  // In template mode, which template is being edited (null = building a new one).
+  const [editing, setEditing] = useState<CanonTemplate | null>(null);
 
   const load = useCallback(async () => {
+    // Template mode has no member to read: start from the app defaults with
+    // nothing switched on, so a template is built deliberately rather than
+    // inheriting whoever was looked at last.
+    if (templateMode) {
+      setWork(JSON.parse(JSON.stringify(DEFAULT_RULE)));
+      setEnabled(new Set()); setOrig(new Set()); setOrigPayloads({});
+      setCustomList([]); setOrigCustomIds([]); setOrigCustomSnap({});
+      return;
+    }
     const [assigned, memberRule] = await Promise.all([
       loadAssignedForPriest(memberId ?? '', user?.id ?? '', demoMode),
       loadMemberRule(memberId ?? '', demoMode),
@@ -144,9 +179,122 @@ export default function AssignCanonScreen() {
     const snap: Record<string, string> = {};
     for (const c of custom) if (c.id) snap[c.id] = JSON.stringify({ f: c.freq, d: c.days });
     setOrigCustomSnap(snap);
-  }, [memberId, demoMode, user?.id]);
+  }, [memberId, demoMode, user?.id, templateMode]);
 
   useEffect(() => { load(); }, [load]);
+
+  const refreshTemplates = useCallback(async () => {
+    setTemplates(await loadTemplates(user?.id ?? '', demoMode));
+  }, [user?.id, demoMode]);
+  useEffect(() => { refreshTemplates(); }, [refreshTemplates]);
+
+  // ── Templates ──
+  // The body carries the same payloads assignCategory writes, so applying one
+  // runs through applyCategoryToRule exactly as a real assignment would.
+  function currentTemplateBody(): CanonTemplateBody {
+    const w = work!;
+    const parts = STRUCTURED_CATEGORIES
+      .filter(cat => enabled.has(cat))
+      .map(cat => ({ category: cat, component: `${CATEGORY_LABEL[cat]} — ${summarize(cat, w)}`, payload: buildPayload(cat, w) }));
+    const pending = newCustom.trim() ? [{ text: newCustom.trim(), freq: 'Daily', days: [] as number[] }] : [];
+    const custom = [...customList, ...pending]
+      .filter(c => c.text.trim())
+      .map(c => ({ text: c.text.trim(), freq: c.freq, days: c.freq === 'Daily' ? [] : c.days }));
+    return { parts, custom };
+  }
+
+  // Fill the editor from a template. Categories the template doesn't mention
+  // are left exactly as they are — still showing what this member actually
+  // does — so a template adds to the picture rather than wiping it.
+  function useTemplate(t: CanonTemplate) {
+    setTemplateErr(''); setTemplateMsg('');
+    setWork(w => {
+      if (!w) return w;
+      const next: RuleConfig = JSON.parse(JSON.stringify(w));
+      for (const p of t.body.parts) {
+        applyCategoryToRule(next, { category: p.category, payload: p.payload } as AssignedCanon);
+      }
+      return next;
+    });
+    setEnabled(prev => {
+      const n = new Set(prev);
+      t.body.parts.forEach(p => n.add(p.category));
+      return n;
+    });
+    // Custom components are added, not swapped in: anything already assigned to
+    // this member stays. Matching text isn't duplicated.
+    setCustomList(prev => {
+      const seen = new Set(prev.map(c => c.text.trim().toLowerCase()));
+      const add = t.body.custom.filter(c => !seen.has(c.text.trim().toLowerCase()));
+      return [...prev, ...add];
+    });
+    if (templateMode) {
+      // Opening a template for editing, not filling in someone's canon.
+      setEditing(t);
+      setTemplateName(t.name);
+      setTemplateMsg(`Editing “${t.name}”.`);
+    } else {
+      setTemplateMsg(`Loaded “${t.name}” — review it, then Save to assign.`);
+    }
+  }
+
+  // Start a fresh template from nothing, rather than from whatever is on screen.
+  function startNewTemplate() {
+    setEditing(null); setTemplateName(''); setTemplateErr(''); setTemplateMsg('');
+    setWork(JSON.parse(JSON.stringify(DEFAULT_RULE)));
+    setEnabled(new Set());
+    setCustomList([]); setNewCustom('');
+  }
+
+  // The bottom action in template mode: update the open template, or save a new one.
+  async function commitTemplate(asNew: boolean) {
+    setTemplateErr(''); setTemplateMsg('');
+    const body = currentTemplateBody();
+    if (!asNew && editing) {
+      if (!body.parts.length && !body.custom.length) {
+        setTemplateErr('Turn on at least one part of the canon first.'); return;
+      }
+      const { error } = await replaceTemplate(editing.id, demoMode, body);
+      if (error) { setTemplateErr(error); return; }
+      if (templateName.trim() && templateName.trim() !== editing.name) {
+        await renameTemplate(editing.id, demoMode, templateName);
+      }
+      setTemplateMsg(`Saved “${templateName.trim() || editing.name}”.`);
+      await refreshTemplates();
+      return;
+    }
+    const { error } = await saveTemplate(user?.id ?? '', demoMode, templateName, body);
+    if (error) { setTemplateErr(error); return; }
+    setTemplateMsg(`Saved “${templateName.trim()}”.`);
+    await refreshTemplates();
+    startNewTemplate();
+  }
+
+  async function handleSaveTemplate() {
+    setTemplateErr(''); setTemplateMsg('');
+    const body = currentTemplateBody();
+    const { error } = await saveTemplate(user?.id ?? '', demoMode, templateName, body);
+    if (error) { setTemplateErr(error); return; }
+    setTemplateName(''); setShowTemplateSave(false);
+    setTemplateMsg('Template saved.');
+    await refreshTemplates();
+  }
+
+  async function handleReplaceTemplate(t: CanonTemplate) {
+    setTemplateErr(''); setTemplateMsg('');
+    const { error } = await replaceTemplate(t.id, demoMode, currentTemplateBody());
+    if (error) { setTemplateErr(error); return; }
+    setTemplateMsg(`Updated “${t.name}”.`);
+    await refreshTemplates();
+  }
+
+  function handleDeleteTemplate(t: CanonTemplate) {
+    confirmDestructive('Delete template', `Remove “${t.name}”? Canons already assigned from it are not affected.`, 'Delete', async () => {
+      const { error } = await deleteTemplate(t.id, demoMode);
+      if (error) { setTemplateErr(error); return; }
+      await refreshTemplates();
+    });
+  }
 
   const toggle = (cat: AssignedCategory, on: boolean) => {
     setEnabled(prev => { const n = new Set(prev); on ? n.add(cat) : n.delete(cat); return n; });
@@ -263,14 +411,82 @@ export default function AssignCanonScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <ScrollView style={s.scroll} contentContainerStyle={s.content}>
-        <TouchableOpacity style={s.backRow} onPress={() => router.back()}>
-          <Text style={s.backArrow}>‹</Text><Text style={s.backText}>{displayName}</Text>
-        </TouchableOpacity>
-        <Text style={s.pageTitle}>Build {displayName.split(' ')[0]}'s Canon</Text>
-        <Text style={s.pageSub}>
-          Turn on a category to assign it. Assigned parts are locked for the member until their next
-          confession, or until you change or remove them. Untouched categories stay as the member set them.
+        {!templateMode && (
+          <TouchableOpacity style={s.backRow} onPress={() => router.back()}>
+            <Text style={s.backArrow}>‹</Text><Text style={s.backText}>{displayName}</Text>
+          </TouchableOpacity>
+        )}
+        <Text style={s.pageTitle}>
+          {templateMode ? 'Canon Builder' : `Build ${displayName.split(' ')[0]}'s Canon`}
         </Text>
+        <Text style={s.pageSub}>
+          {templateMode
+            ? 'Build a canon here and keep it as a template, ready to apply to anyone in your flock. Nothing on this screen belongs to a member — assigning happens from their own canon.'
+            : 'Turn on a category to assign it. Assigned parts are locked for the member until their next confession, or until you change or remove them. Untouched categories stay as the member set them.'}
+        </Text>
+
+        {/* Templates — start from a canon you prescribe often, or keep this one
+            for next time. Building from scratch below is unchanged. */}
+        <View style={s.tplCard}>
+          <View style={s.tplHead}>
+            <Text style={s.tplTitle}>{templateMode ? 'My Templates' : 'Templates'}</Text>
+            {templateMode ? (
+              <TouchableOpacity onPress={startNewTemplate} hitSlop={8}>
+                <Text style={s.tplAction}>+ New template</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={() => { setShowTemplateSave(v => !v); setTemplateErr(''); setTemplateMsg(''); }} hitSlop={8}>
+                <Text style={s.tplAction}>{showTemplateSave ? 'Cancel' : '+ Save this canon'}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {!templateMode && showTemplateSave && (
+            <View style={s.tplSaveRow}>
+              <TextInput
+                style={[s.input, { marginBottom: SP.xs }]}
+                placeholder="Name it — e.g. New believer, Youth, Lent"
+                placeholderTextColor={colors.muted}
+                value={templateName}
+                onChangeText={setTemplateName}
+              />
+              <TouchableOpacity style={s.tplSaveBtn} onPress={handleSaveTemplate}>
+                <Text style={s.tplSaveBtnText}>SAVE AS TEMPLATE</Text>
+              </TouchableOpacity>
+              <Text style={s.tplHint}>
+                Saves the categories switched on right now, with their values and any custom components.
+              </Text>
+            </View>
+          )}
+
+          {templates.length === 0 ? (
+            <Text style={s.tplEmpty}>
+              {templateMode
+                ? 'No templates yet. Switch on the parts of the canon below, name it, and save — then it’s one tap on any member’s canon.'
+                : 'No templates yet. Build them in the Canon tab, or “Save this canon” to reuse this one.'}
+            </Text>
+          ) : (
+            templates.map(t => (
+              <View key={t.id} style={[s.tplRow, editing?.id === t.id && s.tplRowEditing]}>
+                <TouchableOpacity style={{ flex: 1 }} onPress={() => useTemplate(t)} activeOpacity={0.8}>
+                  <Text style={s.tplName}>{t.name}</Text>
+                  <Text style={s.tplDesc} numberOfLines={2}>{describeTemplate(t)}</Text>
+                </TouchableOpacity>
+                {!templateMode && (
+                  <TouchableOpacity onPress={() => handleReplaceTemplate(t)} hitSlop={8}>
+                    <Text style={s.tplUpdate}>Update</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={() => handleDeleteTemplate(t)} hitSlop={8}>
+                  <Text style={s.tplDelete}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
+
+          {templateMsg ? <Text style={s.tplMsg}>{templateMsg}</Text> : null}
+          {templateErr ? <Text style={s.tplErr}>{templateErr}</Text> : null}
+        </View>
 
         {/* Every day */}
         <CatCard category="prostrations" assigned={enabled.has('prostrations')} onToggle={o => toggle('prostrations', o)} summary={summarize('prostrations', work)}>
@@ -460,12 +676,37 @@ export default function AssignCanonScreen() {
           </View>
         </View>
 
-        {saveError ? <Text style={s.errorText}>{saveError}</Text> : null}
-        <TouchableOpacity style={[s.saveBtn, saving && { opacity: 0.5 }]} onPress={handleSave} disabled={saving}>
-          {saving
-            ? <ActivityIndicator color={colors.navy} />
-            : <Text style={s.saveBtnText}>{saved ? `✓ SAVED TO ${displayName.split(' ')[0].toUpperCase()}` : `SAVE ${displayName.split(' ')[0].toUpperCase()}'S CANON`}</Text>}
-        </TouchableOpacity>
+        {templateMode ? (
+          <View style={s.tplCommit}>
+            <Text style={s.formLabelSm}>{editing ? 'TEMPLATE NAME' : 'NAME THIS TEMPLATE'}</Text>
+            <TextInput
+              style={s.input}
+              placeholder="e.g. New believer, Youth, Lent"
+              placeholderTextColor={colors.muted}
+              value={templateName}
+              onChangeText={setTemplateName}
+            />
+            {templateErr ? <Text style={s.errorText}>{templateErr}</Text> : null}
+            {templateMsg ? <Text style={s.tplMsg}>{templateMsg}</Text> : null}
+            <TouchableOpacity style={s.saveBtn} onPress={() => commitTemplate(false)}>
+              <Text style={s.saveBtnText}>{editing ? 'SAVE TEMPLATE' : 'CREATE TEMPLATE'}</Text>
+            </TouchableOpacity>
+            {editing && (
+              <TouchableOpacity style={s.tplSecondary} onPress={() => commitTemplate(true)}>
+                <Text style={s.tplSecondaryText}>Save as a new template instead</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          <>
+            {saveError ? <Text style={s.errorText}>{saveError}</Text> : null}
+            <TouchableOpacity style={[s.saveBtn, saving && { opacity: 0.5 }]} onPress={handleSave} disabled={saving}>
+              {saving
+                ? <ActivityIndicator color={colors.navy} />
+                : <Text style={s.saveBtnText}>{saved ? `✓ SAVED TO ${displayName.split(' ')[0].toUpperCase()}` : `SAVE ${displayName.split(' ')[0].toUpperCase()}'S CANON`}</Text>}
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -496,6 +737,29 @@ const s = lazyThemed(() => StyleSheet.create({
   pageSub: { fontFamily: fonts.latoLight, fontSize: 12, lineHeight: 18, color: colors.textSecond, marginBottom: SP.lg },
 
   card: { borderWidth: 1, borderColor: colors.border, borderRadius: R.lg, padding: SP.md, marginBottom: SP.sm, backgroundColor: colors.panel },
+
+  // Templates
+  tplCard: { borderWidth: 1, borderColor: colors.gold + '55', borderRadius: R.lg, padding: SP.md, marginBottom: SP.md, backgroundColor: colors.goldDim },
+  tplHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SP.xs },
+  tplTitle: { fontFamily: fonts.cormorantMedium, fontSize: 18, color: colors.cream },
+  tplAction: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.gold },
+  tplEmpty: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, marginTop: SP.xs },
+  tplRow: { flexDirection: 'row', alignItems: 'center', gap: SP.sm, paddingVertical: SP.sm, borderTopWidth: 1, borderTopColor: colors.border },
+  tplName: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream },
+  tplDesc: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 1, lineHeight: 15 },
+  tplUpdate: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.gold },
+  tplDelete: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.red, paddingHorizontal: 2 },
+  tplSaveRow: { marginBottom: SP.sm },
+  tplSaveBtn: { backgroundColor: colors.gold, borderRadius: R.md, paddingVertical: SP.sm, alignItems: 'center' },
+  tplSaveBtnText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.navy, letterSpacing: 0.8 },
+  tplHint: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, marginTop: SP.xs, lineHeight: 14 },
+  tplRowEditing: { backgroundColor: colors.goldDim },
+  tplCommit: { marginTop: SP.sm },
+  formLabelSm: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase', color: colors.gold, opacity: 0.8, marginBottom: SP.xs },
+  tplSecondary: { alignItems: 'center', paddingVertical: SP.sm },
+  tplSecondaryText: { fontFamily: fonts.lato, fontSize: 12, color: colors.gold },
+  tplMsg: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.green, marginTop: SP.xs },
+  tplErr: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginTop: SP.xs },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.cream },
   cardSummary: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 2 },
