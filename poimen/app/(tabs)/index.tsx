@@ -24,6 +24,7 @@ import { loadServiceLog, ensureWeek, weekCounts, loggedOn } from '@/lib/canon/se
 import { recordCanonDay, finalizeWeeklyServices, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
 import { lastConfessionDate, loadConfessionDates, hydrateConfessionDatesFromCloud, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
 import { VISIT_TYPE_KEYWORD } from '@/lib/scheduling/slots';
+import { currentFastSeason } from '@/lib/canon/fasting';
 import { upcomingFeasts, feastOn } from '@/lib/feasts';
 import { upcomingCommemorations, gregorianToCoptic, commemorationOn } from '@/lib/synaxarium';
 import Harp from '@/components/ui/Harp';
@@ -64,20 +65,12 @@ function getDashboardSubtitle(): string {
   const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const c = gregorianToCoptic(today);
   const dateStr2 = `${dateStr} · ${c.day} ${c.monthName}`;   // Gregorian + Coptic date
-  const apostlesStart = new Date(2026, 4, 25);
-  const apostlesEnd = new Date(2026, 6, 11);
-  if (today >= apostlesStart && today <= apostlesEnd) {
-    const day = Math.round((today.getTime() - apostlesStart.getTime()) / 86400000) + 1;
-    return `${dateStr2} · Apostles' Fast · Day ${day}`;
-  }
-  const m = today.getMonth() + 1; const d = today.getDate();
-  if (m === 8 && d >= 1 && d <= 14) return `${dateStr2} · St. Mary's Fast · Day ${d}`;
-  if ((m === 11 && d >= 25) || m === 12 || (m === 1 && d <= 6)) {
-    const y = m === 1 ? today.getFullYear() - 1 : today.getFullYear();
-    const day = Math.round((today.getTime() - new Date(y, 10, 25).getTime()) / 86400000) + 1;
-    return `${dateStr2} · Advent Fast · Day ${day}`;
-  }
-  return dateStr2;
+  // Which fast, and how far in, comes from lib/canon/fasting — the same ranges
+  // the canon and the feasts list use. This line used to carry its own copy of
+  // them, with a hardcoded year for the movable Apostles' Fast and St. Mary's
+  // dated Aug 1–14, which put its day count a week ahead of the fast itself.
+  const fast = currentFastSeason(today);
+  return fast ? `${dateStr2} · ${fast.title} · Day ${fast.day}` : dateStr2;
 }
 
 // What the Church celebrates today, for the header: a feast of the Lord takes

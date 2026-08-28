@@ -4,7 +4,7 @@
 // by the rule editor screen and the Canon tab's "My Spiritual Canon" list.
 
 import { RuleConfig, ReadMode, AGPEYA_HOURS, SERVICES } from './rule-store';
-import { isFastDay, prostrationsAllowed } from './fasting';
+import { isAbstinenceDay, prostrationsAllowed } from './fasting';
 import { localDateStr } from './postpone';
 
 // `freq` is set only on Heart of Service items — it drives which postpone
@@ -126,7 +126,9 @@ export function todayItems(
     }
     items.push({ key, label: sv.text.trim(), icon: ICON_SERVE, freq: sv.freq });
   });
-  if (isFastDay(date)) items.push({ key: 'fast', label: `Fast — abstain from food until ${rule.fastUntil}`, icon: ICON_FAST });
+  // Abstinence only — a Saturday or Sunday inside a fasting season keeps the
+  // season's food restrictions but never delays the meal, so no row here.
+  if (isAbstinenceDay(date)) items.push({ key: 'fast', label: `Fast — abstain from food until ${rule.fastUntil}`, icon: ICON_FAST });
   if (rule.prostrations > 0 && prostrationsAllowed(date)) items.push({ key: 'prostrations', label: `${rule.prostrations} prostrations (metanias)`, icon: ICON_PRAYER });
   if (rule.quietMinutes > 0) items.push({ key: 'quiet', label: `${rule.quietMinutes} min of quiet time`, icon: ICON_QUIET });
   if (rule.bible.amount > 0) items.push({ key: 'bible', label: `Bible reading — ${readLabel(rule.bible.mode, rule.bible.amount)}`, icon: ICON_READING });
