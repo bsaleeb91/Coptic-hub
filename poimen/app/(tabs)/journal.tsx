@@ -9,22 +9,13 @@ import { confirmDestructive } from '@/lib/confirm';
 import { fetchDayGospel, gospelExcerpt, DayGospel } from '@/lib/lectionary';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
-import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 import { DrawerMenuButton } from '@/components/ui/DrawerMenuButton';
+import { JournalEntry, getJournalEntries, saveJournalEntries } from '@/lib/journal';
 
 // Spiritual practices/disciplines were removed from this tab — daily practices
 // live on the Canon tab (assigned canon + personal rule). This tab is now
 // purely the written journal: today's entry, past entries, and the prompt.
-
-interface JournalEntry {
-  id: string;
-  created_at: string;
-  title: string;
-  reflection: string;
-  scripture?: string;
-  prayer_intention?: string;
-}
 
 const DEMO_ENTRIES: JournalEntry[] = [
   { id: 'e1', created_at: '2026-06-04', title: 'Reflection on the fast', reflection: 'Felt a deepening sense of gratitude during the Agpeya today. The third hour prayer felt different — more present.', scripture: 'Psalm 62:1 — O God, my God, I rise early to be with You', prayer_intention: 'That this stillness would carry into the workday.' },
@@ -52,6 +43,7 @@ function EntryRow({ entry, onPress }: {
         <Text style={styles.entryDate}>{fmtDate(entry.created_at)}</Text>
         <Text style={styles.entryTitle}>{entry.title}</Text>
         <Text style={styles.entryPreview} numberOfLines={2}>{entry.reflection}</Text>
+        {entry.flaggedForConfession && <Text style={styles.entryFlagBadge}>📌 For your next confession</Text>}
       </View>
       <Text style={styles.entryChevron}>›</Text>
     </TouchableOpacity>
@@ -79,6 +71,7 @@ export default function JournalScreen() {
   const [reflection, setReflection] = useState('');
   const [scripture, setScripture] = useState('');
   const [prayerIntention, setPrayerIntention] = useState('');
+  const [flagForConfession, setFlagForConfession] = useState(false);
 
   useEffect(() => {
     if (demoMode) {
@@ -91,18 +84,13 @@ export default function JournalScreen() {
   async function load() {
     if (!user) return;
     setLoading(true);
-    const entryData = await db.getAgentProgress(user.id, 'journal-entries');
-    if (entryData?.entries) setEntries(entryData.entries);
+    setEntries(await getJournalEntries(user.id));
     setLoading(false);
   }
 
   async function saveEntries(newEntries: JournalEntry[]) {
     if (!user || demoMode) return;
-    await db.upsertAgentProgress({
-      user_id: user.id, agent_slug: 'journal-entries',
-      payload: { entries: newEntries },
-      updated_at: new Date().toISOString(),
-    });
+    await saveJournalEntries(user.id, newEntries);
   }
 
   async function saveEntry() {
@@ -115,11 +103,12 @@ export default function JournalScreen() {
       reflection: reflection.trim(),
       scripture: scripture.trim(),
       prayer_intention: prayerIntention.trim(),
+      flaggedForConfession: flagForConfession,
     };
     const updated = [entry, ...entries];
     setEntries(updated);
     await saveEntries(updated);
-    setEntryTitle(''); setReflection(''); setScripture(''); setPrayerIntention('');
+    setEntryTitle(''); setReflection(''); setScripture(''); setPrayerIntention(''); setFlagForConfession(false);
     setSavingEntry(false);
   }
 
@@ -130,6 +119,13 @@ export default function JournalScreen() {
       saveEntries(updated);
       setViewEntry(null);
     });
+  }
+
+  function toggleConfessionFlag(id: string) {
+    const updated = entries.map(e => e.id === id ? { ...e, flaggedForConfession: !e.flaggedForConfession } : e);
+    setEntries(updated);
+    saveEntries(updated);
+    setViewEntry(v => v && v.id === id ? updated.find(e => e.id === id) ?? v : v);
   }
 
   const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
@@ -149,6 +145,16 @@ export default function JournalScreen() {
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={styles.detailDate}>{fmtDate(viewEntry.created_at, true)}</Text>
           <Text style={styles.detailTitle}>{viewEntry.title}</Text>
+
+          <TouchableOpacity
+            style={[styles.confessionFlagChip, viewEntry.flaggedForConfession && styles.confessionFlagChipActive]}
+            onPress={() => toggleConfessionFlag(viewEntry.id)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.confessionFlagChipText, viewEntry.flaggedForConfession && styles.confessionFlagChipTextActive]}>
+              {viewEntry.flaggedForConfession ? '📌  Flagged for your next confession — tap to remove' : '📌  Bring this up with Abouna at my next confession'}
+            </Text>
+          </TouchableOpacity>
 
           <Text style={styles.detailLabel}>REFLECTION</Text>
           <Text style={styles.detailBody}>{viewEntry.reflection}</Text>
@@ -194,6 +200,16 @@ export default function JournalScreen() {
           <TextInput style={styles.input} placeholder="e.g. Psalm 63:1 — O God, You are my God..." placeholderTextColor={colors.faint} value={scripture} onChangeText={setScripture} />
           <Text style={[styles.formLabel, { marginTop: 14 }]}>PRAYER INTENTION</Text>
           <TextInput style={[styles.textarea, { minHeight: 56 }]} multiline placeholder="What are you bringing to God in prayer today?" placeholderTextColor={colors.faint} value={prayerIntention} onChangeText={setPrayerIntention} />
+          <TouchableOpacity
+            style={[styles.checkboxRow, { marginTop: 14 }]}
+            onPress={() => setFlagForConfession(v => !v)}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.checkbox, flagForConfession && styles.checkboxChecked]}>
+              {flagForConfession && <Text style={styles.checkboxTick}>✓</Text>}
+            </View>
+            <Text style={styles.checkboxLabel}>📌  Bring this up with Abouna at my next confession</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.btnGoldFull, (!reflection.trim() || savingEntry) && styles.btnDisabled]}
             onPress={saveEntry}
@@ -298,6 +314,13 @@ const styles = lazyThemed(() => StyleSheet.create({
   entryTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2 },
   entryPreview: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },
   entryChevron: { fontSize: 18, color: colors.gold, paddingHorizontal: 4 },
+  entryFlagBadge: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.gold, marginTop: 4 },
+
+  checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  checkboxChecked: { backgroundColor: colors.gold, borderColor: colors.gold },
+  checkboxTick: { color: colors.navy, fontSize: 12, fontFamily: fonts.latoBold },
+  checkboxLabel: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.cream, flex: 1 },
 
   divider: { height: 1, backgroundColor: colors.border },
 
@@ -321,7 +344,11 @@ const styles = lazyThemed(() => StyleSheet.create({
   detailBack: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.gold },
   detailDelete: { fontFamily: fonts.lato, fontSize: 13, color: colors.red },
   detailDate: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.7, marginBottom: 6 },
-  detailTitle: { fontFamily: fonts.cormorantMedium, fontSize: 26, color: colors.cream, marginBottom: 20 },
+  detailTitle: { fontFamily: fonts.cormorantMedium, fontSize: 26, color: colors.cream, marginBottom: 14 },
+  confessionFlagChip: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 20 },
+  confessionFlagChipActive: { borderColor: colors.gold, backgroundColor: colors.goldDim },
+  confessionFlagChipText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.muted },
+  confessionFlagChipTextActive: { color: colors.goldLight },
   detailLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.8, marginBottom: 8, marginTop: 4 },
   detailBody: { fontFamily: fonts.latoLight, fontSize: 15, color: colors.cream, lineHeight: 24, marginBottom: 20 },
   detailScriptureCard: { backgroundColor: 'rgba(201,168,76,0.06)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)', borderRadius: 10, padding: 14, marginBottom: 20 },

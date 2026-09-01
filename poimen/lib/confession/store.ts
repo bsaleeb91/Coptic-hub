@@ -10,10 +10,11 @@
 // data from bleeding into another's on a shared device.
 import { userStorage as AsyncStorage } from '@/lib/storage';
 import { encryptNote, decryptNote } from '@/lib/crypto';
-import type { JournalIncident, IncidentCategory, ExamChecks } from './types';
+import type { JournalIncident, IncidentCategory, ExamChecks, GuidanceNote } from './types';
 
 const K_INCIDENTS = 'poimen.confession.incidents';
 const K_EXAM      = 'poimen.confession.exam';
+const K_GUIDANCE  = 'poimen.confession.guidance';
 
 // A collision-resistant id that doesn't rely on crypto (Hermes-safe).
 function makeId(): string {
@@ -95,6 +96,36 @@ export async function saveExam(checks: ExamChecks): Promise<void> {
 
 export async function clearExam(): Promise<void> {
   try { await AsyncStorage.removeItem(K_EXAM); } catch {}
+}
+
+// ─── Guidance notes ─────────────────────────────────────────────────────────────
+// For when there's nothing specific to confess but you want your Father of
+// Confession's direction on something. Same on-device-only encryption as the
+// journal — never syncs to Supabase.
+
+export async function loadGuidance(): Promise<GuidanceNote[]> {
+  const list = await readEncrypted<GuidanceNote[]>(K_GUIDANCE, []);
+  if (!Array.isArray(list)) return [];
+  return [...list].sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export async function addGuidance(note: string): Promise<GuidanceNote[]> {
+  const list = await loadGuidance();
+  const entry: GuidanceNote = { id: makeId(), note: note.trim(), createdAt: Date.now() };
+  const next = [entry, ...list];
+  await writeEncrypted(K_GUIDANCE, next);
+  return next;
+}
+
+export async function deleteGuidance(id: string): Promise<GuidanceNote[]> {
+  const list = await loadGuidance();
+  const next = list.filter(g => g.id !== id);
+  await writeEncrypted(K_GUIDANCE, next);
+  return next;
+}
+
+export async function clearGuidance(): Promise<void> {
+  try { await AsyncStorage.removeItem(K_GUIDANCE); } catch {}
 }
 
 // ─── Examination style ─────────────────────────────────────────────────────────

@@ -39,3 +39,11 @@ export interface JournalIncident {
 
 // Map of sinId -> frequency for everything currently checked in the examination.
 export type ExamChecks = Record<string, SinFrequency>;
+
+// A free-text note for when there's no specific sin to log — a question or
+// topic to bring to the Father of Confession for direction instead.
+export interface GuidanceNote {
+  id: string;
+  note: string;                // free-text (encrypted at rest)
+  createdAt: number;           // epoch ms
+}

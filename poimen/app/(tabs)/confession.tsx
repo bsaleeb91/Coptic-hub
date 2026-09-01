@@ -26,17 +26,20 @@ import { foldOnConfession } from '@/lib/canon/assigned';
 import {
   NotepadIcon, ClipboardIcon, PrayingHandsIcon, LockIcon, CrossIcon, HeartIcon,
   SpeechIcon, ThoughtIcon, EarIcon, EyeIcon, HandIcon, PrayerRopeIcon, PencilIcon,
+  CandleIcon,
 } from '@/components/ui/TabIcons';
 import { DrawerMenuButton } from '@/components/ui/DrawerMenuButton';
-import type { SinCategory, SinFrequency, JournalCategory, IncidentCategory, JournalIncident, ExamChecks } from '@/lib/confession/types';
+import type { SinCategory, SinFrequency, JournalCategory, IncidentCategory, JournalIncident, ExamChecks, GuidanceNote } from '@/lib/confession/types';
 import {
   loadIncidents, addIncident, deleteIncident, clearIncidents,
   loadExam, saveExam, clearExam,
+  loadGuidance, addGuidance, deleteGuidance, clearGuidance,
   ExamStyle, loadExamStyle, saveExamStyle,
 } from '@/lib/confession/store';
 import {
   RELATIONAL_CATEGORIES, RELATIONAL_EXAMINATION, RelationalCategory,
 } from '@/lib/confession/relationalExamination';
+import { JournalEntry as FlaggedJournalEntry, getFlaggedForConfession, clearConfessionFlags } from '@/lib/journal';
 
 
 const FREQ_LABEL: Record<SinFrequency, string> = { once: 'Once', few: 'A few times', often: 'Often' };
@@ -78,6 +81,15 @@ const sectionMeta = (k: ExamSectionKey): DomainMeta =>
     ? RELATIONAL_META[k as RelationalCategory]
     : DOMAIN_META[k as JournalCategory];
 
+// Meta for the two non-sin groups shown in the in-session notes: free-text
+// guidance questions, and journal entries flagged "bring to confession".
+const GUIDANCE_META: DomainMeta = lazyThemed(() => ({
+  label: 'Questions & Guidance', icon: CandleIcon, color: colors.yellow, bg: colors.yellowBg,
+}));
+const BLESSINGS_META: DomainMeta = lazyThemed(() => ({
+  label: 'From Your Journal', icon: HeartIcon, color: colors.goldLight, bg: colors.goldDim,
+}));
+
 function relTime(ms: number): string {
   const d = new Date(ms);
   const now = new Date();
@@ -88,7 +100,7 @@ function relTime(ms: number): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ` · ${time}`;
 }
 
-type SubScreen = 'hub' | 'journal' | 'examination' | 'session' | 'complete';
+type SubScreen = 'hub' | 'journal' | 'examination' | 'guidance' | 'session' | 'complete';
 
 function SubHeader({ title, onBack, right }: { title: string; onBack: () => void; right?: React.ReactNode }) {
   return (
@@ -224,6 +236,9 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
         <ModuleCard icon={<ClipboardIcon size={22} color={colors.gold} />} title="Examination of conscience"
           sub="Review each day and before confession — carries into your notes"
           onPress={() => onNav('examination')} />
+        <ModuleCard icon={<CandleIcon size={22} color={colors.gold} />} title="Ask for guidance"
+          sub="No sin in mind? Bring a question or a topic instead"
+          onPress={() => onNav('guidance')} />
 
         {/* During confession */}
         <Text style={styles.sectionLabel}>DURING CONFESSION</Text>
@@ -550,6 +565,100 @@ function IncidentComposer({ onCancel, onSave }: {
   );
 }
 
+// ─── Guidance ────────────────────────────────────────────────────────────────────
+// A free-text space for when there's no specific sin to log — a question or
+// topic to bring to the Father of Confession for direction instead.
+
+function GuidanceView({ onBack }: { onBack: () => void }) {
+  const [notes, setNotes] = useState<GuidanceNote[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  useEffect(() => { loadGuidance().then(list => { setNotes(list); setLoaded(true); }); }, []);
+
+  const remove = (id: string) => {
+    confirmDestructive('Remove entry', 'Delete this note?', 'Delete',
+      async () => setNotes(await deleteGuidance(id)));
+  };
+
+  const save = async () => {
+    if (!draft.trim()) return;
+    setNotes(await addGuidance(draft));
+    setDraft('');
+    setAdding(false);
+  };
+
+  if (adding) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.subHeader}>
+          <TouchableOpacity onPress={() => { setAdding(false); setDraft(''); }} hitSlop={10}><Text style={styles.linkGold}>Cancel</Text></TouchableOpacity>
+          <Text style={styles.subHeaderTitle}>New question</Text>
+          <TouchableOpacity onPress={save} disabled={!draft.trim()} hitSlop={10}>
+            <Text style={[styles.linkGold, { color: draft.trim() ? colors.gold : colors.muted }]}>Save</Text>
+          </TouchableOpacity>
+        </View>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+            <Text style={styles.sectionLabel}>WHAT'S ON YOUR HEART?</Text>
+            <TextInput
+              style={[styles.noteInput, { minHeight: 140 }]}
+              placeholder="A topic you want direction on, a question for your Father of Confession, a struggle without a clear sin attached…"
+              placeholderTextColor={colors.faint}
+              multiline
+              value={draft}
+              onChangeText={setDraft}
+              textAlignVertical="top"
+              autoFocus
+            />
+            <Text style={styles.composerHint}>
+              🔒  Encrypted on your device and shown in your confession notes. It clears when you delete
+              your notes after confession.
+            </Text>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <SubHeader title="Guidance" onBack={onBack}
+        right={<TouchableOpacity onPress={() => setAdding(true)} hitSlop={12}><Text style={styles.addPlus}>＋</Text></TouchableOpacity>} />
+      <ScrollView contentContainerStyle={styles.content}>
+        {loaded && notes.length === 0 && (
+          <View style={styles.emptyCard}>
+            <View style={{ marginBottom: 10, opacity: 0.6 }}><CandleIcon size={32} color={colors.gold} /></View>
+            <Text style={styles.emptyCardTitle}>Nothing here yet</Text>
+            <Text style={styles.emptyCardBody}>
+              Not every visit is about a specific sin. When you just want your Father of Confession's
+              direction on something — a decision, a struggle, a season of life — jot it here and it
+              will be waiting in your confession notes.
+            </Text>
+            <TouchableOpacity style={styles.emptyBtn} onPress={() => setAdding(true)}>
+              <Text style={styles.emptyBtnText}>＋  Add a question</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {notes.length > 0 && <Text style={styles.sectionLabel}>FOR YOUR NEXT CONFESSION</Text>}
+        {notes.map(n => (
+          <View key={n.id} style={styles.journalCard}>
+            <View style={styles.journalCardHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.journalCardDate}>{relTime(n.createdAt)}</Text>
+              </View>
+              <TouchableOpacity onPress={() => remove(n.id)} hitSlop={10}><Text style={{ fontSize: 16, color: colors.muted }}>✕</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.journalCardBody}>{n.note}</Text>
+          </View>
+        ))}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
 // ─── Examination of conscience ───────────────────────────────────────────────────
 
 function ExaminationView({ onBack }: { onBack: () => void }) {
@@ -693,22 +802,31 @@ function ExaminationView({ onBack }: { onBack: () => void }) {
 // ─── In-session notes ────────────────────────────────────────────────────────────
 
 function SessionView({ onBack, onComplete }: { onBack: () => void; onComplete: () => void }) {
+  const { user } = useSession();
+  const { demoMode } = useDemoMode();
   const [incidents, setIncidents] = useState<JournalIncident[]>([]);
   const [exam, setExam] = useState<ExamChecks>({});
+  const [guidance, setGuidance] = useState<GuidanceNote[]>([]);
+  const [blessings, setBlessings] = useState<FlaggedJournalEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [spoken, setSpoken] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    Promise.all([loadIncidents(), loadExam()]).then(([list, checks]) => {
-      setIncidents(list); setExam(checks); setLoaded(true);
+    Promise.all([
+      loadIncidents(),
+      loadExam(),
+      loadGuidance(),
+      !demoMode && user ? getFlaggedForConfession(user.id) : Promise.resolve([]),
+    ]).then(([list, checks, notes, flagged]) => {
+      setIncidents(list); setExam(checks); setGuidance(notes); setBlessings(flagged); setLoaded(true);
     });
-  }, []);
+  }, [user, demoMode]);
 
   const toggle = (id: string) => setSpoken(prev => {
     const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next;
   });
 
-  type NoteItem = { id: string; category: ExamSectionKey; title: string; detail?: string };
+  type NoteItem = { id: string; category?: ExamSectionKey; title: string; detail?: string };
   const examItems: NoteItem[] = Object.entries(exam)
     .map(([id, freq]): NoteItem | null => {
       const sin = SIN_CATALOGUE.find(s => s.id === id);
@@ -719,56 +837,62 @@ function SessionView({ onBack, onComplete }: { onBack: () => void; onComplete: (
     })
     .filter((x): x is NoteItem => x !== null);
   const journalItems: NoteItem[] = incidents.map(inc => ({ id: inc.id, category: inc.category, title: inc.title, detail: inc.note || undefined }));
-  const allItems = [...examItems, ...journalItems];
-  const remaining = allItems.length - spoken.size;
+  const sinItems = [...examItems, ...journalItems];
+  const guidanceItems: NoteItem[] = guidance.map(g => ({ id: `guide:${g.id}`, title: g.note }));
+  const blessingItems: NoteItem[] = blessings.map(b => ({ id: `bless:${b.id}`, title: b.title, detail: b.reflection }));
+  const totalCount = sinItems.length + guidanceItems.length + blessingItems.length;
+  const remaining = totalCount - spoken.size;
+
   const sections: ExamSectionKey[] = [...DOMAINS, ...RELATIONAL_CATEGORIES];
-  const grouped = sections.map(cat => ({ cat, items: allItems.filter(i => i.category === cat) })).filter(g => g.items.length > 0);
+  const groups: { key: string; meta: DomainMeta; items: NoteItem[] }[] = [
+    ...sections.map(cat => ({ key: cat, meta: sectionMeta(cat), items: sinItems.filter(i => i.category === cat) })).filter(g => g.items.length > 0),
+    ...(guidanceItems.length ? [{ key: 'guidance', meta: GUIDANCE_META, items: guidanceItems }] : []),
+    ...(blessingItems.length ? [{ key: 'blessings', meta: BLESSINGS_META, items: blessingItems }] : []),
+  ];
 
   return (
     <SafeAreaView style={styles.safe}>
       <SubHeader title="In confession" onBack={onBack}
-        right={<Text style={styles.headerCount}>{allItems.length > 0 ? `${remaining} left` : ''}</Text>} />
+        right={<Text style={styles.headerCount}>{totalCount > 0 ? `${remaining} left` : ''}</Text>} />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.sessionIntro}>
-          Everything from your examination and journal, grouped by domain. Tap each as you speak it aloud.
-          Everything stays on this device only.
+          Everything from your examination, journal, guidance notes, and anything flagged in your
+          Spiritual Journal, grouped together. Tap each as you speak it aloud. Everything stays on this
+          device only.
         </Text>
 
-        {loaded && allItems.length === 0 && (
+        {loaded && totalCount === 0 && (
           <View style={styles.emptyCard}>
             <Text style={{ fontSize: 32, marginBottom: 10 }}>🕊</Text>
             <Text style={styles.emptyCardTitle}>Nothing noted this period</Text>
             <Text style={styles.emptyCardBody}>
-              Whatever you mark in your examination or log in your journal appears here, ready to speak.
-              You can still confess freely from the heart.
+              Whatever you mark in your examination, log in your journal, or bring as a question appears
+              here, ready to speak. You can still confess freely from the heart.
             </Text>
           </View>
         )}
 
-        {grouped.map(({ cat, items }) => {
-          const m = sectionMeta(cat);
-          return (
-            <View key={cat} style={styles.catCard}>
-              <View style={styles.sessionCatHead}>
-                <m.icon size={15} color={m.color} />
-                <Text style={[styles.catLabel, { color: m.color }]}>{m.label}</Text>
-              </View>
-              {items.map(item => {
-                const done = spoken.has(item.id);
-                return (
-                  <TouchableOpacity key={item.id} style={[styles.sessionRow, done && styles.sessionRowDone]} onPress={() => toggle(item.id)} activeOpacity={0.7}>
-                    <View style={[styles.sessionDot, { backgroundColor: done ? colors.green : m.color }]} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.sessionItemName, done && styles.strikethrough]}>{item.title}</Text>
-                      {!!item.detail && <Text style={[styles.sessionItemSub, done && styles.strikethrough]}>{item.detail}</Text>}
-                    </View>
-                    <Text style={{ fontSize: 18, color: done ? colors.green : colors.border, marginTop: 1 }}>{done ? '✓' : '○'}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+        {groups.map(({ key, meta: m, items }) => (
+          <View key={key} style={styles.catCard}>
+            <View style={styles.sessionCatHead}>
+              <m.icon size={15} color={m.color} />
+              <Text style={[styles.catLabel, { color: m.color }]}>{m.label}</Text>
             </View>
-          );
-        })}
+            {items.map(item => {
+              const done = spoken.has(item.id);
+              return (
+                <TouchableOpacity key={item.id} style={[styles.sessionRow, done && styles.sessionRowDone]} onPress={() => toggle(item.id)} activeOpacity={0.7}>
+                  <View style={[styles.sessionDot, { backgroundColor: done ? colors.green : m.color }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.sessionItemName, done && styles.strikethrough]}>{item.title}</Text>
+                    {!!item.detail && <Text style={[styles.sessionItemSub, done && styles.strikethrough]}>{item.detail}</Text>}
+                  </View>
+                  <Text style={{ fontSize: 18, color: done ? colors.green : colors.border, marginTop: 1 }}>{done ? '✓' : '○'}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
 
         <View style={styles.sessionNote}>
           <Text style={styles.sessionNoteText}>This is a guide, not a script. If something comes to mind that isn't listed, speak it freely.</Text>
@@ -819,10 +943,13 @@ function CompleteView({ onBack }: { onBack: () => void }) {
   function handleDelete() {
     confirmDestructive(
       'Delete confession notes',
-      'Your examination and journal entries for this period will be permanently deleted from this device. This cannot be undone.',
+      'Your examination, journal, and guidance notes for this period will be permanently deleted from this device, and any journal entries flagged for confession will be unmarked. This cannot be undone.',
       'Delete permanently',
       async () => {
-        await Promise.all([clearIncidents(), clearExam()]);
+        await Promise.all([
+          clearIncidents(), clearExam(), clearGuidance(),
+          !demoMode && user ? clearConfessionFlags(user.id) : Promise.resolve(),
+        ]);
         setNotesDeleted(true);
       },
     );
@@ -887,6 +1014,7 @@ export default function ConfessionScreen() {
   const [screen, setScreen] = useState<SubScreen>('hub');
   if (screen === 'journal')     return <JournalView    onBack={() => setScreen('hub')} />;
   if (screen === 'examination') return <ExaminationView onBack={() => setScreen('hub')} />;
+  if (screen === 'guidance')    return <GuidanceView    onBack={() => setScreen('hub')} />;
   if (screen === 'session')     return <SessionView    onBack={() => setScreen('hub')} onComplete={() => setScreen('complete')} />;
   if (screen === 'complete')    return <CompleteView   onBack={() => setScreen('hub')} />;
   return <Hub onNav={setScreen} />;
