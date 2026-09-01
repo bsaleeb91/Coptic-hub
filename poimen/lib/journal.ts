@@ -15,6 +15,11 @@ export interface JournalEntry {
   // Congregant marked this to bring up at their next confession — e.g. a
   // blessing or answered prayer they want to share with their FOC.
   flaggedForConfession?: boolean;
+  // Congregant marked this as a blessing / answered prayer — something
+  // good God is doing, distinct from a general reflection. Independent of
+  // flaggedForConfession: a blessing need not be brought to confession, and
+  // vice versa.
+  isBlessing?: boolean;
 }
 
 const SLUG = 'journal-entries';

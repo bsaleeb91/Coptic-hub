@@ -43,7 +43,12 @@ function EntryRow({ entry, onPress }: {
         <Text style={styles.entryDate}>{fmtDate(entry.created_at)}</Text>
         <Text style={styles.entryTitle}>{entry.title}</Text>
         <Text style={styles.entryPreview} numberOfLines={2}>{entry.reflection}</Text>
-        {entry.flaggedForConfession && <Text style={styles.entryFlagBadge}>📌 For your next confession</Text>}
+        {(entry.isBlessing || entry.flaggedForConfession) && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            {entry.isBlessing && <Text style={styles.entryBlessingBadge}>✨ Blessing</Text>}
+            {entry.flaggedForConfession && <Text style={styles.entryFlagBadge}>📌 For your next confession</Text>}
+          </View>
+        )}
       </View>
       <Text style={styles.entryChevron}>›</Text>
     </TouchableOpacity>
@@ -72,6 +77,8 @@ export default function JournalScreen() {
   const [scripture, setScripture] = useState('');
   const [prayerIntention, setPrayerIntention] = useState('');
   const [flagForConfession, setFlagForConfession] = useState(false);
+  const [markBlessing, setMarkBlessing] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'blessings'>('all');
 
   useEffect(() => {
     if (demoMode) {
@@ -104,11 +111,12 @@ export default function JournalScreen() {
       scripture: scripture.trim(),
       prayer_intention: prayerIntention.trim(),
       flaggedForConfession: flagForConfession,
+      isBlessing: markBlessing,
     };
     const updated = [entry, ...entries];
     setEntries(updated);
     await saveEntries(updated);
-    setEntryTitle(''); setReflection(''); setScripture(''); setPrayerIntention(''); setFlagForConfession(false);
+    setEntryTitle(''); setReflection(''); setScripture(''); setPrayerIntention(''); setFlagForConfession(false); setMarkBlessing(false);
     setSavingEntry(false);
   }
 
@@ -123,6 +131,13 @@ export default function JournalScreen() {
 
   function toggleConfessionFlag(id: string) {
     const updated = entries.map(e => e.id === id ? { ...e, flaggedForConfession: !e.flaggedForConfession } : e);
+    setEntries(updated);
+    saveEntries(updated);
+    setViewEntry(v => v && v.id === id ? updated.find(e => e.id === id) ?? v : v);
+  }
+
+  function toggleBlessing(id: string) {
+    const updated = entries.map(e => e.id === id ? { ...e, isBlessing: !e.isBlessing } : e);
     setEntries(updated);
     saveEntries(updated);
     setViewEntry(v => v && v.id === id ? updated.find(e => e.id === id) ?? v : v);
@@ -147,7 +162,17 @@ export default function JournalScreen() {
           <Text style={styles.detailTitle}>{viewEntry.title}</Text>
 
           <TouchableOpacity
-            style={[styles.confessionFlagChip, viewEntry.flaggedForConfession && styles.confessionFlagChipActive]}
+            style={[styles.confessionFlagChip, viewEntry.isBlessing && styles.blessingChipActive]}
+            onPress={() => toggleBlessing(viewEntry.id)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.confessionFlagChipText, viewEntry.isBlessing && styles.blessingChipTextActive]}>
+              {viewEntry.isBlessing ? '✨  Marked as a blessing — tap to remove' : '✨  Mark as a blessing / answered prayer'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.confessionFlagChip, { marginTop: 10 }, viewEntry.flaggedForConfession && styles.confessionFlagChipActive]}
             onPress={() => toggleConfessionFlag(viewEntry.id)}
             activeOpacity={0.8}
           >
@@ -202,6 +227,16 @@ export default function JournalScreen() {
           <TextInput style={[styles.textarea, { minHeight: 56 }]} multiline placeholder="What are you bringing to God in prayer today?" placeholderTextColor={colors.faint} value={prayerIntention} onChangeText={setPrayerIntention} />
           <TouchableOpacity
             style={[styles.checkboxRow, { marginTop: 14 }]}
+            onPress={() => setMarkBlessing(v => !v)}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.checkbox, markBlessing && styles.checkboxCheckedBlessing]}>
+              {markBlessing && <Text style={styles.checkboxTick}>✓</Text>}
+            </View>
+            <Text style={styles.checkboxLabel}>✨  This is a blessing — something wonderful God is doing</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.checkboxRow, { marginTop: 10 }]}
             onPress={() => setFlagForConfession(v => !v)}
             activeOpacity={0.8}
           >
@@ -221,6 +256,22 @@ export default function JournalScreen() {
 
         {/* Past Entries */}
         <Card title={`Past Entries (${entries.length})`} flat>
+          {entries.length > 0 && (
+            <View style={styles.filterRow}>
+              {([
+                { value: 'all' as const, label: 'All' },
+                { value: 'blessings' as const, label: '✨ Blessings' },
+              ]).map(opt => {
+                const active = filter === opt.value;
+                return (
+                  <TouchableOpacity key={opt.value} onPress={() => setFilter(opt.value)}
+                    style={[styles.filterChip, active && styles.filterChipActive]}>
+                    <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
           {loading ? (
             <ActivityIndicator color={colors.gold} style={{ paddingVertical: 20 }} />
           ) : entries.length === 0 ? (
@@ -230,7 +281,13 @@ export default function JournalScreen() {
               <Text style={styles.emptyBody}>Your saved entries will appear here.</Text>
             </View>
           ) : (
-            entries.map(entry => (
+            (filter === 'blessings' ? entries.filter(e => e.isBlessing) : entries).length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>✨</Text>
+                <Text style={styles.emptyTitle}>No blessings marked yet</Text>
+                <Text style={styles.emptyBody}>Mark an entry as a blessing to see it here.</Text>
+              </View>
+            ) : (filter === 'blessings' ? entries.filter(e => e.isBlessing) : entries).map(entry => (
               <EntryRow
                 key={entry.id}
                 entry={entry}
@@ -315,12 +372,20 @@ const styles = lazyThemed(() => StyleSheet.create({
   entryPreview: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },
   entryChevron: { fontSize: 18, color: colors.gold, paddingHorizontal: 4 },
   entryFlagBadge: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.gold, marginTop: 4 },
+  entryBlessingBadge: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.green, marginTop: 4 },
 
   checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   checkboxChecked: { backgroundColor: colors.gold, borderColor: colors.gold },
+  checkboxCheckedBlessing: { backgroundColor: colors.green, borderColor: colors.green },
   checkboxTick: { color: colors.navy, fontSize: 12, fontFamily: fonts.latoBold },
   checkboxLabel: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.cream, flex: 1 },
+
+  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.border },
+  filterChipActive: { borderColor: colors.green, backgroundColor: colors.greenBg },
+  filterChipText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.muted },
+  filterChipTextActive: { color: colors.green },
 
   divider: { height: 1, backgroundColor: colors.border },
 
@@ -349,6 +414,8 @@ const styles = lazyThemed(() => StyleSheet.create({
   confessionFlagChipActive: { borderColor: colors.gold, backgroundColor: colors.goldDim },
   confessionFlagChipText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.muted },
   confessionFlagChipTextActive: { color: colors.goldLight },
+  blessingChipActive: { borderColor: colors.green, backgroundColor: colors.greenBg },
+  blessingChipTextActive: { color: colors.green },
   detailLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.8, marginBottom: 8, marginTop: 4 },
   detailBody: { fontFamily: fonts.latoLight, fontSize: 15, color: colors.cream, lineHeight: 24, marginBottom: 20 },
   detailScriptureCard: { backgroundColor: 'rgba(201,168,76,0.06)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)', borderRadius: 10, padding: 14, marginBottom: 20 },
