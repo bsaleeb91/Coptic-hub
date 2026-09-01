@@ -14,6 +14,7 @@ import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
 import { confirmDestructive } from '@/lib/confirm';
+import { clergyDisplayName } from '@/lib/names';
 import * as H from '@/lib/haptics';
 import * as db from '@/lib/db';
 import type { AppointmentType, AvailabilityRuleRow, Appointment } from '@/lib/db';
@@ -86,7 +87,7 @@ export default function AppointmentsScreen() {
       db.getFocProfile(foc),
     ]);
     setOpen(o); setTypes(t); setRules(r); setBusy(b); setMine(m);
-    setFocName(fp?.full_name ?? 'your Father of Confession');
+    setFocName(fp?.full_name ? clergyDisplayName(fp.full_name) : 'your Father of Confession');
     setLoading(false);
   }, [demoMode, user]);
 

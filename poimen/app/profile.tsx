@@ -14,6 +14,7 @@ import { colors, fonts, ThemeMode, loadThemeMode, saveThemeMode , lazyThemed } f
 import { Card } from '@/components/ui/Card';
 import { useTutorial } from '@/lib/tutorial-context';
 import { isBiometricAvailable, loadFaceIdLockEnabled, saveFaceIdLockEnabled } from '@/lib/biometrics';
+import { clergyDisplayName } from '@/lib/names';
 import * as Updates from 'expo-updates';
 
 const LIFE_STAGES = ['single', 'engaged', 'married', 'widowed', 'divorced'] as const;
@@ -86,7 +87,7 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (profile?.foc_id) {
-      db.getProfile(profile.foc_id).then(p => setFocName(p?.full_name ?? null));
+      db.getProfile(profile.foc_id).then(p => setFocName(p?.full_name ? clergyDisplayName(p.full_name) : null));
     } else {
       setFocName(null);
     }

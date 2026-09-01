@@ -11,6 +11,7 @@ import { CrossIcon, CandleIcon, PersonIcon } from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
+import { clergyDisplayName } from '@/lib/names';
 
 type FilterType = 'all' | 'due' | 'overdue' | 'flagged';
 type StatusType = 'recent' | 'due' | 'overdue';
@@ -68,7 +69,7 @@ export default function FlockScreen() {
   const [contextMember, setContextMember] = useState<FlockMember | null>(null);
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  const greeting = profile?.full_name ? `Fr. ${profile.full_name.split(' ').slice(-1)[0]}` : 'Father';
+  const greeting = clergyDisplayName(profile?.full_name);
 
   useEffect(() => {
     if (demoMode) {

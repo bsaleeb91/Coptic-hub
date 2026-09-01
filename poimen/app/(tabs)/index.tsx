@@ -25,6 +25,7 @@ import { currentFast } from '@/lib/canon/fasting';
 import { loadStreak } from '@/lib/psalms/store';
 import { upcomingFeasts, feastOn } from '@/lib/feasts';
 import { upcomingCommemorations, gregorianToCoptic, commemorationOn } from '@/lib/synaxarium';
+import { firstGivenName, clergyDisplayName } from '@/lib/names';
 import Harp from '@/components/ui/Harp';
 import { CrossIcon, CandleIcon } from '@/components/ui/TabIcons';
 
@@ -32,17 +33,6 @@ const { width: SW } = Dimensions.get('window');
 const TILE_W = (SW - 48) / 2;
 
 // ── Demo data ────────────────────────────────────────────────
-// First given name, skipping a leading clergy title (e.g. "Fr. Mina Youssef"
-// → "Mina"). A priest whose request is still pending sees this dashboard
-// under their still-congregant role, and often types their title as part of
-// their name at sign-up — without this, the greeting reads as just "Fr.".
-const NAME_TITLES = new Set(['fr.', 'fr', 'father', 'rev.', 'rev', 'abouna', 'dn.', 'dn']);
-function firstGivenName(fullName?: string | null): string {
-  const parts = (fullName ?? '').trim().split(/\s+/).filter(Boolean);
-  const given = parts.find(p => !NAME_TITLES.has(p.toLowerCase()));
-  return given ?? parts[0] ?? '';
-}
-
 // Local YYYY-MM-DD of a timestamp, for same-day confession dedupe.
 function localDayOf(iso: string): string {
   const d = new Date(iso);
@@ -445,7 +435,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
           <View style={{ flex: 1, marginRight: 12 }}>
             <Text style={styles.subtitle}>{getDashboardSubtitle()}</Text>
-            <Text style={styles.greeting}>{firstName}</Text>
+            <Text style={styles.greeting}>{role === 'priest' ? clergyDisplayName(profile?.full_name) : firstName}</Text>
             {todayCelebration && (
               <Text style={styles.feastLine}>✝︎ {todayCelebration}</Text>
             )}
@@ -678,7 +668,7 @@ export default function DashboardScreen() {
                     </Text>
                   </View>
                   <View>
-                    <Text style={styles.focName}>{focProfile.full_name}</Text>
+                    <Text style={styles.focName}>{clergyDisplayName(focProfile.full_name)}</Text>
                     <Text style={styles.focChurch}>{focProfile.church_name ?? ''}</Text>
                   </View>
                 </View>
@@ -705,7 +695,7 @@ export default function DashboardScreen() {
           <View style={styles.consentModal}>
             <Text style={styles.consentCross}>✝︎</Text>
             <Text style={styles.consentTitle}>Share Your Vitals?</Text>
-            <Text style={styles.consentSub}>with {focProfile?.full_name ?? 'your Father of Confession'}</Text>
+            <Text style={styles.consentSub}>with {focProfile?.full_name ? clergyDisplayName(focProfile.full_name) : 'your Father of Confession'}</Text>
             <Text style={styles.consentBody}>
               Sharing your spiritual vitals lets your FOC understand how you're doing and guide you more intentionally between confessions. You can change this at any time in your profile.
             </Text>
