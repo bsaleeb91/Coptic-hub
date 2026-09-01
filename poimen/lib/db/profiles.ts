@@ -49,6 +49,18 @@ export async function getChurches(): Promise<Church[]> {
   return data ?? [];
 }
 
+// RLS restricts inserts to admins (is_admin()); a non-admin caller gets
+// back an error here rather than a row.
+export async function createChurch(name: string, address: string): Promise<Church | null> {
+  const { data, error } = await supabase
+    .from('churches')
+    .insert({ name: name.trim(), address: address.trim() || null })
+    .select('id, name, address, created_at')
+    .single();
+  if (error) return null;
+  return data;
+}
+
 export async function getProfileByInviteCode(
   code: string,
 ): Promise<{ id: string; full_name: string | null; church_name: string | null; role: string } | null> {

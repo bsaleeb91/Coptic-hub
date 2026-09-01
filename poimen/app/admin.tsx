@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
@@ -70,6 +70,10 @@ export default function AdminScreen() {
   const [actingId, setActingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState<ChartMetric>('signups');
+  const [newChurchName, setNewChurchName] = useState('');
+  const [newChurchAddress, setNewChurchAddress] = useState('');
+  const [addingChurch, setAddingChurch] = useState(false);
+  const [addChurchError, setAddChurchError] = useState('');
 
   useEffect(() => {
     if (!profile || profile.role !== 'admin') return;
@@ -98,6 +102,27 @@ export default function AdminScreen() {
       setRequests(await db.getPriestRequests());
     }
     setActingId(null);
+  }
+
+  async function handleAddChurch() {
+    if (!newChurchName.trim()) {
+      setAddChurchError('Church name is required.');
+      return;
+    }
+    setAddingChurch(true);
+    setAddChurchError('');
+    const church = await db.createChurch(newChurchName, newChurchAddress);
+    if (church) {
+      setChurches((prev) => [
+        ...prev,
+        { church_id: church.id, church_name: church.name, priests: 0, servants: 0, congregants: 0, foc_linked: 0 },
+      ].sort((a, b) => a.church_name.localeCompare(b.church_name)));
+      setNewChurchName('');
+      setNewChurchAddress('');
+    } else {
+      setAddChurchError('Could not add that church — make sure your role is set to admin in Supabase.');
+    }
+    setAddingChurch(false);
   }
 
   if (Platform.OS !== 'web') {
@@ -263,6 +288,30 @@ export default function AdminScreen() {
 
             {/* ── Churches ── */}
             <Text style={[styles.sectionLabel, { marginTop: 24 }]}>CHURCHES</Text>
+            <Card title="" titleIcon="">
+              <TextInput
+                style={styles.addChurchInput}
+                value={newChurchName}
+                onChangeText={setNewChurchName}
+                placeholder="Church name"
+                placeholderTextColor={colors.faint}
+              />
+              <TextInput
+                style={[styles.addChurchInput, { marginTop: 8 }]}
+                value={newChurchAddress}
+                onChangeText={setNewChurchAddress}
+                placeholder="Address (optional)"
+                placeholderTextColor={colors.faint}
+              />
+              {addChurchError ? <Text style={styles.requestErrorText}>{addChurchError}</Text> : null}
+              <TouchableOpacity
+                style={[styles.addChurchBtn, addingChurch && { opacity: 0.5 }]}
+                disabled={addingChurch}
+                onPress={handleAddChurch}
+              >
+                <Text style={styles.addChurchBtnText}>{addingChurch ? 'Adding…' : '+ Add Church'}</Text>
+              </TouchableOpacity>
+            </Card>
             {churches.length === 0 ? (
               <Text style={styles.emptyText}>No churches added yet.</Text>
             ) : (
@@ -356,6 +405,9 @@ const styles = lazyThemed(() => StyleSheet.create({
   barCount: { fontFamily: fonts.latoBold, fontSize: 12, width: 28, textAlign: 'right' },
 
   // Churches
+  addChurchInput: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontFamily: fonts.latoLight, fontSize: 13, color: colors.cream },
+  addChurchBtn: { marginTop: 10, alignSelf: 'flex-start' as any, borderWidth: 1, borderColor: colors.gold, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+  addChurchBtnText: { fontFamily: fonts.latoBold, fontSize: 11, letterSpacing: 0.5, color: colors.gold },
   churchStats: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 4 },
   churchStat: { alignItems: 'center', gap: 4 },
   churchStatVal: { fontFamily: fonts.cormorantMedium, fontSize: 24 },
