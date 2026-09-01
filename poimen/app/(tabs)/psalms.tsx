@@ -17,9 +17,10 @@ import { useDemoMode } from '@/lib/demo';
 import {
   PartCard, Grade, Streak, loadCards, loadSelection, saveSelection, review,
   computeStats, newQueue, reviewQueue, ReviewUnit, cardId, loadStreak, recordReviewDay,
-  loadNewPerDay, saveNewPerDay, learningItem,
+  hasFreezeAvailable, loadNewPerDay, saveNewPerDay, learningItem,
   ReciteCard, ReciteGrade, loadRecite, reviewRecite, reciteState, portionsMature,
 } from '@/lib/psalms/store';
+import { Badge, computeBadges } from '@/lib/psalms/badges';
 import {
   HOUR_LAYOUTS, itemsForPsalm, itemUnits, itemUnitCount, itemLeadUp, itemLabel,
   itemReaderText, itemHours, itemMeta, hourName, prayerItemId,
@@ -122,7 +123,8 @@ export default function PsalmsScreen() {
 
   const [selection, setSelection] = useState<string[]>([]);
   const [cards, setCards]         = useState<Record<string, PartCard>>({});
-  const [streak, setStreak]       = useState<Streak>({ current: 0, last: null });
+  const [streak, setStreak]       = useState<Streak>({ current: 0, longest: 0, last: null, lastFreezeUsed: null });
+  const [freezeReady, setFreezeReady] = useState(false);
   const [newPerDay, setNewPerDay] = useState(5);
   const [loading, setLoading]     = useState(true);
 
@@ -144,10 +146,10 @@ export default function PsalmsScreen() {
   useEffect(() => {
     (async () => {
       if (canSync && user) await hydratePsalmsFromCloud(user.id);
-      const [sel, c, st, npd, rec] = await Promise.all([
-        loadSelection(), loadCards(), loadStreak(), loadNewPerDay(), loadRecite(),
+      const [sel, c, st, npd, rec, freeze] = await Promise.all([
+        loadSelection(), loadCards(), loadStreak(), loadNewPerDay(), loadRecite(), hasFreezeAvailable(),
       ]);
-      setSelection(sel); setCards(c); setStreak(st); setNewPerDay(npd); setRecite(rec);
+      setSelection(sel); setCards(c); setStreak(st); setNewPerDay(npd); setRecite(rec); setFreezeReady(freeze);
       setLoading(false);
     })();
   }, [canSync, user]);
@@ -175,6 +177,7 @@ export default function PsalmsScreen() {
   }, [sync]);
 
   const stats = computeStats(selection, cards);
+  const badges = computeBadges({ selection, cards, recite, streak });
 
   const startSession = useCallback((mode: 'review' | 'new') => {
     const q: ReviewUnit[] = mode === 'review'
@@ -206,6 +209,7 @@ export default function PsalmsScreen() {
       const updated = await review(unit.item, unit.part, cards[cardId(unit.item, unit.part)], g);
       setCards(prev => ({ ...prev, [cardId(unit.item, unit.part)]: updated }));
       setStreak(await recordReviewDay());
+      setFreezeReady(await hasFreezeAvailable());
     } catch (e) { /* keep the session moving */ }
     advance(g === 'again' ? unit : null);
     setBusy(false);
@@ -221,6 +225,7 @@ export default function PsalmsScreen() {
       const updated = await reviewRecite(unit.item, recite[unit.item], g);
       setRecite(prev => ({ ...prev, [unit.item]: updated }));
       setStreak(await recordReviewDay());
+      setFreezeReady(await hasFreezeAvailable());
     } catch (e) { /* keep the session moving */ }
     // A forgotten recitation comes back later (its schedule resets), not this session.
     advance(null);
@@ -486,7 +491,15 @@ export default function PsalmsScreen() {
               <Text style={styles.heroLabel}>MEMORIZE THE AGPEYA</Text>
               <Text style={styles.heroBig}>{stats.mastered} <Text style={styles.heroOf}>/ {stats.totalParts} passages mature</Text></Text>
               <View style={styles.heroBarTrack}><View style={[styles.heroBarFill, { width: `${masteredPct}%` }]} /></View>
-              {streak.current > 0 && <Text style={styles.heroStreak}>🔥  {streak.current}-day streak</Text>}
+              {streak.current > 0 && (
+                <View style={styles.streakRow}>
+                  <Text style={styles.heroStreak}>🔥  {streak.current}-day streak</Text>
+                  {streak.longest > streak.current && (
+                    <Text style={styles.heroStreakBest}>Best: {streak.longest}</Text>
+                  )}
+                  {freezeReady && <Text style={styles.freezeTag}>🧊 freeze ready</Text>}
+                </View>
+              )}
             </View>
 
             <View style={styles.statRow}>
@@ -561,6 +574,19 @@ export default function PsalmsScreen() {
                 </View>
               );
             })}
+
+            <Text style={[styles.sectionLabel, { marginTop: SP.lg, marginBottom: SP.sm }]}>Milestones</Text>
+            <View style={styles.badgeGrid}>
+              {badges.map(b => (
+                <View key={b.id} style={[styles.badgeCard, !b.earned && styles.badgeCardLocked]}>
+                  <Text style={[styles.badgeIcon, !b.earned && styles.badgeIconLocked]}>{b.icon}</Text>
+                  <Text style={[styles.badgeLabel, !b.earned && styles.badgeLabelLocked]}>{b.label}</Text>
+                  <Text style={styles.badgeDesc}>
+                    {b.earned || !b.progress ? b.description : `${b.progress.current} / ${b.progress.target}`}
+                  </Text>
+                </View>
+              ))}
+            </View>
           </>
         )}
       </ScrollView>
@@ -592,7 +618,10 @@ const styles = lazyThemed(() => StyleSheet.create({
   heroOf:       { fontSize: 13, color: colors.muted, fontFamily: fonts.latoLight },
   heroBarTrack: { height: 6, borderRadius: 3, backgroundColor: colors.creamDim, overflow: 'hidden', marginTop: 12 },
   heroBarFill:  { height: '100%', borderRadius: 3, backgroundColor: colors.gold },
-  heroStreak:   { fontFamily: fonts.latoBold, color: colors.goldLight, fontSize: 13, marginTop: 10 },
+  streakRow:    { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 10 },
+  heroStreak:   { fontFamily: fonts.latoBold, color: colors.goldLight, fontSize: 13 },
+  heroStreakBest: { fontFamily: fonts.latoLight, color: colors.muted, fontSize: 12 },
+  freezeTag:    { fontFamily: fonts.latoBold, color: colors.blue, fontSize: 11, backgroundColor: colors.blue + '1A', borderRadius: R.full, paddingHorizontal: 8, paddingVertical: 3 },
 
   statRow:   { flexDirection: 'row', gap: SP.sm, marginBottom: SP.md },
   statCard:  { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: R.lg, paddingVertical: SP.md, alignItems: 'center', backgroundColor: colors.panel },
@@ -650,6 +679,15 @@ const styles = lazyThemed(() => StyleSheet.create({
   reciteTag:      { backgroundColor: colors.gold + '22', borderColor: colors.gold + '66', borderWidth: 0.5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: R.full },
   reciteTagText:  { fontFamily: fonts.latoBold, color: colors.goldLight, fontSize: 11 },
   crown:          { color: colors.green, fontSize: 18, paddingHorizontal: 6 },
+
+  badgeGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: SP.sm },
+  badgeCard:       { width: '31%', borderWidth: 1, borderColor: colors.gold + '55', borderRadius: R.lg, paddingVertical: SP.md, paddingHorizontal: SP.xs, alignItems: 'center', backgroundColor: colors.panel },
+  badgeCardLocked: { borderColor: colors.border, opacity: 0.55 },
+  badgeIcon:       { fontSize: 22, marginBottom: 4 },
+  badgeIconLocked: { opacity: 0.5 },
+  badgeLabel:      { fontFamily: fonts.latoBold, fontSize: 11, color: colors.goldLight, textAlign: 'center' },
+  badgeLabelLocked:{ color: colors.muted },
+  badgeDesc:       { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, textAlign: 'center', marginTop: 2 },
   cueLabel:       { fontFamily: fonts.latoBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: colors.muted },
   sessionFoot:    { padding: SP.lg },
   revealBtn:      { backgroundColor: colors.gold, paddingVertical: 14, borderRadius: R.md, alignItems: 'center' },

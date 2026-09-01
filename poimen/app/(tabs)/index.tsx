@@ -22,6 +22,7 @@ import { loadPostponements, loadServiceDone } from '@/lib/canon/postpone';
 import { recordCanonDay, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
 import { lastConfessionDate, loadConfessionDates, hydrateConfessionDatesFromCloud, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
 import { currentFast } from '@/lib/canon/fasting';
+import { loadStreak } from '@/lib/psalms/store';
 import { upcomingFeasts, feastOn } from '@/lib/feasts';
 import { upcomingCommemorations, gregorianToCoptic, commemorationOn } from '@/lib/synaxarium';
 import Harp from '@/components/ui/Harp';
@@ -239,16 +240,19 @@ export default function DashboardScreen() {
   // mirrored to the 'vitals' agent_progress slug so the Father-of-Confession
   // dashboards keep working (consent still gates visibility).
   const [canonToday, setCanonToday] = useState<{ done: number; total: number } | null>(null);
+  const [psalmStreak, setPsalmStreak] = useState(0);
   useFocusEffect(useCallback(() => {
     (async () => {
       // Journey + FOC card refresh on every focus, so a confession recorded
       // moments ago on the Confession tab appears in the timeline immediately.
       if (!demoMode) loadAll();
-      const [rule, checks, postponed, serviceDone, assigned, last] = await Promise.all([
+      const [rule, checks, postponed, serviceDone, assigned, last, psalmStreakVal] = await Promise.all([
         loadRule(), loadTodayChecks(), loadPostponements(), loadServiceDone(),
         loadAssignedForMember(user?.id ?? '', demoMode, profile?.foc_id ?? undefined),
         lastConfessionDate(),
+        loadStreak(),
       ]);
+      setPsalmStreak(psalmStreakVal.current);
       // Same EFFECTIVE canon as the Canon tab: the member's rule with the
       // FOC's locked assignments overlaid, plus scheduled custom components.
       // recordCanonDay below wholesale-replaces today's record, so building
@@ -518,6 +522,11 @@ export default function DashboardScreen() {
             <Text style={{ fontFamily: fonts.latoBold, fontSize: 14, color: colors.cream, marginBottom: 2, flexShrink: 1 }}>Memorize the Psalms</Text>
             <Text style={{ fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, flexShrink: 1 }}>Agpeya psalter · spaced repetition</Text>
           </View>
+          {psalmStreak > 0 && (
+            <View style={{ backgroundColor: colors.gold + '22', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginRight: 4 }}>
+              <Text style={{ fontFamily: fonts.latoBold, fontSize: 12, color: colors.goldLight }}>🔥 {psalmStreak}</Text>
+            </View>
+          )}
           <Text style={{ fontSize: 18, color: colors.gold }}>›</Text>
         </TouchableOpacity>
 

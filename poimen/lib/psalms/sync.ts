@@ -6,9 +6,16 @@
 // exposes a lightweight summary for the Progress surface / Father of Confession.
 
 import * as db from '@/lib/db';
-import { exportState, importState, isLocalEmpty, computeStats } from './store';
+import { exportState, importState, isLocalEmpty, computeStats, masteredItemsCount } from './store';
 
 export const PSALM_SLUG = 'psalm-memorization';
+
+// A small public-ish summary, separate from the full snapshot above, that the
+// congregant's Father of Confession and assigned servant may read (RLS in
+// 20260713020000_psalm_stats_sharing.sql, gated on the same vitals-consent
+// flags as Spiritual Vitals). Keep this payload to counts only — never psalm
+// selection or card-level detail, which stay private to the congregant.
+export const PSALM_STATS_SLUG = 'psalm-stats';
 
 // Pull the cloud snapshot into local storage IF local is empty (fresh install /
 // new device). Returns true when local data was hydrated from the cloud.
@@ -33,21 +40,36 @@ export async function pushPsalmsToCloud(userId: string): Promise<void> {
   try {
     const snapshot = await exportState();
     const stats = computeStats(snapshot.selection, snapshot.cards);
-    await db.upsertAgentProgress({
-      user_id: userId,
-      agent_slug: PSALM_SLUG,
-      payload: {
-        snapshot,
-        summary: {
-          totalParts: stats.totalParts,
-          mastered: stats.mastered,
-          learning: stats.learning,
-          newCount: stats.newCount,
-          streak: snapshot.streak.current,
+    const now = new Date().toISOString();
+    await Promise.all([
+      db.upsertAgentProgress({
+        user_id: userId,
+        agent_slug: PSALM_SLUG,
+        payload: {
+          snapshot,
+          summary: {
+            totalParts: stats.totalParts,
+            mastered: stats.mastered,
+            learning: stats.learning,
+            newCount: stats.newCount,
+            streak: snapshot.streak.current,
+          },
         },
-      },
-      updated_at: new Date().toISOString(),
-    });
+        updated_at: now,
+      }),
+      db.upsertAgentProgress({
+        user_id: userId,
+        agent_slug: PSALM_STATS_SLUG,
+        payload: {
+          streak: snapshot.streak.current,
+          longestStreak: snapshot.streak.longest,
+          mastered: stats.mastered,
+          totalParts: stats.totalParts,
+          masteredItems: masteredItemsCount(snapshot.selection, snapshot.cards),
+        },
+        updated_at: now,
+      }),
+    ]);
   } catch {
     // Best-effort mirror.
   }

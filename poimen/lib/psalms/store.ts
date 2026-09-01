@@ -248,6 +248,13 @@ export function isFullyMature(item: string, cardMap: Record<string, PartCard>): 
   return total > 0 && mature === total;
 }
 
+// How many whole passages (not portions) are fully mature — the milestone unit
+// badges count in ("5 psalms memorized"), as opposed to computeStats().mastered
+// which counts individual portions.
+export function masteredItemsCount(selection: string[], cardMap: Record<string, PartCard>): number {
+  return selection.filter(item => isFullyMature(item, cardMap)).length;
+}
+
 // Due portion reviews. A portion is reviewable once it has been introduced (it
 // has a card) and its scheduled date has arrived — a portion graded today (due
 // tomorrow at the earliest) is never re-served the same day, and a portion
@@ -380,19 +387,61 @@ export function reviewQueue(
 }
 
 // ─── Streak ───────────────────────────────────────────────────────────────────
+// A day counts once any portion or recitation is graded that day (recordReviewDay
+// is called once per grade, but only the first call each day changes anything).
+// `longest` is the best streak ever reached, kept even after a later lapse.
+// `lastFreezeUsed` gates a Duolingo-style streak freeze: miss exactly one day
+// and the streak survives instead of resetting, but at most once every 7 days,
+// so it forgives an occasional missed day without weakening the habit.
 
-export interface Streak { current: number; last: string | null; }
+export interface Streak { current: number; longest: number; last: string | null; lastFreezeUsed: string | null; }
+
+const FREEZE_COOLDOWN_DAYS = 7;
 
 export async function loadStreak(): Promise<Streak> {
-  return readJSON<Streak>(K_STREAK, { current: 0, last: null });
+  // Normalize older/cloud-hydrated records that predate `longest`/`lastFreezeUsed`.
+  const raw = await readJSON<Partial<Streak>>(K_STREAK, {});
+  const current = raw.current ?? 0;
+  return {
+    current,
+    longest: raw.longest ?? current,
+    last: raw.last ?? null,
+    lastFreezeUsed: raw.lastFreezeUsed ?? null,
+  };
+}
+
+function freezeAvailable(lastFreezeUsed: string | null, today: string): boolean {
+  if (!lastFreezeUsed) return true;
+  const cooldownEnd = addDaysStr(-FREEZE_COOLDOWN_DAYS);
+  return lastFreezeUsed <= cooldownEnd;
+}
+
+// True if today has a streak freeze available to bridge a single missed day —
+// used by the UI to show "a freeze is ready" before one is actually spent.
+export async function hasFreezeAvailable(): Promise<boolean> {
+  const streak = await loadStreak();
+  return freezeAvailable(streak.lastFreezeUsed, todayStr());
 }
 
 export async function recordReviewDay(): Promise<Streak> {
   const today = todayStr();
   const cur = await loadStreak();
   if (cur.last === today) return cur;
+
   const yesterday = addDaysStr(-1);
-  const next: Streak = { current: cur.last === yesterday ? cur.current + 1 : 1, last: today };
+  const twoDaysAgo = addDaysStr(-2);
+  let current: number;
+  let lastFreezeUsed = cur.lastFreezeUsed;
+  if (cur.last === yesterday) {
+    current = cur.current + 1;
+  } else if (cur.last === twoDaysAgo && freezeAvailable(cur.lastFreezeUsed, today)) {
+    // Exactly one day missed and a freeze is available — bridge the gap.
+    current = cur.current + 1;
+    lastFreezeUsed = today;
+  } else {
+    current = 1;
+  }
+  const next: Streak = { current, longest: Math.max(cur.longest, current), last: today, lastFreezeUsed };
   await writeJSON(K_STREAK, next);
   return next;
 }
@@ -434,7 +483,7 @@ export async function importState(snap: PsalmSnapshot): Promise<void> {
     writeJSON(K_SELECTION, snap.selection ?? []),
     writeJSON(K_CARDS, snap.cards ?? {}),
     writeJSON(K_RECITE, snap.recite ?? {}),
-    writeJSON(K_STREAK, snap.streak ?? { current: 0, last: null }),
+    writeJSON(K_STREAK, snap.streak ?? { current: 0, longest: 0, last: null, lastFreezeUsed: null }),
     writeJSON(K_NEWPERDAY, snap.newPerDay ?? NEW_PER_SESSION),
   ]);
 }

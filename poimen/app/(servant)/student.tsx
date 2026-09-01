@@ -5,13 +5,17 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { CandleIcon, PencilIcon, PrayingHandsIcon } from '@/components/ui/TabIcons';
+import Harp from '@/components/ui/Harp';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 import { decryptFromSender } from '@/lib/crypto';
 
 // ── Demo data ─────────────────────────────────────────────────
-const DEMO_DB: Record<string, { canons: any[]; note: string; prayer: string[] }> = {
+const DEMO_DB: Record<string, {
+  canons: any[]; note: string; prayer: string[];
+  psalm: { streak: number; longestStreak: number; masteredItems: number } | null;
+}> = {
   'demo-s1': {
     canons: [
       { id: 'ds1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Jun 1, 2026', completions: 5, totalDays: 7 },
@@ -22,6 +26,7 @@ const DEMO_DB: Record<string, { canons: any[]; note: string; prayer: string[] }>
       'Passing his math exams this week',
       'His grandmother who has been ill',
     ],
+    psalm: { streak: 4, longestStreak: 10, masteredItems: 2 },
   },
   'demo-s2': {
     canons: [
@@ -32,6 +37,7 @@ const DEMO_DB: Record<string, { canons: any[]; note: string; prayer: string[] }>
       'Peace for her parents who are going through a difficult season',
       'That she would understand the faith more deeply',
     ],
+    psalm: null,
   },
 };
 
@@ -39,7 +45,7 @@ function getDemoData(id: string) {
   return DEMO_DB[id] ?? DEMO_DB['demo-s1'];
 }
 
-type TabType = 'canons' | 'notes' | 'prayer';
+type TabType = 'canons' | 'psalms' | 'notes' | 'prayer';
 
 export default function StudentScreen() {
   const router = useRouter();
@@ -65,6 +71,7 @@ export default function StudentScreen() {
   const [prayer, setPrayer] = useState<{ topic: string; date: string; body?: string | null }[]>(
     demo.prayer.map(p => ({ topic: p, date: '' }))
   );
+  const [psalmStats, setPsalmStats] = useState<{ streak: number; longestStreak: number; masteredItems: number } | null>(demoMode ? demo.psalm : null);
 
   const displayName = studentName ?? 'Student';
   const initials = displayName.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
@@ -75,6 +82,7 @@ export default function StudentScreen() {
       setCanons(d.canons);
       setNotes(d.note ? [{ id: 'demo-note-1', author_id: 'demo-servant', member_id: studentId ?? '', body: d.note, created_at: new Date(Date.now() - 86400000 * 5).toISOString(), updated_at: new Date(Date.now() - 86400000 * 5).toISOString() }] : []);
       setPrayer(d.prayer.map(p => ({ topic: p, date: '' })));
+      setPsalmStats(d.psalm);
       setNewNoteText('');
     } else if (studentId) {
       loadStudentData();
@@ -85,11 +93,17 @@ export default function StudentScreen() {
     if (!user || !studentId) return;
     setLoading(true);
 
-    const [canonData, notesData, prayerData] = await Promise.all([
+    const [canonData, notesData, prayerData, psalmStatsPayload] = await Promise.all([
       db.getStudentActiveCanons(studentId, user.id),
       db.getPastoralNotes(user.id, studentId),
       db.getServantSharedPrayer(studentId),
+      db.getAgentProgress(studentId, 'psalm-stats'),
     ]);
+    setPsalmStats(psalmStatsPayload ? {
+      streak: psalmStatsPayload.streak ?? 0,
+      longestStreak: psalmStatsPayload.longestStreak ?? 0,
+      masteredItems: psalmStatsPayload.masteredItems ?? 0,
+    } : null);
 
     if (canonData) {
       const enriched = await Promise.all(canonData.map(async c => {
@@ -168,6 +182,7 @@ export default function StudentScreen() {
 
   const TABS: { value: TabType; label: string }[] = [
     { value: 'canons', label: 'Canons' },
+    { value: 'psalms', label: 'Psalms' },
     { value: 'notes', label: 'My Notes' },
     { value: 'prayer', label: 'Prayer' },
   ];
@@ -244,6 +259,33 @@ export default function StudentScreen() {
                   )}
                 </Card>
               </>
+            )}
+
+            {/* ── Psalms ── */}
+            {tab === 'psalms' && (
+              <Card title="Psalm Memorization" titleIconNode={<Harp size={16} color={colors.gold} />}>
+                {!psalmStats ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyTitle}>No shared progress</Text>
+                    <Text style={styles.emptyBody}>{displayName.split(' ')[0]} hasn't shared psalm memorization progress yet.</Text>
+                  </View>
+                ) : (
+                  <View style={styles.psalmStatsRow}>
+                    <View style={styles.psalmStat}>
+                      <Text style={styles.psalmStatValue}>🔥 {psalmStats.streak}</Text>
+                      <Text style={styles.psalmStatLabel}>day streak</Text>
+                    </View>
+                    <View style={styles.psalmStat}>
+                      <Text style={styles.psalmStatValue}>{psalmStats.longestStreak}</Text>
+                      <Text style={styles.psalmStatLabel}>best streak</Text>
+                    </View>
+                    <View style={styles.psalmStat}>
+                      <Text style={styles.psalmStatValue}>{psalmStats.masteredItems}</Text>
+                      <Text style={styles.psalmStatLabel}>memorized</Text>
+                    </View>
+                  </View>
+                )}
+              </Card>
             )}
 
             {/* ── My Notes ── */}
@@ -342,7 +384,7 @@ export default function StudentScreen() {
 
         <View style={styles.scopeNote}>
           <Text style={styles.scopeNoteText}>
-            ✦ You can see canon progress your students self-report. Confession history and pastoral counseling are accessible only to their Father of Confession.
+            ✦ You can see canon progress and psalm memorization your students choose to share. Confession history and pastoral counseling are accessible only to their Father of Confession.
           </Text>
         </View>
 
@@ -390,6 +432,11 @@ const styles = lazyThemed(() => StyleSheet.create({
   progressPct: { fontFamily: fonts.latoBold, fontSize: 11, flexShrink: 0 },
   removeBtn: { borderWidth: 1, borderColor: 'rgba(192,57,43,0.3)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   removeBtnText: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.red, letterSpacing: 0.5 },
+
+  psalmStatsRow: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8 },
+  psalmStat: { alignItems: 'center' },
+  psalmStatValue: { fontFamily: fonts.cormorantMedium, fontSize: 20, color: colors.goldLight },
+  psalmStatLabel: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
 
   privacyNote: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 12, opacity: 0.7 },
   noteCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 10 },

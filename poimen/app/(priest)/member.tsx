@@ -8,6 +8,7 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { CandleIcon } from '@/components/ui/TabIcons';
+import Harp from '@/components/ui/Harp';
 import { useSession } from '@/lib/auth';
 import { latestConfessionMs, daysSinceMs } from '@/lib/confession/dates';
 import * as db from '@/lib/db';
@@ -79,6 +80,7 @@ function ruleSummaryLines(r: RuleConfig): { label: string; value: string }[] {
 const DEMO_DB: Record<string, {
   member: any; contact: any; life: any; children: any[];
   vitals: Record<string, number | null>; confessions: any[]; prayer: any[]; canons: any[]; note: string;
+  psalm: { streak: number; longestStreak: number; masteredItems: number } | null;
 }> = {
   'demo-mh': {
     member: { initials: 'MH', name: 'Michael Hanna', stage: 'Growing', joined: 'September 2024', daysSince: 47, flagged: false, flagNote: '' },
@@ -90,6 +92,7 @@ const DEMO_DB: Record<string, {
     prayer: [{ date: 'MAY 4, 2026', topic: 'Gratitude for new baby — prayers of thanksgiving' }, { date: 'MAR 10, 2026', topic: 'Wisdom as a new father' }],
     canons: [{ id: 'c1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Apr 21, 2026', completions: 5, totalDays: 7 }, { id: 'c2', component: 'Psalm reading (1 chapter)', frequency: 'Daily', startDate: 'Apr 21, 2026', completions: 4, totalDays: 7 }],
     note: 'Growing well since the birth of Kyrillos. Pastoral visit May 4 was fruitful. Follow up on consistent Agpeya practice — suggested praying together as a couple after the baby sleeps.',
+    psalm: { streak: 6, longestStreak: 14, masteredItems: 3 },
   },
   'demo-sg': {
     member: { initials: 'SG', name: 'Sara Girgis', stage: 'Mature', joined: 'March 2021', daysSince: 18, flagged: false, flagNote: '' },
@@ -101,6 +104,7 @@ const DEMO_DB: Record<string, {
     prayer: [{ date: 'MAY 20, 2026', topic: 'Discernment of vocation — monastery vs. marriage' }],
     canons: [{ id: 'c1', component: 'Complete Agpeya (all 7 hours)', frequency: 'Daily', startDate: 'Jan 9, 2026', completions: 6, totalDays: 7 }, { id: 'c2', component: 'Bible reading (2 chapters)', frequency: 'Daily', startDate: 'Jan 9, 2026', completions: 6, totalDays: 7 }],
     note: 'Spiritually mature and consistent. Currently in a season of vocational discernment. Needs gentle guidance, not pressure. Recommend reading Fr. Matta El-Meskeen on the monastic call.',
+    psalm: { streak: 41, longestStreak: 41, masteredItems: 11 },
   },
   'demo-pb': {
     member: { initials: 'PB', name: 'Peter Botros', stage: 'New', joined: 'February 2026', daysSince: 74, flagged: true, flagNote: 'Missed two follow-up appointments.' },
@@ -112,6 +116,7 @@ const DEMO_DB: Record<string, {
     prayer: [{ date: 'MAY 28, 2026', topic: 'Job transition — feeling lost' }, { date: 'MAY 5, 2026', topic: 'Family reconciliation with brother' }],
     canons: [{ id: 'c1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Mar 1, 2026', completions: 1, totalDays: 7 }, { id: 'c2', component: 'Gospel Reading (1 chapter)', frequency: 'Daily', startDate: 'Mar 1, 2026', completions: 2, totalDays: 7 }],
     note: 'Needs consistent follow-up. Has expressed interest in deepening faith but struggles with consistency. Suggested accountability partner from the young adult group.',
+    psalm: null,
   },
   'demo-mm': {
     member: { initials: 'MM', name: 'Mary Mikhail', stage: 'Growing', joined: 'June 2023', daysSince: 29, flagged: false, flagNote: '' },
@@ -123,6 +128,7 @@ const DEMO_DB: Record<string, {
     prayer: [{ date: 'APR 30, 2026', topic: 'Peace in marriage — communication difficulties' }, { date: 'MAR 15, 2026', topic: 'Healing for mother-in-law' }],
     canons: [{ id: 'c1', component: 'Evening Prayer (Compline)', frequency: 'Daily', startDate: 'Mar 1, 2026', completions: 5, totalDays: 7 }, { id: 'c2', component: 'Bible reading (1 chapter)', frequency: 'Daily', startDate: 'Mar 1, 2026', completions: 4, totalDays: 7 }],
     note: 'Consistent growth. Fady and Mary attend together which is encouraging. Consider inviting them to lead a young couples\' small group — they have the maturity for it.',
+    psalm: { streak: 2, longestStreak: 9, masteredItems: 1 },
   },
   'demo-ag': {
     member: { initials: 'AG', name: 'Andrew George', stage: 'Seeking', joined: 'January 2026', daysSince: 92, flagged: true, flagNote: 'New to the church — needs initial meeting.' },
@@ -134,6 +140,7 @@ const DEMO_DB: Record<string, {
     prayer: [{ date: 'MAY 1, 2026', topic: 'Searching for meaning — career feels empty' }],
     canons: [],
     note: 'Has not had a first confession yet. Moved from Chicago in January. Attends Sunday Liturgy irregularly. Needs a warm personal invitation — try a phone call this week before Sunday.',
+    psalm: null,
   },
   'demo-cn': {
     member: { initials: 'CN', name: 'Christine Naguib', stage: 'Multiplying', joined: 'April 2019', daysSince: 35, flagged: false, flagNote: '' },
@@ -145,6 +152,7 @@ const DEMO_DB: Record<string, {
     prayer: [{ date: 'APR 25, 2026', topic: 'Guidance for Verena\'s school transition' }],
     canons: [{ id: 'c1', component: 'Midnight Praise (Tasbeha)', frequency: 'Weekly', startDate: 'Jan 1, 2026', completions: 6, totalDays: 7 }, { id: 'c2', component: 'Bible reading (3 chapters)', frequency: 'Daily', startDate: 'Jan 1, 2026', completions: 6, totalDays: 7 }],
     note: 'One of the strongest members of the flock. Mentoring two younger women. Consider formally appointing her to lead the women\'s spiritual development group.',
+    psalm: { streak: 87, longestStreak: 112, masteredItems: 22 },
   },
 };
 
@@ -208,6 +216,7 @@ export default function MemberScreen() {
   const [lifeStageData, setLifeStageData] = useState<any>(demoMode ? demo.life : null);
   const [memberChildren, setMemberChildren] = useState<any[]>(demoMode ? demo.children : []);
   const [vitals, setVitals] = useState<any[]>(vitalsFromPayload(demo.vitals));
+  const [psalmStats, setPsalmStats] = useState<{ streak: number; longestStreak: number; masteredItems: number } | null>(demoMode ? demo.psalm : null);
   const [confessions, setConfessions] = useState<any[]>(demo.confessions);
   const [prayerRequests, setPrayerRequests] = useState<any[]>(demo.prayer);
   const [canons, setCanons] = useState<any[]>(demo.canons);
@@ -265,6 +274,7 @@ export default function MemberScreen() {
         setLifeStageData(d.life);
         setMemberChildren(d.children);
         setVitals(vitalsFromPayload(d.vitals));
+        setPsalmStats(d.psalm);
         setConfessions(d.confessions);
         setPrayerRequests(d.prayer);
         setCanons(d.canons);
@@ -279,10 +289,11 @@ export default function MemberScreen() {
     if (!user || !memberId) return;
     setLoading(true);
 
-    const [profileData, vitalsPayload, confData, confDatesPayload, prayerData, canonData, notesData, contactData, lifeData, kidsData] =
+    const [profileData, vitalsPayload, psalmStatsPayload, confData, confDatesPayload, prayerData, canonData, notesData, contactData, lifeData, kidsData] =
       await Promise.all([
         db.getMemberProfile(memberId),
         db.getAgentProgress(memberId, 'vitals'),
+        db.getAgentProgress(memberId, 'psalm-stats'),
         db.getConfessionsForCongregant(memberId),
         db.getAgentProgress(memberId, 'confession-dates'),
         db.getFocPrayerRequests(memberId),
@@ -317,6 +328,12 @@ export default function MemberScreen() {
     } else if (!demoMode) {
       setVitals([]);
     }
+
+    setPsalmStats(psalmStatsPayload ? {
+      streak: psalmStatsPayload.streak ?? 0,
+      longestStreak: psalmStatsPayload.longestStreak ?? 0,
+      masteredItems: psalmStatsPayload.masteredItems ?? 0,
+    } : null);
 
     {
       // Priest-logged confession encounters merged with the member's own
@@ -565,6 +582,27 @@ export default function MemberScreen() {
                       </View>
                     );
                   })}
+                </Card>
+
+                <Card title="Psalm Memorization" titleIconNode={<Harp size={16} color={colors.gold} />} flat>
+                  {!psalmStats ? (
+                    <Text style={styles.emptyText}>Member hasn't shared psalm memorization progress yet.</Text>
+                  ) : (
+                    <View style={styles.psalmStatsRow}>
+                      <View style={styles.psalmStat}>
+                        <Text style={styles.psalmStatValue}>🔥 {psalmStats.streak}</Text>
+                        <Text style={styles.psalmStatLabel}>day streak</Text>
+                      </View>
+                      <View style={styles.psalmStat}>
+                        <Text style={styles.psalmStatValue}>{psalmStats.longestStreak}</Text>
+                        <Text style={styles.psalmStatLabel}>best streak</Text>
+                      </View>
+                      <View style={styles.psalmStat}>
+                        <Text style={styles.psalmStatValue}>{psalmStats.masteredItems}</Text>
+                        <Text style={styles.psalmStatLabel}>memorized</Text>
+                      </View>
+                    </View>
+                  )}
                 </Card>
 
                 <Card title="Confession History" flat>
@@ -887,6 +925,11 @@ const styles = lazyThemed(() => StyleSheet.create({
   vitalTrack: { width: 80, height: 4, backgroundColor: colors.creamDim, borderRadius: 4, overflow: 'hidden' },
   vitalFill: { height: '100%', backgroundColor: colors.gold, borderRadius: 4 },
   vitalVal: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream, width: 30, textAlign: 'right' },
+
+  psalmStatsRow: { flexDirection: 'row', justifyContent: 'space-around' },
+  psalmStat: { alignItems: 'center' },
+  psalmStatValue: { fontFamily: fonts.cormorantMedium, fontSize: 20, color: colors.goldLight },
+  psalmStatLabel: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
 
   privacyNote: { backgroundColor: 'rgba(201,168,76,0.07)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 12 },
   privacyNoteText: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, letterSpacing: 0.3 },
