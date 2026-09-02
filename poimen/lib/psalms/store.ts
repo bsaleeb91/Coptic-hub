@@ -197,24 +197,33 @@ export interface PsalmStats {
   totalParts: number;
   newCount: number;
   learning: number;
-  mastered: number;
+  mastered: number;        // PORTIONS mature — drives the progress bar
   dueToday: number;
+  totalItems: number;      // whole psalms/passages selected
+  itemsMemorized: number;  // whole psalms/passages with EVERY portion mature
 }
 
 export function computeStats(selection: string[], cardMap: Record<string, PartCard>): PsalmStats {
-  let totalParts = 0, learning = 0, mastered = 0, dueToday = 0, started = 0;
+  let totalParts = 0, learning = 0, mastered = 0, dueToday = 0, started = 0, itemsMemorized = 0;
   for (const it of selection) {
     const parts = unitCount(it);
     totalParts += parts;
+    // "Memorized" is counted in whole psalms/passages, not portions — a psalm
+    // isn't memorized until all of it is. Every portion mature = the item counts.
+    let matureParts = 0;
     for (let i = 0; i < parts; i++) {
       const c = cardMap[cardId(it, i)];
       if (!c) continue;
       started++;
-      if (c.intervalDays >= MASTERED_INTERVAL) mastered++; else learning++;
+      if (c.intervalDays >= MASTERED_INTERVAL) { mastered++; matureParts++; } else learning++;
       if (isDue(c)) dueToday++;
     }
+    if (parts > 0 && matureParts === parts) itemsMemorized++;
   }
-  return { totalParts, newCount: totalParts - started, learning, mastered, dueToday };
+  return {
+    totalParts, newCount: totalParts - started, learning, mastered, dueToday,
+    totalItems: selection.length, itemsMemorized,
+  };
 }
 
 export function portionsMature(item: string, cardMap: Record<string, PartCard>): { mature: number; total: number } {
