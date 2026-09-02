@@ -210,7 +210,7 @@ export default function PrayerScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
 
         <Text style={styles.pageTitle}>Prayer Requests</Text>
         <Text style={styles.pageSubtitle}>Submit, track, and mark answered prayers</Text>

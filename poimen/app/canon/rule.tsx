@@ -169,7 +169,7 @@ export default function RuleScreen() {
         <Text style={s.headerTitle}>Edit Rule</Text>
         <View style={{ width: 54 }} />
       </View>
-      <ScrollView contentContainerStyle={{ padding: SP.lg, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ padding: SP.lg, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <Text style={s.note}>
           Set your rule together with your father of confession. Add only what you can keep faithfully.
         </Text>

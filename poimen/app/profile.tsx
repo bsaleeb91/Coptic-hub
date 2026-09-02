@@ -270,6 +270,7 @@ export default function ProfileScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
         <TouchableOpacity style={styles.backRow} onPress={() => goBack('/(tabs)')}>
           <Text style={styles.backArrow}>‹</Text>
