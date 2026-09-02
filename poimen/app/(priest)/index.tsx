@@ -137,7 +137,7 @@ export default function FlockScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
 
         <View style={styles.topbar}>
           <View style={styles.topbarLeft}>
@@ -267,7 +267,9 @@ export default function FlockScreen() {
                 <View style={ctx.divider} />
                 <TouchableOpacity style={ctx.action} onPress={() => {
                   H.tap(); setContextMember(null);
-                  router.push({ pathname: '/(priest)/log-encounter', params: { id: contextMember.id, name: contextMember.name } });
+                  // memberId/memberName — what log-encounter and assign-canon
+                  // read. The member screen is the one that takes id/name.
+                  router.push({ pathname: '/(priest)/log-encounter', params: { memberId: contextMember.id, memberName: contextMember.name } });
                 }}>
                   <View style={ctx.actionIcon}><CrossIcon size={18} color={colors.gold} /></View>
                   <Text style={ctx.actionLabel}>Log Encounter</Text>
@@ -275,7 +277,7 @@ export default function FlockScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity style={ctx.action} onPress={() => {
                   H.tap(); setContextMember(null);
-                  router.push({ pathname: '/(priest)/assign-canon', params: { id: contextMember.id, name: contextMember.name } });
+                  router.push({ pathname: '/(priest)/assign-canon', params: { memberId: contextMember.id, memberName: contextMember.name } });
                 }}>
                   <View style={ctx.actionIcon}><CandleIcon size={18} color={colors.gold} /></View>
                   <Text style={ctx.actionLabel}>Assign Canon</Text>

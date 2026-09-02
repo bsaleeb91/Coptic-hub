@@ -234,6 +234,38 @@ export function applyCategoryToRule(rule: RuleConfig, a: AssignedCanon): void {
   }
 }
 
+// Put one category back to what another rule holds for it — the exact inverse
+// of applyCategoryToRule, used to undo a canon template the priest applied in
+// the editor and then thought better of.
+//
+// It copies the RULE FIELDS rather than re-applying the old payload, because
+// applyCategoryToRule merges: a day-based payload with an empty weekday leaves
+// that weekday alone, so replaying the pre-template payload would strand the
+// template's values on days the member had nothing set. Anything added here
+// must also be added to applyCategoryToRule, and vice versa.
+export function copyCategoryFromRule(target: RuleConfig, src: RuleConfig, category: AssignedCategory): void {
+  switch (category) {
+    case 'prostrations': target.prostrations = src.prostrations; break;
+    case 'quiet':        target.quietMinutes = src.quietMinutes; break;
+    case 'fasting':      target.fastUntil = src.fastUntil; break;
+    case 'bible':        target.bible = { ...src.bible }; break;
+    case 'book':         target.book = src.book ? { ...src.book } : null; break;
+    case 'confession':   target.confession = src.confession; break;
+    case 'agpeya_hours':
+      target.days = target.days.map((d, i) => ({ ...d, hours: [...(src.days[i]?.hours ?? [])] }));
+      break;
+    case 'services':
+      // The mode is part of what a services assignment sets, so it comes back too.
+      target.servicesMode = src.servicesMode;
+      target.serviceCounts = { ...(src.serviceCounts ?? {}) };
+      target.days = target.days.map((d, i) => ({ ...d, services: [...(src.days[i]?.services ?? [])] }));
+      break;
+    case 'heart_of_service':
+      target.days = target.days.map((d, i) => ({ ...d, serving: (src.days[i]?.serving ?? []).map(e => ({ ...e })) }));
+      break;
+  }
+}
+
 export function applyOverlay(rule: RuleConfig, assigned: AssignedCanon[], lastConfession: string | null): CanonOverlay {
   const eff = cloneRule(rule);
   const lockedCategories = new Set<AssignedCategory>();
