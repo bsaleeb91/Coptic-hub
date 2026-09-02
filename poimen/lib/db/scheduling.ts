@@ -68,6 +68,37 @@ export async function setSchedulingOpen(priestId: string, open: boolean): Promis
   return { error: error?.message ?? null };
 }
 
+// ── Booking mode ────────────────────────────────────────────
+// Where this priest's members book him — the app's own scheduler or his
+// Calendly page. Deliberately one or the other, never both: two live booking
+// systems meant double-bookings. Reads default to 'app' so a database without
+// the 20260829 column behaves exactly as before.
+export type SchedulingMode = 'app' | 'calendly';
+
+export async function getSchedulingMode(priestId: string): Promise<SchedulingMode> {
+  const { data } = await supabase.from('profiles').select('scheduling_mode').eq('id', priestId).single();
+  return (data as any)?.scheduling_mode === 'calendly' ? 'calendly' : 'app';
+}
+
+export async function setSchedulingMode(priestId: string, mode: SchedulingMode): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('profiles').update({ scheduling_mode: mode }).eq('id', priestId);
+  return { error: error?.message ?? null };
+}
+
+// ── Calendly link ───────────────────────────────────────────
+// Queried on its own rather than folded into getFocProfile, so a database that
+// doesn't have the column yet (migration not applied) fails only this call —
+// the member still sees the priest's name and the in-app slots.
+export async function getCalendlyUrl(priestId: string): Promise<string | null> {
+  const { data } = await supabase.from('profiles').select('calendly_url').eq('id', priestId).single();
+  return (data as any)?.calendly_url ?? null;
+}
+
+export async function setCalendlyUrl(priestId: string, url: string | null): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('profiles').update({ calendly_url: url }).eq('id', priestId);
+  return { error: error?.message ?? null };
+}
+
 // ── Appointment types ───────────────────────────────────────
 export async function getAppointmentTypes(priestId: string): Promise<AppointmentType[]> {
   const { data } = await supabase

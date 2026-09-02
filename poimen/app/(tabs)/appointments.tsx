@@ -5,7 +5,7 @@
 // mode uses an in-memory copy for the preview.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { DrawerActions } from '@react-navigation/native';
@@ -22,6 +22,8 @@ import {
   SCHEDULE_HORIZON_DAYS,
   type OpenSlot, type AvailabilityRule, type DateException,
 } from '@/lib/scheduling/slots';
+import { normalizeCalendlyUrl, loadDemoCalendly, loadDemoSchedulingMode } from '@/lib/scheduling/calendly';
+import type { SchedulingMode } from '@/lib/db';
 
 const STATUS_STYLE: Record<Appointment['status'], { label: string; color: string }> = {
   requested: { label: 'Pending confirmation', color: colors.gold },
@@ -44,6 +46,10 @@ export default function AppointmentsScreen() {
   const [ready, setReady] = useState(false);
   const [focId, setFocId] = useState<string | null>(demoMode ? 'demo-foc' : null);
   const [focName, setFocName] = useState<string>('your Father of Confession');
+  // How this FOC takes bookings: the app's own slots, or his Calendly page.
+  // Exactly one — the tab shows a single booking path, never two.
+  const [focMode, setFocMode] = useState<SchedulingMode>('app');
+  const [focCalendly, setFocCalendly] = useState<string | null>(null);
   const [consented, setConsented] = useState(true);
   const [open, setOpen] = useState(false);
   const [types, setTypes] = useState<AppointmentType[]>([]);
@@ -89,6 +95,9 @@ export default function AppointmentsScreen() {
       setMine([
         { id: 'ma-1', priest_id: 'demo', congregant_id: 'me', type_id: 'dt-conf', type_label: 'Holy Confession', starts_at: soon.toISOString(), duration_minutes: 30, status: 'confirmed', note: null, created_at: '', updated_at: '' },
       ]);
+      // Whatever the demo priest saved on his Schedule screen — same device.
+      setFocCalendly(normalizeCalendlyUrl((await loadDemoCalendly()) ?? ''));
+      setFocMode(await loadDemoSchedulingMode());
       setLoading(false);
       return;
     }
@@ -99,7 +108,7 @@ export default function AppointmentsScreen() {
     setFocId(foc);
     setConsented(!!profile?.foc_consent_at);
     if (!foc) { setLoading(false); return; }
-    const [o, t, r, b, m, fp, ex] = await Promise.all([
+    const [o, t, r, b, m, fp, ex, cal, md] = await Promise.all([
       db.getSchedulingOpen(foc),
       db.getAppointmentTypes(foc),
       db.getAvailabilityRules(foc),
@@ -107,9 +116,15 @@ export default function AppointmentsScreen() {
       db.getMyAppointments(user.id),
       db.getFocProfile(foc),
       db.getAvailabilityExceptions(foc),
+      db.getCalendlyUrl(foc),
+      db.getSchedulingMode(foc),
     ]);
     setOpen(o); setTypes(t); setRules(r); setBusy(b); setMine(m); setExceptions(ex);
     setFocName(fp?.full_name ?? 'your Father of Confession');
+    // Re-checked on read: whatever is in the column, only a real Calendly
+    // address becomes a button.
+    setFocCalendly(normalizeCalendlyUrl(cal ?? ''));
+    setFocMode(md);
     setLoading(false);
   }, [demoMode, user]);
 
@@ -217,7 +232,7 @@ export default function AppointmentsScreen() {
             <Text style={styles.back}>‹ Back</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
           <Text style={styles.pageTitle}>Request appointment</Text>
           <Card flat>
             <Text style={styles.confirmType}>{pending.typeLabel}</Text>
@@ -238,7 +253,7 @@ export default function AppointmentsScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <View style={styles.topbar}>
           <TouchableOpacity style={[styles.chipBtn, { marginRight: 12 }]} hitSlop={8}
             onPress={() => { H.tap(); navigation.dispatch(DrawerActions.openDrawer()); }}>
@@ -266,9 +281,24 @@ export default function AppointmentsScreen() {
           </Card>
         )}
 
-        {/* Not linked / closed states */}
+        {/* One booking path, decided by how the FOC schedules. In Calendly
+            mode the link is the whole story — no slot list next to it to
+            book the same hour twice. Booking on Calendly is external, so it
+            doesn't wait on data-sharing consent. */}
         {!focId ? (
           <Card flat><Text style={styles.empty}>Link a Father of Confession from your home screen to request appointments.</Text></Card>
+        ) : focMode === 'calendly' ? (
+          focCalendly ? (
+            <TouchableOpacity style={styles.calendlyCard} onPress={() => { H.tap(); Linking.openURL(focCalendly); }} activeOpacity={0.85}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.calendlyTitle}>Book on Calendly</Text>
+                <Text style={styles.calendlySub}>{focName} schedules appointments through Calendly — opens in your browser.</Text>
+              </View>
+              <Text style={styles.calendlyArrow}>↗</Text>
+            </TouchableOpacity>
+          ) : (
+            <Card flat><Text style={styles.empty}>{focName} takes bookings outside the app right now — reach out directly to schedule.</Text></Card>
+          )
         ) : !consented ? (
           <Card flat><Text style={styles.empty}>Confirm sharing with {focName} to request appointments.</Text></Card>
         ) : !open ? (
@@ -348,6 +378,11 @@ const styles = lazyThemed(() => StyleSheet.create({
   pillActive: { backgroundColor: colors.goldDim, borderColor: colors.gold },
   pillText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.muted },
   pillTextActive: { color: colors.goldLight },
+
+  calendlyCard: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: colors.gold + '55', backgroundColor: colors.goldDim, borderRadius: 14, padding: 14, marginBottom: 14 },
+  calendlyTitle: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.cream, marginBottom: 2 },
+  calendlySub: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.textSecond, lineHeight: 16 },
+  calendlyArrow: { fontFamily: fonts.latoBold, fontSize: 18, color: colors.gold },
 
   monthHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: colors.border, marginTop: 6 },
   monthLabel: { fontFamily: fonts.cormorantMedium, fontSize: 19, color: colors.cream, flex: 1 },

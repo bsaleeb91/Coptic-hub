@@ -5,7 +5,7 @@
 // (lib/db/scheduling.ts); demo mode drives an in-memory copy for the preview.
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from 'expo-router';
 import { DrawerActions } from '@react-navigation/native';
@@ -22,6 +22,15 @@ import {
   WEEKDAYS, WEEKDAYS_SHORT, formatMinute, formatMinuteRange, formatTime, formatDayLabel,
   monthCells, dateKey, closuresOn, isClosedAllDay, extraWindowsOn, SCHEDULE_HORIZON_DAYS,
 } from '@/lib/scheduling/slots';
+import {
+  normalizeCalendlyUrl, loadDemoCalendly, saveDemoCalendly,
+  loadDemoSchedulingMode, saveDemoSchedulingMode,
+} from '@/lib/scheduling/calendly';
+import type { SchedulingMode } from '@/lib/db';
+import {
+  calendarSyncSupported, loadSyncState, listWritableCalendars, chooseCalendar,
+  reconcileCalendar, type WritableCalendar, type ReconcileResult,
+} from '@/lib/scheduling/calendar-sync';
 
 const DURATION_OPTS = [15, 30, 45, 60, 90];
 
@@ -114,26 +123,73 @@ export default function ScheduleScreen() {
   const [addEnd, setAddEnd] = useState(1200);         // 8:00 PM
   const [addErr, setAddErr] = useState('');
 
+  // Where members book: this app's scheduler, or the priest's Calendly page.
+  // One or the other — both at once meant double-bookings.
+  const [mode, setMode] = useState<SchedulingMode>('app');
+  const [modeErr, setModeErr] = useState('');
+  // The priest's Calendly link: what is saved, and what is in the input.
+  const [calendly, setCalendly] = useState<string | null>(null);
+  const [calendlyDraft, setCalendlyDraft] = useState('');
+  const [calendlyErr, setCalendlyErr] = useState('');
+  const [calendlyMsg, setCalendlyMsg] = useState('');
+
+  // Calendar sync: which device calendar confirmed bookings are written to
+  // (null = off), and the picker's list while it is open ('denied' = the
+  // calendar permission was refused, 'error' = calendars unreadable).
+  const [syncCal, setSyncCal] = useState<{ id: string; title: string } | null>(null);
+  const [calChoices, setCalChoices] = useState<WritableCalendar[] | 'denied' | 'error' | null>(null);
+  const [syncMsg, setSyncMsg] = useState('');
+  const [syncWarn, setSyncWarn] = useState('');
+  // Confirm/decline/cancel failures (e.g. the member cancelled first).
+  const [apptErr, setApptErr] = useState('');
+
+  // Every reconcile reports through here, so a sync that stops working shows a
+  // warning instead of a green "writing to…" over a calendar getting nothing.
+  const noteSync = (r: ReconcileResult | null) => {
+    if (!r) return;
+    if (r.permissionLost) setSyncWarn('Calendar access was turned off in Settings — bookings are NOT being written, so Calendly may double-book. Allow calendar access for Poimen to fix this.');
+    else if (r.failed > 0) setSyncWarn(`Couldn't write ${r.failed} booking${r.failed === 1 ? '' : 's'} to the calendar — check that it still exists and try again.`);
+    else setSyncWarn('');
+  };
+
   const load = useCallback(async () => {
     if (demoMode) {
       setOpen(true); setTypes(demoTypes()); setRules(demoRules()); setAppts(demoAppts());
-      setNames(DEMO_NAMES); setRuleTypeId('dt-conf'); setExceptions(demoExceptions()); setLoading(false);
+      setNames(DEMO_NAMES); setRuleTypeId('dt-conf'); setExceptions(demoExceptions());
+      const dc = await loadDemoCalendly();
+      setCalendly(dc); setCalendlyDraft(dc ?? '');
+      setMode(await loadDemoSchedulingMode());
+      setLoading(false);
       return;
     }
     if (!user) return;
     setLoading(true);
-    const [o, t, r, a, flock, ex] = await Promise.all([
+    const [o, t, r, a, flock, ex, cal, m] = await Promise.all([
       db.getSchedulingOpen(user.id),
       db.getAppointmentTypes(user.id),
       db.getAvailabilityRules(user.id),
       db.getPriestAppointments(user.id),
       db.getFlock(user.id),
       db.getAvailabilityExceptions(user.id),
+      db.getCalendlyUrl(user.id),
+      db.getSchedulingMode(user.id),
     ]);
     setOpen(o); setTypes(t); setRules(r); setAppts(a); setExceptions(ex);
-    setNames(Object.fromEntries(flock.map(m => [m.id, m.full_name ?? 'Member'])));
+    setCalendly(cal); setCalendlyDraft(cal ?? '');
+    setMode(m);
+    const nameMap = Object.fromEntries(flock.map(m => [m.id, m.full_name ?? 'Member']));
+    setNames(nameMap);
     if (!ruleTypeId && t.length) setRuleTypeId(t[0].id);
     setLoading(false);
+    // Self-healing pass: pick up confirmations made while sync was off or that
+    // failed to write, and clear events for bookings cancelled elsewhere (a
+    // member cancelling happens on THEIR device — this is where the priest's
+    // calendar catches up). Fire-and-forget; the screen never waits on it.
+    const sync = await loadSyncState();
+    setSyncCal(sync.calendarId ? { id: sync.calendarId, title: sync.calendarTitle ?? 'calendar' } : null);
+    if (sync.calendarId) {
+      reconcileCalendar(a, id => nameMap[id] ?? 'Member').then(noteSync).catch(() => {});
+    }
   }, [demoMode, user, ruleTypeId]);
 
   useEffect(() => { load(); }, [demoMode, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -152,12 +208,69 @@ export default function ScheduleScreen() {
   const memberName = (id: string) => names[id] ?? 'Member';
   const typeLabel = (id: string | null) => types.find(t => t.id === id)?.label ?? '';
 
+  // ── Booking mode ──
+  // Switching stops NEW bookings from the other channel but orphans nothing:
+  // requests and confirmed appointments stay on screen until they play out.
+  async function pickMode(m: SchedulingMode) {
+    if (m === mode) return;
+    H.tap();
+    setModeErr('');
+    const prev = mode;
+    setMode(m);
+    if (demoMode) { await saveDemoSchedulingMode(m); return; }
+    if (!user) return;
+    const { error } = await db.setSchedulingMode(user.id, m);
+    if (error) {
+      // Revert AND say so — a choice that silently snaps back looks like a
+      // broken switch, when the truth is the save failed (most likely the
+      // scheduling_mode migration hasn't been applied to this database).
+      setMode(prev);
+      setModeErr(/scheduling_mode/.test(error)
+        ? 'The app’s database is missing an update (scheduling_mode) — apply the latest migration and try again.'
+        : `Couldn’t save: ${error}`);
+    }
+  }
+
   // ── Master switch ──
   async function toggleOpen() {
     H.tap();
     const next = !open;
     setOpen(next);
     if (!demoMode && user) { const { error } = await db.setSchedulingOpen(user.id, next); if (error) setOpen(!next); }
+  }
+
+  // ── Calendly ──
+  // Saved canonicalized (https, calendly.com host) so members always get a
+  // link that opens; anything that isn't a Calendly address is refused here
+  // rather than shown broken on their Appointments tab.
+  async function saveCalendly() {
+    H.tap();
+    setCalendlyErr(''); setCalendlyMsg('');
+    const url = normalizeCalendlyUrl(calendlyDraft);
+    if (!url) {
+      setCalendlyErr("That doesn't look like a Calendly link — it should start with calendly.com/…");
+      return;
+    }
+    if (demoMode) await saveDemoCalendly(url);
+    else if (user) {
+      const { error } = await db.setCalendlyUrl(user.id, url);
+      if (error) { setCalendlyErr(error); return; }
+    }
+    setCalendly(url); setCalendlyDraft(url);
+    setCalendlyMsg('Saved — your flock now sees a “Book on Calendly” option.');
+  }
+
+  function removeCalendly() {
+    confirmDestructive('Remove Calendly link', 'Members will no longer see the “Book on Calendly” option. Your Calendly account itself is untouched.', 'Remove', async () => {
+      setCalendlyErr(''); setCalendlyMsg('');
+      if (demoMode) await saveDemoCalendly(null);
+      else if (user) {
+        const { error } = await db.setCalendlyUrl(user.id, null);
+        if (error) { setCalendlyErr(error); return; }
+      }
+      setCalendly(null); setCalendlyDraft('');
+      setCalendlyMsg('Calendly link removed.');
+    });
   }
 
   // ── Types ──
@@ -326,14 +439,69 @@ export default function ScheduleScreen() {
   // ── Requests ──
   async function respond(a: Appointment, confirm: boolean) {
     H.tap();
-    setAppts(p => p.map(x => x.id === a.id ? { ...x, status: confirm ? 'confirmed' : 'declined' } : x));
-    if (!demoMode) await db.respondAppointment(a.id, confirm);
+    setApptErr('');
+    const next = appts.map(x => x.id === a.id ? { ...x, status: (confirm ? 'confirmed' : 'declined') as Appointment['status'] } : x);
+    setAppts(next);
+    if (!demoMode) {
+      // The RPC refuses when the request is no longer 'requested' — e.g. the
+      // member cancelled moments ago. Then the optimistic flip above is a lie:
+      // reload the truth and, critically, do NOT write a calendar event for a
+      // booking the server never confirmed.
+      const { error } = await db.respondAppointment(a.id, confirm);
+      if (error) {
+        setApptErr('That request changed before you responded — the list has been refreshed.');
+        await load();
+        return;
+      }
+      // A confirmation is the moment the time must close on Calendly — write
+      // the calendar event now, not at the next screen load.
+      reconcileCalendar(next, memberName).then(noteSync).catch(() => {});
+    }
   }
   function cancelAppt(a: Appointment) {
     confirmDestructive('Cancel appointment', `Cancel the ${a.type_label} with ${memberName(a.congregant_id)}?`, 'Cancel it', async () => {
-      setAppts(p => p.map(x => x.id === a.id ? { ...x, status: 'cancelled' } : x));
-      if (!demoMode) await db.cancelAppointment(a.id);
+      setApptErr('');
+      const next = appts.map(x => x.id === a.id ? { ...x, status: 'cancelled' as Appointment['status'] } : x);
+      setAppts(next);
+      if (!demoMode) {
+        const { error } = await db.cancelAppointment(a.id);
+        if (error) {
+          // Server still holds the booking — put the screen (and calendar)
+          // back in line with it rather than reopening a time that is taken.
+          setApptErr('Could not cancel — the list has been refreshed.');
+          await load();
+          return;
+        }
+        // …and a cancellation is the moment it must reopen.
+        reconcileCalendar(next, memberName).then(noteSync).catch(() => {});
+      }
     });
+  }
+
+  // ── Calendar sync ──
+  async function openCalendarPicker() {
+    H.tap();
+    setSyncMsg('');
+    setCalChoices(await listWritableCalendars());
+  }
+  async function pickCalendar(c: WritableCalendar) {
+    H.tap();
+    await chooseCalendar(c);
+    setSyncCal({ id: c.id, title: c.title });
+    setCalChoices(null);
+    // Backfill immediately: everything already confirmed lands on the calendar
+    // now, so Calendly is correct from the first minute, not the next booking.
+    const res = await reconcileCalendar(appts, memberName).catch(() => null);
+    noteSync(res);
+    setSyncMsg(res && res.added > 0
+      ? `On. ${res.added} upcoming appointment${res.added === 1 ? '' : 's'} added to “${c.title}”.`
+      : `On — confirmed bookings are written to “${c.title}”.`);
+  }
+  async function disableCalendarSync() {
+    H.tap();
+    await chooseCalendar(null);
+    setSyncCal(null); setCalChoices(null);
+    setSyncMsg('Off. Events already on the calendar were left in place.');
   }
 
   const todayKey = dateKey(new Date());
@@ -363,7 +531,7 @@ export default function ScheduleScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <View style={styles.topbar}>
           <TouchableOpacity style={[styles.chipBtn, { marginRight: 12 }]} hitSlop={8}
             onPress={() => { H.tap(); navigation.dispatch(DrawerActions.openDrawer()); }}>
@@ -372,7 +540,32 @@ export default function ScheduleScreen() {
           <Text style={styles.pageTitle}>Schedule</Text>
         </View>
 
-        {/* Master switch */}
+        {/* Booking mode — one place members book, never two. Two live systems
+            meant two availability calendars drifting apart and double-booked
+            times; the priest picks a lane instead. */}
+        <Card title="How Members Book" titleIcon="✦">
+          {(([
+            ['app', 'In this app', 'You set availability below; members request open slots and you confirm each one.'],
+            ['calendly', 'Through my Calendly', 'Members book on your Calendly page. Nothing to maintain here — Calendly is the one source of truth.'],
+          ] as [SchedulingMode, string, string][])).map(([m, title, sub]) => (
+            <TouchableOpacity key={m} style={[styles.modeOpt, mode === m && styles.modeOptOn]} onPress={() => pickMode(m)} activeOpacity={0.8}>
+              <Text style={[styles.modeRadio, mode === m && { color: colors.gold }]}>{mode === m ? '◉' : '○'}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.modeTitle, mode === m && { color: colors.gold }]}>{title}</Text>
+                <Text style={styles.modeSub}>{sub}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+          {modeErr ? <Text style={styles.errText}>{modeErr}</Text> : null}
+          {mode === 'calendly' && (
+            <Text style={styles.hint}>
+              Requests and appointments already made in the app stay below until they play out — only new in-app requests stop.
+            </Text>
+          )}
+        </Card>
+
+        {/* Master switch — only meaningful when booking happens in the app. */}
+        {mode === 'app' && (
         <TouchableOpacity activeOpacity={0.8} onPress={toggleOpen} style={[styles.masterCard, open ? styles.masterOn : styles.masterOff]}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.masterTitle, { color: open ? colors.green : colors.muted }]}>
@@ -383,9 +576,11 @@ export default function ScheduleScreen() {
             </Text>
           </View>
         </TouchableOpacity>
+        )}
 
         {/* Pending requests */}
         <Card title={`Requests (${pending.length})`} flat>
+          {apptErr ? <Text style={styles.errText}>{apptErr}</Text> : null}
           {pending.length === 0 ? (
             <Text style={styles.empty}>No pending requests.</Text>
           ) : pending.map(a => (
@@ -423,6 +618,9 @@ export default function ScheduleScreen() {
           </Card>
         )}
 
+        {/* In-app scheduling console — nothing here matters in Calendly mode,
+            so it all steps aside rather than sitting as dead controls. */}
+        {mode === 'app' && (<>
         {/* Appointment types */}
         <Card title="Appointment Types" titleIcon="✦">
           {types.length === 0 ? (
@@ -672,6 +870,112 @@ export default function ScheduleScreen() {
             </View>
           )}
         </Card>
+
+        </>)}
+
+        {/* Calendly mode: the link IS the booking system, so it is the one
+            thing to configure. */}
+        {mode === 'calendly' && (
+        <Card title="My Calendly Link" titleIcon="↗">
+          <Text style={styles.empty}>
+            This is how your flock books you: they see a “Book on Calendly”
+            button on their Appointments tab that opens this link.
+          </Text>
+          {!calendly && (
+            <Text style={styles.errText}>
+              No link yet — until you save one, members have no way to book you.
+            </Text>
+          )}
+          <TextInput
+            style={[styles.input, { marginTop: 6 }]}
+            placeholder="calendly.com/your-name"
+            placeholderTextColor={colors.faint}
+            value={calendlyDraft}
+            onChangeText={setCalendlyDraft}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+          />
+          {calendlyErr ? <Text style={styles.errText}>{calendlyErr}</Text> : null}
+          {calendlyMsg ? <Text style={styles.savedMsg}>{calendlyMsg}</Text> : null}
+          <TouchableOpacity
+            style={[styles.addBtn, (!calendlyDraft.trim() || calendlyDraft.trim() === calendly) && styles.btnDisabled]}
+            onPress={saveCalendly}
+            disabled={!calendlyDraft.trim() || calendlyDraft.trim() === calendly}
+          >
+            <Text style={styles.addBtnText}>{calendly ? 'UPDATE LINK' : 'SAVE LINK'}</Text>
+          </TouchableOpacity>
+          {calendly && (
+            <View style={styles.calendlyLinks}>
+              <TouchableOpacity hitSlop={8} onPress={() => { H.tap(); Linking.openURL(calendly); }}>
+                <Text style={styles.calendlyOpen}>Open my Calendly ↗</Text>
+              </TouchableOpacity>
+              <TouchableOpacity hitSlop={8} onPress={removeCalendly}>
+                <Text style={styles.calendlyRemove}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </Card>
+        )}
+
+        {/* Calendar sync — app mode only, since only in-app bookings are ours
+            to write. Framed generically: the priest's life lives in his own
+            calendar, and anything else that reads it (a Calendly kept for a
+            different audience included, since Calendly hides slots that
+            collide with its connected calendar) sees the time as taken. */}
+        {mode === 'app' && (
+        <Card title="Add Bookings to Your Calendar" titleIcon="⇄">
+          <Text style={styles.empty}>
+            When you confirm an appointment here, Poimen adds it to a calendar
+            you choose on this phone — so it shows up where the rest of your
+            week lives, with reminders. Anything that reads that calendar (a
+            Calendly you keep for other work, a shared parish calendar) sees
+            the time as taken. Cancelling here removes the event.
+          </Text>
+          {!calendarSyncSupported ? (
+            <Text style={styles.hint}>Available in the mobile app — calendars on this device can't be reached from the browser.</Text>
+          ) : demoMode ? (
+            <Text style={styles.hint}>Demo mode — sign in to connect your real calendar.</Text>
+          ) : (
+            <>
+              {syncCal ? (
+                <View style={styles.calendlyLinks}>
+                  <Text style={styles.syncOnText}>⇄ Writing to “{syncCal.title}”</Text>
+                  <TouchableOpacity hitSlop={8} onPress={disableCalendarSync}>
+                    <Text style={styles.calendlyRemove}>Turn off</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+              {syncWarn ? <Text style={styles.errText}>⚠ {syncWarn}</Text> : null}
+              {calChoices === 'denied' ? (
+                <Text style={styles.errText}>
+                  Calendar access was declined — allow it in Settings → Poimen to use this.
+                </Text>
+              ) : calChoices === 'error' ? (
+                <Text style={styles.errText}>Couldn't read this device's calendars — try again.</Text>
+              ) : calChoices && calChoices.length === 0 ? (
+                <Text style={styles.errText}>No writable calendars found on this device.</Text>
+              ) : calChoices ? (
+                calChoices.map(c => (
+                  <TouchableOpacity key={c.id} style={styles.calChoiceRow} onPress={() => pickCalendar(c)}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.calChoiceTitle}>{c.title}</Text>
+                      {c.source ? <Text style={styles.rowSub}>{c.source}</Text> : null}
+                    </View>
+                    {syncCal?.id === c.id ? <Text style={styles.calendlyOpen}>✓</Text> : null}
+                  </TouchableOpacity>
+                ))
+              ) : null}
+              {syncMsg ? <Text style={styles.savedMsg}>{syncMsg}</Text> : null}
+              <TouchableOpacity style={styles.addBtn} onPress={calChoices ? () => { H.tap(); setCalChoices(null); } : openCalendarPicker}>
+                <Text style={styles.addBtnText}>
+                  {calChoices ? 'CLOSE' : syncCal ? 'CHANGE CALENDAR' : 'CHOOSE A CALENDAR'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </Card>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -758,6 +1062,18 @@ const styles = lazyThemed(() => StyleSheet.create({
   pickerLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: colors.muted, marginBottom: 2 },
 
   errText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.red, marginTop: 10 },
+  savedMsg: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.green, marginTop: 10 },
+  calendlyLinks: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
+  calendlyOpen: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.gold },
+  calendlyRemove: { fontFamily: fonts.lato, fontSize: 12, color: colors.red },
+  syncOnText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.green, flex: 1 },
+  modeOpt: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 8, backgroundColor: colors.panel },
+  modeOptOn: { borderColor: colors.gold, backgroundColor: colors.goldDim },
+  modeRadio: { fontSize: 16, color: colors.muted, marginTop: 1 },
+  modeTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 2 },
+  modeSub: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 15 },
+  calChoiceRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  calChoiceTitle: { fontFamily: fonts.lato, fontSize: 13, color: colors.cream },
   addBtn: { backgroundColor: colors.gold, borderRadius: 8, padding: 13, alignItems: 'center', marginTop: 16 },
   addBtnText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.navy, letterSpacing: 0.8 },
   btnDisabled: { opacity: 0.35 },
