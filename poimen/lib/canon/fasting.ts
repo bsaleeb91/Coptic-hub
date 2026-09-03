@@ -31,35 +31,53 @@ export function isHolyFifty(date: Date): boolean {
   return d >= start && d <= end;
 }
 
-// The Church's multi-day fasting seasons. Paramoun days are not included.
-// The movable fasts (Jonah, Great Lent, Apostles') are recomputed for each
-// year from that year's Pascha, so they land on different Gregorian dates
-// every year. Nativity and St. Mary's are fixed in the Coptic calendar
-// (Hatour 16–Koiahk 28 and Mesra 1–15); their Gregorian equivalents are
-// stable for 1900–2099, which this app treats as fixed ranges.
-export function isChurchFast(date: Date): boolean {
-  const d = dayOnly(date);
-  const y = d.getFullYear();
-  const m = d.getMonth() + 1;
-  const day = d.getDate();
+export interface FastSeason { title: string; start: Date; end: Date; }
 
-  // Nativity Fast: Nov 25 – Jan 6 (feast Jan 7)
-  if ((m === 11 && day >= 25) || m === 12 || (m === 1 && day <= 6)) return true;
-  // St. Mary's Fast: Mesra 1–15 = Aug 7–21 (feast Aug 22)
-  if (m === 8 && day >= 7 && day <= 21) return true;
-
+// The Church's multi-day fasting seasons, as dated ranges. Paramoun days are
+// not included. The movable fasts (Jonah, Great Lent, Apostles') are recomputed
+// for each year from that year's Pascha, so they land on different Gregorian
+// dates every year. Nativity and St. Mary's are fixed in the Coptic calendar
+// (Hatour 16–Koiahk 28 and Mesra 1–15); their Gregorian equivalents are stable
+// for 1900–2099, which this app treats as fixed ranges.
+//
+// This list is the single source of truth for "are we fasting" AND for "which
+// day of it is this" — the dashboard's date line used to carry its own copy of
+// these ranges and had drifted (St. Mary's as Aug 1–14, so its day number ran a
+// week ahead of the fast that the feasts list correctly announced for Aug 7).
+export function fastSeasons(y: number): FastSeason[] {
   const pascha = dayOnly(orthodoxPascha(y));
   const off = (n: number) => { const x = new Date(pascha); x.setDate(x.getDate() + n); return x; };
-  const between = (a: Date, b: Date) => d >= a && d <= b;
+  return [
+    // Jonah's Fast (Nineveh): Mon–Wed, 69–67 days before Pascha
+    { title: 'Fast of Nineveh', start: off(-69), end: off(-67) },
+    // Great Lent + Holy Week: 55 days before Pascha through Holy Saturday
+    { title: 'Great Lent', start: off(-55), end: off(-1) },
+    // Apostles' Fast: day after Pentecost through Jul 11 (feast Jul 12)
+    { title: 'Apostles’ Fast', start: off(50), end: new Date(y, 6, 11) },
+    // St. Mary's Fast: Mesra 1–15 = Aug 7–21 (feast Aug 22)
+    { title: 'St. Mary’s Fast', start: new Date(y, 7, 7), end: new Date(y, 7, 21) },
+    // Nativity Fast: Nov 25 – Jan 6 of the FOLLOWING year (feast Jan 7)
+    { title: 'Nativity Fast', start: new Date(y, 10, 25), end: new Date(y + 1, 0, 6) },
+  ];
+}
 
-  // Jonah's Fast (Nineveh): Mon–Wed, 69–67 days before Pascha
-  if (between(off(-69), off(-67))) return true;
-  // Great Lent + Holy Week: 55 days before Pascha through Holy Saturday
-  if (between(off(-55), off(-1))) return true;
-  // Apostles' Fast: day after Pentecost through Jul 11 (feast Jul 12)
-  if (between(off(50), new Date(y, 6, 11))) return true;
+// The fasting season `date` falls in, and how far into it we are (day 1 is the
+// first day). Seasons from the previous year are considered too, because the
+// Nativity Fast runs across the new year.
+export function currentFastSeason(date: Date): { title: string; day: number; length: number } | null {
+  const d = dayOnly(date);
+  const days = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / 86400000);
+  const y = d.getFullYear();
+  for (const s of [...fastSeasons(y - 1), ...fastSeasons(y)]) {
+    if (d >= s.start && d <= s.end) {
+      return { title: s.title, day: days(s.start, d) + 1, length: days(s.start, s.end) + 1 };
+    }
+  }
+  return null;
+}
 
-  return false;
+export function isChurchFast(date: Date): boolean {
+  return currentFastSeason(date) !== null;
 }
 
 // Fasting days: every day of a church fasting season, plus Wednesdays (3) and
@@ -69,6 +87,18 @@ export function isFastDay(date: Date): boolean {
   const wd = date.getDay();
   if (wd !== 3 && wd !== 5) return false;
   return !isHolyFifty(date);
+}
+
+// Days the appointed-hour abstinence is kept — going without food until the
+// hour set in the rule. Never a Saturday or a Sunday: the Church does not fast
+// in that sense on the Sabbath or the Lord's Day. Those days remain fast days
+// inside a season (isFastDay stays true, and its food restrictions stand) —
+// what lifts is the delaying of the meal. Wednesdays and Fridays can never fall
+// on a weekend, so this only ever relaxes a season.
+export function isAbstinenceDay(date: Date): boolean {
+  const wd = date.getDay();
+  if (wd === 0 || wd === 6) return false;
+  return isFastDay(date);
 }
 
 // Prostrations are not done on Saturdays, Sundays, or during the Holy Fifty.

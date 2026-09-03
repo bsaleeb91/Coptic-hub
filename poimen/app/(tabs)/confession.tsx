@@ -13,6 +13,7 @@ import {
   TextInput, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
@@ -26,6 +27,7 @@ import { foldOnConfession } from '@/lib/canon/assigned';
 import {
   NotepadIcon, ClipboardIcon, PrayingHandsIcon, LockIcon, CrossIcon, HeartIcon,
   SpeechIcon, ThoughtIcon, EarIcon, EyeIcon, HandIcon, PrayerRopeIcon, PencilIcon,
+  CalendarIcon,
 } from '@/components/ui/TabIcons';
 import type { SinCategory, SinFrequency, JournalCategory, IncidentCategory, JournalIncident, ExamChecks } from '@/lib/confession/types';
 import {
@@ -104,6 +106,7 @@ function SubHeader({ title, onBack, right }: { title: string; onBack: () => void
 function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
   const { user, profile, refreshProfile } = useSession();
   const { demoMode } = useDemoMode();
+  const router = useRouter();
 
   const [history, setHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(!demoMode);
@@ -236,16 +239,16 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
           </Card>
         )}
 
-        {/* Schedule */}
+        {/* Schedule — hands off to Appointments, which owns every scheduling
+            state (no FOC linked, scheduling closed, no open times). */}
         <Card title="Schedule Confession" titleIcon="◈">
-          <View style={styles.comingSoonCard}>
-            <Text style={styles.comingSoonIcon}>✝︎</Text>
-            <Text style={styles.comingSoonTitle}>Contact Your Father of Confession</Text>
-            <Text style={styles.comingSoonBody}>
-              Reach out to your Father of Confession directly to arrange your next confession.
-              In-app scheduling is coming in a future update.
-            </Text>
-          </View>
+          <ModuleCard
+            icon={<CalendarIcon size={22} color={colors.gold} />}
+            title="Request a confession appointment"
+            sub={'Pick from the times your father has opened —\nhe confirms the request from his end'}
+            onPress={() => router.push('/(tabs)/appointments?focus=confession')}
+            accent
+          />
         </Card>
 
         {/* History */}
@@ -899,10 +902,6 @@ const styles = lazyThemed(() => StyleSheet.create({
   logBtnText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.navy, letterSpacing: 1 },
   selfReportHint: { fontFamily: fonts.latoLight, fontSize: 10, color: colors.muted, textAlign: 'center', opacity: 0.7 },
 
-  comingSoonCard: { alignItems: 'center', paddingVertical: 20, gap: 8 },
-  comingSoonIcon: { fontSize: 28, color: colors.muted, opacity: 0.5 },
-  comingSoonTitle: { fontFamily: fonts.cormorantMedium, fontSize: 18, color: colors.cream },
-  comingSoonBody: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18 },
 
   histItem: { paddingVertical: 12 },
   histBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },

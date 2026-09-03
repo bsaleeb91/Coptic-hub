@@ -4,10 +4,10 @@
 // track the status of your requests. Cloud-only (lib/db/scheduling.ts); demo
 // mode uses an in-memory copy for the preview.
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from 'expo-router';
+import { useNavigation, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { DrawerActions } from '@react-navigation/native';
 import { colors, fonts, lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
@@ -18,9 +18,12 @@ import * as H from '@/lib/haptics';
 import * as db from '@/lib/db';
 import type { AppointmentType, AvailabilityRuleRow, Appointment } from '@/lib/db';
 import {
-  generateOpenSlots, groupSlotsByDay, formatTime, formatDayLabel,
-  type OpenSlot, type AvailabilityRule,
+  generateOpenSlots, groupSlotsByDay, groupDaysByMonth, formatTime, formatDayLabel,
+  SCHEDULE_HORIZON_DAYS,
+  type OpenSlot, type AvailabilityRule, type DateException,
 } from '@/lib/scheduling/slots';
+import { normalizeCalendlyUrl, loadDemoCalendly, loadDemoSchedulingMode } from '@/lib/scheduling/calendly';
+import type { SchedulingMode } from '@/lib/db';
 
 const STATUS_STYLE: Record<Appointment['status'], { label: string; color: string }> = {
   requested: { label: 'Pending confirmation', color: colors.gold },
@@ -31,19 +34,31 @@ const STATUS_STYLE: Record<Appointment['status'], { label: string; color: string
 
 export default function AppointmentsScreen() {
   const navigation = useNavigation();
+  // Links elsewhere ("Request a confession appointment", "Schedule a Pastoral
+  // Visit") arrive with ?focus=<keyword> to land on the right kind of slot.
+  const { focus } = useLocalSearchParams<{ focus?: string }>();
   const { user } = useSession();
   const { demoMode } = useDemoMode();
 
   const [loading, setLoading] = useState(!demoMode);
+  // Distinct from `loading`, which starts false in demo mode: this only flips
+  // once the priest's types are actually in hand, which is what ?focus needs.
+  const [ready, setReady] = useState(false);
   const [focId, setFocId] = useState<string | null>(demoMode ? 'demo-foc' : null);
   const [focName, setFocName] = useState<string>('your Father of Confession');
+  // How this FOC takes bookings: the app's own slots, or his Calendly page.
+  // Exactly one — the tab shows a single booking path, never two.
+  const [focMode, setFocMode] = useState<SchedulingMode>('app');
+  const [focCalendly, setFocCalendly] = useState<string | null>(null);
   const [consented, setConsented] = useState(true);
   const [open, setOpen] = useState(false);
   const [types, setTypes] = useState<AppointmentType[]>([]);
   const [rules, setRules] = useState<AvailabilityRuleRow[]>([]);
   const [busy, setBusy] = useState<{ starts_at: string; duration_minutes: number }[]>([]);
+  const [exceptions, setExceptions] = useState<DateException[]>([]);
   const [mine, setMine] = useState<Appointment[]>([]);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
 
   const [pending, setPending] = useState<OpenSlot | null>(null); // slot awaiting the confirm step
   const [note, setNote] = useState('');
@@ -62,11 +77,27 @@ export default function AppointmentsScreen() {
       setRules([
         { id: 'dr-1', priest_id: 'demo', type_id: 'dt-conf', weekday: 0, start_minute: 840, end_minute: 960, active: true, created_at: '' },
         { id: 'dr-2', priest_id: 'demo', type_id: 'dt-conf', weekday: 3, start_minute: 1080, end_minute: 1170, active: true, created_at: '' },
+        // Visitation needs its own window, or the demo's "Schedule a Pastoral
+        // Visit" chip would always land on an empty list.
+        { id: 'dr-3', priest_id: 'demo', type_id: 'dt-visit', weekday: 6, start_minute: 600, end_minute: 780, active: true, created_at: '' },
       ]);
       setBusy([{ starts_at: soon.toISOString(), duration_minutes: 30 }]);
+      // The FOC is away the next two Sundays: the first entirely, the second
+      // only for the 2:00 PM hour.
+      const p = (n: number) => String(n).padStart(2, '0');
+      const key = (d: Date) => `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+      const nextSunday = new Date(now); nextSunday.setDate(now.getDate() + ((7 - now.getDay()) || 7));
+      const sundayAfter = new Date(nextSunday); sundayAfter.setDate(nextSunday.getDate() + 7);
+      setExceptions([
+        { on_date: key(nextSunday), start_minute: null, end_minute: null },
+        { on_date: key(sundayAfter), start_minute: 840, end_minute: 900 },
+      ]);
       setMine([
         { id: 'ma-1', priest_id: 'demo', congregant_id: 'me', type_id: 'dt-conf', type_label: 'Holy Confession', starts_at: soon.toISOString(), duration_minutes: 30, status: 'confirmed', note: null, created_at: '', updated_at: '' },
       ]);
+      // Whatever the demo priest saved on his Schedule screen — same device.
+      setFocCalendly(normalizeCalendlyUrl((await loadDemoCalendly()) ?? ''));
+      setFocMode(await loadDemoSchedulingMode());
       setLoading(false);
       return;
     }
@@ -77,29 +108,79 @@ export default function AppointmentsScreen() {
     setFocId(foc);
     setConsented(!!profile?.foc_consent_at);
     if (!foc) { setLoading(false); return; }
-    const [o, t, r, b, m, fp] = await Promise.all([
+    const [o, t, r, b, m, fp, ex, cal, md] = await Promise.all([
       db.getSchedulingOpen(foc),
       db.getAppointmentTypes(foc),
       db.getAvailabilityRules(foc),
-      db.getFocBusyRanges(21),
+      db.getFocBusyRanges(),
       db.getMyAppointments(user.id),
       db.getFocProfile(foc),
+      db.getAvailabilityExceptions(foc),
+      db.getCalendlyUrl(foc),
+      db.getSchedulingMode(foc),
     ]);
-    setOpen(o); setTypes(t); setRules(r); setBusy(b); setMine(m);
+    setOpen(o); setTypes(t); setRules(r); setBusy(b); setMine(m); setExceptions(ex);
     setFocName(fp?.full_name ?? 'your Father of Confession');
+    // Re-checked on read: whatever is in the column, only a real Calendly
+    // address becomes a button.
+    setFocCalendly(normalizeCalendlyUrl(cal ?? ''));
+    setFocMode(md);
     setLoading(false);
   }, [demoMode, user]);
 
-  useEffect(() => { load(); }, [demoMode, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load().then(() => setReady(true)); }, [demoMode, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const activeRules: AvailabilityRule[] = rules.map(r => ({
-    id: r.id, type_id: r.type_id, weekday: r.weekday, start_minute: r.start_minute, end_minute: r.end_minute, active: r.active,
-  }));
-  const allSlots = generateOpenSlots(activeRules, types, busy, { days: 21 });
-  const slots = typeFilter ? allSlots.filter(s => s.typeId === typeFilter) : allSlots;
-  const grouped = groupSlotsByDay(slots);
+  // Match the keyword against whatever the priest actually named his types
+  // ("Holy Confession", "Home Visitation", …) and preselect it; an unmatched
+  // keyword just leaves the list unfiltered. The param is cleared once applied
+  // so the drawer's own Appointments item — which reuses this route — doesn't
+  // stay stuck on that filter, and so a later tap on "All" isn't undone.
+  // navigation.setParams, not router.setParams: the imperative router clears the
+  // param on whatever is focused, which is the wrong route if the member
+  // navigated away while this screen was still loading.
+  useEffect(() => {
+    if (!ready || !focus) return;
+    const needle = String(focus).toLowerCase();
+    const match = types.find(t => t.active && t.label.toLowerCase().includes(needle));
+    if (match) setTypeFilter(match.id);
+    navigation.setParams({ focus: '' } as never);
+  }, [ready, focus, types]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const nowMs = Date.now();
+  // This is a drawer screen: it mounts once and stays mounted, so without a
+  // clock of its own "now" would freeze at first load and slots that have since
+  // passed would go on looking bookable (the server rejects them). Ticking on
+  // focus and once a minute keeps the list honest.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useFocusEffect(useCallback(() => {
+    setNowMs(Date.now());
+    const id = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []));
+
+  // A year of a busy priest's recurrence is thousands of slots, so generation
+  // is memoized and only redone when the availability changes or the local day
+  // rolls over (the day is what anchors the horizon).
+  const dayKey = new Date(nowMs).toDateString();
+  const allSlots = useMemo(() => {
+    const activeRules: AvailabilityRule[] = rules.map(r => ({
+      id: r.id, type_id: r.type_id, weekday: r.weekday, start_minute: r.start_minute, end_minute: r.end_minute, active: r.active,
+    }));
+    return generateOpenSlots(activeRules, types, busy, { days: SCHEDULE_HORIZON_DAYS, exceptions });
+  }, [rules, types, busy, exceptions, dayKey]);
+
+  // Dropping elapsed slots happens here rather than in generation: filtering a
+  // few thousand is cheap enough to redo every minute, regenerating is not.
+  const months = useMemo(() => {
+    const slots = allSlots.filter(s =>
+      s.start.getTime() > nowMs && (!typeFilter || s.typeId === typeFilter));
+    return groupDaysByMonth(groupSlotsByDay(slots));
+  }, [allSlots, typeFilter, nowMs]);
+
+  // The nearest month is open; the rest of the year waits behind its header.
+  const monthOpen = (key: string, i: number) => expandedMonths[key] ?? i === 0;
+  const toggleMonth = (key: string, i: number) =>
+    setExpandedMonths(p => ({ ...p, [key]: !(p[key] ?? i === 0) }));
+
   const myUpcoming = mine
     .filter(a => (a.status === 'requested' || a.status === 'confirmed') && new Date(a.starts_at).getTime() >= nowMs - 3600_000)
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
@@ -127,7 +208,14 @@ export default function AppointmentsScreen() {
   function cancelMine(a: Appointment) {
     confirmDestructive('Cancel', `Cancel your ${a.type_label} on ${formatDayLabel(new Date(a.starts_at))}?`, 'Cancel it', async () => {
       setMine(p => p.map(x => x.id === a.id ? { ...x, status: 'cancelled' } : x));
-      if (!demoMode) await db.cancelAppointment(a.id);
+      // Give the time back to the open list — otherwise the slot they just
+      // freed stays hidden until the app restarts, and they can't rebook it.
+      if (demoMode) {
+        setBusy(p => p.filter(b => b.starts_at !== a.starts_at));
+        return;
+      }
+      await db.cancelAppointment(a.id);
+      await load();
     });
   }
 
@@ -144,7 +232,7 @@ export default function AppointmentsScreen() {
             <Text style={styles.back}>‹ Back</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
           <Text style={styles.pageTitle}>Request appointment</Text>
           <Card flat>
             <Text style={styles.confirmType}>{pending.typeLabel}</Text>
@@ -165,7 +253,7 @@ export default function AppointmentsScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <View style={styles.topbar}>
           <TouchableOpacity style={[styles.chipBtn, { marginRight: 12 }]} hitSlop={8}
             onPress={() => { H.tap(); navigation.dispatch(DrawerActions.openDrawer()); }}>
@@ -193,9 +281,24 @@ export default function AppointmentsScreen() {
           </Card>
         )}
 
-        {/* Not linked / closed states */}
+        {/* One booking path, decided by how the FOC schedules. In Calendly
+            mode the link is the whole story — no slot list next to it to
+            book the same hour twice. Booking on Calendly is external, so it
+            doesn't wait on data-sharing consent. */}
         {!focId ? (
           <Card flat><Text style={styles.empty}>Link a Father of Confession from your home screen to request appointments.</Text></Card>
+        ) : focMode === 'calendly' ? (
+          focCalendly ? (
+            <TouchableOpacity style={styles.calendlyCard} onPress={() => { H.tap(); Linking.openURL(focCalendly); }} activeOpacity={0.85}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.calendlyTitle}>Book on Calendly</Text>
+                <Text style={styles.calendlySub}>{focName} schedules appointments through Calendly — opens in your browser.</Text>
+              </View>
+              <Text style={styles.calendlyArrow}>↗</Text>
+            </TouchableOpacity>
+          ) : (
+            <Card flat><Text style={styles.empty}>{focName} takes bookings outside the app right now — reach out directly to schedule.</Text></Card>
+          )
         ) : !consented ? (
           <Card flat><Text style={styles.empty}>Confirm sharing with {focName} to request appointments.</Text></Card>
         ) : !open ? (
@@ -216,19 +319,30 @@ export default function AppointmentsScreen() {
               </View>
             )}
 
-            {grouped.length === 0 ? (
-              <Card flat><Text style={styles.empty}>No open times in the next three weeks. Check back later.</Text></Card>
-            ) : grouped.map(day => (
-              <Card key={day.key} title={day.label} flat>
-                <View style={styles.slotWrap}>
-                  {day.slots.map((s, i) => (
-                    <TouchableOpacity key={i} style={styles.slot} onPress={() => { H.tap(); setPending(s); }}>
-                      <Text style={styles.slotTime}>{formatTime(s.start)}</Text>
-                      <Text style={styles.slotType}>{s.typeLabel} · {s.duration}m</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </Card>
+            {months.length === 0 ? (
+              <Card flat><Text style={styles.empty}>No open times in the year ahead. Check back later.</Text></Card>
+            ) : months.map((month, mi) => (
+              <View key={month.key}>
+                <TouchableOpacity style={styles.monthHeader} onPress={() => { H.tap(); toggleMonth(month.key, mi); }} activeOpacity={0.8}>
+                  <Text style={styles.monthLabel}>{month.label}</Text>
+                  <Text style={styles.monthCount}>
+                    {month.days.length} day{month.days.length !== 1 ? 's' : ''}
+                  </Text>
+                  <Text style={styles.monthChevron}>{monthOpen(month.key, mi) ? '⌄' : '›'}</Text>
+                </TouchableOpacity>
+                {monthOpen(month.key, mi) && month.days.map(day => (
+                  <Card key={day.key} title={day.label} flat>
+                    <View style={styles.slotWrap}>
+                      {day.slots.map((s, i) => (
+                        <TouchableOpacity key={i} style={styles.slot} onPress={() => { H.tap(); setPending(s); }}>
+                          <Text style={styles.slotTime}>{formatTime(s.start)}</Text>
+                          <Text style={styles.slotType}>{s.typeLabel} · {s.duration}m</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </Card>
+                ))}
+              </View>
             ))}
           </>
         )}
@@ -264,6 +378,16 @@ const styles = lazyThemed(() => StyleSheet.create({
   pillActive: { backgroundColor: colors.goldDim, borderColor: colors.gold },
   pillText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.muted },
   pillTextActive: { color: colors.goldLight },
+
+  calendlyCard: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: colors.gold + '55', backgroundColor: colors.goldDim, borderRadius: 14, padding: 14, marginBottom: 14 },
+  calendlyTitle: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.cream, marginBottom: 2 },
+  calendlySub: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.textSecond, lineHeight: 16 },
+  calendlyArrow: { fontFamily: fonts.latoBold, fontSize: 18, color: colors.gold },
+
+  monthHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: colors.border, marginTop: 6 },
+  monthLabel: { fontFamily: fonts.cormorantMedium, fontSize: 19, color: colors.cream, flex: 1 },
+  monthCount: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted },
+  monthChevron: { fontSize: 16, color: colors.gold, width: 14, textAlign: 'center' },
 
   slotWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   slot: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.gold + '55', backgroundColor: colors.goldDim, alignItems: 'center', minWidth: 96 },

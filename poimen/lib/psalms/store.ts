@@ -148,8 +148,14 @@ export async function review(item: string, part: number, existing: PartCard | un
   let intervalDays: number;
   switch (grade) {
     case 'again':
+      // reps is left alone on purpose. It records whether this portion has ever
+      // been recited correctly, which is what separates the new pile from the
+      // review pile — so zeroing it here sent a portion you'd already learned
+      // back to being taught from scratch. A lapse is a REVIEW that went badly:
+      // it stays in review, just seen far more often (interval back to a day,
+      // ease down). A portion still on its first exposure has reps 0 already and
+      // rightly stays in the new pile until it is recited correctly once.
       ease = Math.max(1.3, ease - 0.2);
-      reps = 0;
       intervalDays = 1;
       break;
     case 'hard':
@@ -191,24 +197,33 @@ export interface PsalmStats {
   totalParts: number;
   newCount: number;
   learning: number;
-  mastered: number;
+  mastered: number;        // PORTIONS mature — drives the progress bar
   dueToday: number;
+  totalItems: number;      // whole psalms/passages selected
+  itemsMemorized: number;  // whole psalms/passages with EVERY portion mature
 }
 
 export function computeStats(selection: string[], cardMap: Record<string, PartCard>): PsalmStats {
-  let totalParts = 0, learning = 0, mastered = 0, dueToday = 0, started = 0;
+  let totalParts = 0, learning = 0, mastered = 0, dueToday = 0, started = 0, itemsMemorized = 0;
   for (const it of selection) {
     const parts = unitCount(it);
     totalParts += parts;
+    // "Memorized" is counted in whole psalms/passages, not portions — a psalm
+    // isn't memorized until all of it is. Every portion mature = the item counts.
+    let matureParts = 0;
     for (let i = 0; i < parts; i++) {
       const c = cardMap[cardId(it, i)];
       if (!c) continue;
       started++;
-      if (c.intervalDays >= MASTERED_INTERVAL) mastered++; else learning++;
+      if (c.intervalDays >= MASTERED_INTERVAL) { mastered++; matureParts++; } else learning++;
       if (isDue(c)) dueToday++;
     }
+    if (parts > 0 && matureParts === parts) itemsMemorized++;
   }
-  return { totalParts, newCount: totalParts - started, learning, mastered, dueToday };
+  return {
+    totalParts, newCount: totalParts - started, learning, mastered, dueToday,
+    totalItems: selection.length, itemsMemorized,
+  };
 }
 
 export function portionsMature(item: string, cardMap: Record<string, PartCard>): { mature: number; total: number } {
@@ -251,11 +266,11 @@ export function isFullyMature(item: string, cardMap: Record<string, PartCard>): 
 // Due portion reviews. A portion is reviewable once it has been introduced (it
 // has a card) and its scheduled date has arrived — a portion graded today (due
 // tomorrow at the earliest) is never re-served the same day, and a portion
-// never introduced (no card) waits in the learning queue. Lapsed portions
-// (graded "Wrong", reps back to 0) ARE served here: under monotone maturity a
-// lapsed portion caps every portion after it, so Review must be able to reach
-// it — parts run front-to-back, so it always comes up before the portions it
-// is holding back. Fully mature passages are excluded: they are reviewed as a
+// never introduced (no card) waits in the learning queue. Lapsed portions stay
+// here rather than returning to the new pile, and come round again the next
+// day; under monotone maturity a lapse also caps every portion after it, and
+// since parts run front-to-back it always comes up before the portions it is
+// holding back. Fully mature passages are excluded: they are reviewed as a
 // whole recitation instead.
 export function dueQueue(selection: string[], cardMap: Record<string, PartCard>): { item: string; part: number }[] {
   const due: { item: string; part: number }[] = [];
@@ -272,9 +287,11 @@ export function dueQueue(selection: string[], cardMap: Record<string, PartCard>)
 
 // Brand-new cards, only from the one item currently being learned, in order, up
 // to the daily budget — you learn one passage at a time. A portion counts as
-// still-to-learn until it has been answered correctly once (no card, or reps <
-// 1 after a "Wrong"), so a passage isn't finished — and the next one doesn't
-// begin — until every portion has been graded Hard/Good/Easy at least once.
+// still-to-learn until it has been recited correctly once, so a passage isn't
+// finished — and the next one doesn't begin — until every portion has been
+// graded Hard/Good/Easy at least once. Getting a portion wrong on its first
+// exposure keeps it here (that is what learning it looks like); getting one
+// wrong later does not bring it back here — it lapses within review.
 export function newQueue(selection: string[], cardMap: Record<string, PartCard>, newLimit: number = NEW_PER_SESSION): { item: string; part: number }[] {
   const fresh: { item: string; part: number }[] = [];
   const lp = learningItem(selection, cardMap);

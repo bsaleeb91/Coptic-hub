@@ -43,6 +43,10 @@ export async function pushPsalmsToCloud(userId: string): Promise<void> {
           mastered: stats.mastered,
           learning: stats.learning,
           newCount: stats.newCount,
+          // Whole psalms/passages fully memorized — what the tab's "Memorized"
+          // stat shows (mastered above stays portion-level for the progress bar).
+          totalItems: stats.totalItems,
+          itemsMemorized: stats.itemsMemorized,
           streak: snapshot.streak.current,
         },
       },

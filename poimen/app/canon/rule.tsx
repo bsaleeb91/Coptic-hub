@@ -4,24 +4,25 @@
 // items due today (built from the rule for this weekday); "Edit" configures the
 // rule per day of the week. Distinct from the priest-assigned canon on the tab.
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
 import {
   RuleConfig, DayPlan, ServiceCommitment, loadRule, saveRule,
   AGPEYA_HOURS, SERVICES, CONFESSION_OPTIONS, SERVICE_FREQUENCY_OPTIONS,
-  FAST_UNTIL_OPTIONS, WEEKDAYS,
+  FAST_UNTIL_OPTIONS, WEEKDAYS, MAX_SERVICE_COUNT, setServicesMode,
 } from '@/lib/canon/rule-store';
 import { hydrateRuleFromCloud, pushRuleToCloud } from '@/lib/canon/rule-sync';
 import {
-  AssignedCategory, CanonOverlay, loadAssignedForMember, applyOverlay,
+  AssignedCategory, AssignedCanon, loadAssignedForMember, applyOverlay,
 } from '@/lib/canon/assigned';
 import { lastConfessionDate } from '@/lib/confession/dates';
 import ScrollPicker from '@/components/ui/ScrollPicker';
@@ -96,26 +97,38 @@ export default function RuleScreen() {
 
   const [rule, setRule] = useState<RuleConfig | null>(null);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
-  // Parts the Father of Confession has assigned — locked (read-only) here.
-  const [lockedCats, setLockedCats] = useState<Set<AssignedCategory>>(new Set());
-  const [lockedDays, setLockedDays] = useState<CanonOverlay['lockedDays']>({ agpeya_hours: new Set(), services: new Set(), heart_of_service: new Set() });
-  const [effRule, setEffRule] = useState<RuleConfig | null>(null); // rule with locked values overlaid
+  // What the Father of Confession has assigned, kept as inputs so the overlay
+  // can be RE-derived on every edit. Holding the overlay in state instead let
+  // it go stale the moment the member changed anything (most visibly: flipping
+  // the services mode left the weekday editor rendering against the old mode).
+  const [assigned, setAssigned] = useState<AssignedCanon[]>([]);
+  const [lastConf, setLastConf] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       if (canSync && user) await hydrateRuleFromCloud(user.id);
       const r = await loadRule();
-      const [assigned, last] = await Promise.all([
+      const [a, last] = await Promise.all([
         loadAssignedForMember(user?.id ?? '', demoMode, profile?.foc_id),
         lastConfessionDate(),
       ]);
-      const overlay = applyOverlay(r, assigned, last);
+      setAssigned(a);
+      setLastConf(last);
       setRule(r);
-      setEffRule(overlay.rule);
-      setLockedCats(overlay.lockedCategories);
-      setLockedDays(overlay.lockedDays);
     })();
   }, [canSync, user, demoMode]);
+
+  const overlay = useMemo(
+    () => (rule ? applyOverlay(rule, assigned, lastConf) : null),
+    [rule, assigned, lastConf],
+  );
+  const effRule = overlay?.rule ?? null;
+  const lockedCats = overlay?.lockedCategories ?? new Set<AssignedCategory>();
+  const lockedDays = overlay?.lockedDays ?? { agpeya_hours: new Set<number>(), services: new Set<number>(), heart_of_service: new Set<number>() };
+  // The priest fixes HOW services are committed whenever he has assigned any —
+  // including a weekday assignment, which locks only its own days but still
+  // takes the days-vs-counts choice out of the member's hands.
+  const servicesModeLocked = overlay?.servicesModeLocked ?? false;
 
   const isLocked = (c: AssignedCategory) => lockedCats.has(c);
   const isDayLocked = (c: 'agpeya_hours' | 'services' | 'heart_of_service', i: number) => lockedDays[c].has(i);
@@ -150,13 +163,13 @@ export default function RuleScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => goBack('/(tabs)/canon')} hitSlop={8}>
           <Text style={s.headerBack}>‹ Canon</Text>
         </TouchableOpacity>
         <Text style={s.headerTitle}>Edit Rule</Text>
         <View style={{ width: 54 }} />
       </View>
-      <ScrollView contentContainerStyle={{ padding: SP.lg, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ padding: SP.lg, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <Text style={s.note}>
           Set your rule together with your father of confession. Add only what you can keep faithfully.
         </Text>
@@ -275,6 +288,70 @@ export default function RuleScreen() {
           )}
         </View>
 
+        {/* Church services — specific days OR a number of times per week */}
+        <View style={s.card}>
+          <Text style={s.sectionLabel}>Church services</Text>
+          {isLocked('services') ? (
+            <>
+              {effRule.servicesMode === 'counts' ? (
+                <View style={[s.chipRow, { flexWrap: 'wrap' }]}>
+                  {SERVICES.filter(sv => (effRule.serviceCounts?.[sv.key] ?? 0) > 0).length === 0
+                    ? <Text style={s.mutedSmall}>None</Text>
+                    : SERVICES.filter(sv => (effRule.serviceCounts?.[sv.key] ?? 0) > 0).map(sv => (
+                        <View key={sv.key} style={s.roChip}>
+                          <Text style={s.roChipText}>{sv.name} · {effRule.serviceCounts[sv.key]}×/week</Text>
+                        </View>
+                      ))}
+                </View>
+              ) : (
+                <Text style={s.mutedSmall}>Set on specific days below.</Text>
+              )}
+              <LockNote />
+            </>
+          ) : servicesModeLocked ? (
+            // The priest assigned services by specific weekdays: he owns HOW
+            // they're committed, so the mode can't be switched here. Only the
+            // weekdays he didn't set stay editable, in the day cards below.
+            <>
+              <Text style={s.mutedSmall}>Set on specific days below.</Text>
+              <LockNote />
+            </>
+          ) : (
+            <>
+              <Text style={s.helpText}>
+                Commit either to specific days of the week, or to a number of times per week that you log as you attend — one or the other, not both.
+              </Text>
+              <View style={[s.chipRow, { marginTop: SP.sm }]}>
+                <Chip label="Specific days" on={rule.servicesMode === 'days'}
+                  onPress={() => update(setServicesMode(rule, 'days'))} />
+                <Chip label="Times per week" on={rule.servicesMode === 'counts'}
+                  onPress={() => update(setServicesMode(rule, 'counts'))} />
+              </View>
+              {rule.servicesMode === 'counts' && (
+                <View style={{ marginTop: SP.sm }}>
+                  {SERVICES.map(sv => (
+                    <FieldRow key={sv.key} label={sv.name}>
+                      <Stepper
+                        value={rule.serviceCounts?.[sv.key] ?? 0}
+                        onChange={n => {
+                          const counts = { ...(rule.serviceCounts ?? {}) };
+                          if (n > 0) counts[sv.key] = n; else delete counts[sv.key];
+                          update({ ...rule, serviceCounts: counts });
+                        }}
+                        max={MAX_SERVICE_COUNT}
+                        unit="× / week"
+                      />
+                    </FieldRow>
+                  ))}
+                  <Text style={s.helpText}>
+                    These appear in your canon every day until you've logged them for the week.
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+        </View>
+
         {/* By day of week */}
         <Text style={[s.sectionLabel, { marginTop: SP.lg }]}>For each day of the week</Text>
         {WEEKDAYS.map((name, i) => {
@@ -285,7 +362,7 @@ export default function RuleScreen() {
           const serveCount = ed.serving.filter(x => x.text.trim()).length;
           const summary = [
             ed.hours.length ? `${ed.hours.length} hours` : null,
-            ed.services.length ? `${ed.services.length} services` : null,
+            effRule.servicesMode === 'days' && ed.services.length ? `${ed.services.length} services` : null,
             serveCount ? `${serveCount} serving` : null,
             autoFast ? 'fast day' : null,
           ].filter(Boolean).join(' · ') || 'Nothing set';
@@ -322,9 +399,12 @@ export default function RuleScreen() {
                     </View>
                   )}
 
-                  {/* Church services */}
+                  {/* Church services — only when committed by specific days;
+                      in "times per week" mode they live in the card above. */}
                   <Text style={[s.subLabel, { marginTop: SP.sm }]}>Church services</Text>
-                  {isDayLocked('services', i) ? (
+                  {effRule.servicesMode === 'counts' ? (
+                    <Text style={s.mutedSmall}>Set as times per week above.</Text>
+                  ) : isDayLocked('services', i) ? (
                     <>
                       <View style={[s.chipRow, { flexWrap: 'wrap' }]}>
                         {effRule.days[i].services.length === 0
@@ -451,5 +531,6 @@ const s = lazyThemed(() => StyleSheet.create({
   roChip:        { borderWidth: 1, borderColor: colors.gold + '55', backgroundColor: colors.goldDim, borderRadius: R.full, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6, marginBottom: 6 },
   roChipText:    { fontFamily: fonts.latoBold, fontSize: 12, color: colors.goldLight },
   mutedSmall:    { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 6 },
+  helpText:      { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 16, marginTop: 4 },
 
 }));

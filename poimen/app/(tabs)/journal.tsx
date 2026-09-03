@@ -145,7 +145,7 @@ export default function JournalScreen() {
             <Text style={styles.detailDelete}>Delete</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
           <Text style={styles.detailDate}>{fmtDate(viewEntry.created_at, true)}</Text>
           <Text style={styles.detailTitle}>{viewEntry.title}</Text>
 
@@ -175,7 +175,7 @@ export default function JournalScreen() {
   // ── Journal home ───────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
 
         <Text style={styles.pageTitle}>Spiritual Journal</Text>
         <Text style={styles.pageSubtitle}>Reflections, prompts, and growth</Text>

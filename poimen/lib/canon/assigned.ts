@@ -16,7 +16,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as db from '@/lib/db';
-import { RuleConfig, ServiceCommitment, ReadMode, loadRule, saveRule } from './rule-store';
+import { RuleConfig, ServiceCommitment, ReadMode, loadRule, saveRule, normalizeServiceCounts } from './rule-store';
 import { pushRuleToCloud } from './rule-sync';
 import { lastConfessionDate } from '@/lib/confession/dates';
 
@@ -74,6 +74,12 @@ export interface CanonOverlay {
   lockedDays: Record<'agpeya_hours' | 'services' | 'heart_of_service', Set<number>>;
   customComponents: CustomComponent[];       // priest-added free-text lines
   hasAssignment: boolean;                    // any active assignment at all
+  // HOW services are committed (specific days vs times per week) is the
+  // priest's to set whenever he has assigned services at all — even a
+  // weekday assignment, which locks only its own days, still fixes the mode.
+  // Otherwise the member could switch to the other mode and quietly discard
+  // the shape of what was assigned.
+  servicesModeLocked: boolean;
 }
 
 function emptyLockedDays(): CanonOverlay['lockedDays'] {
@@ -138,12 +144,35 @@ function cloneRule(rule: RuleConfig): RuleConfig {
     ...rule,
     bible: { ...rule.bible },
     book: rule.book ? { ...rule.book } : null,
+    serviceCounts: { ...(rule.serviceCounts ?? {}) },
     days: rule.days.map(d => ({
       hours: [...d.hours],
       services: [...d.services],
       serving: d.serving.map(s => ({ ...s })),
     })),
   };
+}
+
+// A services assignment made by count-per-week has no weekday granularity, so
+// it locks the whole category rather than specific days — but only when it
+// actually sets a count, otherwise it would lock the member out of services
+// while assigning nothing.
+const isCountServices = (a: AssignedCanon) =>
+  a.category === 'services'
+  && a.payload?.mode === 'counts'
+  && Object.keys(normalizeServiceCounts(a.payload?.counts)).length > 0;
+
+// Whether a services assignment actually sets anything — an empty one applies
+// nothing and locks nothing.
+function servicesAssignmentApplies(a: AssignedCanon): boolean {
+  if (a.category !== 'services') return false;
+  if (a.payload?.mode === 'counts') return isCountServices(a);
+  const map = a.payload?.days ?? {};
+  for (let i = 0; i < 7; i++) {
+    const v = map[i] ?? map[String(i)];
+    if (Array.isArray(v) && v.length > 0) return true;
+  }
+  return false;
 }
 
 function daysFromPayload<T>(payload: any, fallback: () => T): T[] {
@@ -174,7 +203,24 @@ export function applyCategoryToRule(rule: RuleConfig, a: AssignedCanon): void {
       break;
     }
     case 'services': {
+      // Two shapes, mutually exclusive (see RuleConfig.servicesMode):
+      //   { mode: 'counts', counts: { liturgy: 2, … } } — times per week
+      //   { mode: 'days', days: { 0: [...], … } }       — specific weekdays
+      // An assignment that sets nothing (all counts 0, or no weekday picked)
+      // applies nothing: it must not flip the member out of the mode they
+      // chose, and must not silently wipe their own commitment.
+      if (p.mode === 'counts') {
+        const counts = normalizeServiceCounts(p.counts);
+        if (Object.keys(counts).length === 0) break;
+        rule.servicesMode = 'counts';
+        rule.serviceCounts = counts;
+        rule.days = rule.days.map(d => ({ ...d, services: [] }));
+        break;
+      }
       const days = daysFromPayload<string[]>(p, () => []);
+      if (!days.some(list => list.length > 0)) break;
+      rule.servicesMode = 'days';
+      rule.serviceCounts = {};
       rule.days = rule.days.map((d, i) => (days[i].length > 0 ? { ...d, services: days[i] } : d));
       break;
     }
@@ -188,11 +234,44 @@ export function applyCategoryToRule(rule: RuleConfig, a: AssignedCanon): void {
   }
 }
 
+// Put one category back to what another rule holds for it — the exact inverse
+// of applyCategoryToRule, used to undo a canon template the priest applied in
+// the editor and then thought better of.
+//
+// It copies the RULE FIELDS rather than re-applying the old payload, because
+// applyCategoryToRule merges: a day-based payload with an empty weekday leaves
+// that weekday alone, so replaying the pre-template payload would strand the
+// template's values on days the member had nothing set. Anything added here
+// must also be added to applyCategoryToRule, and vice versa.
+export function copyCategoryFromRule(target: RuleConfig, src: RuleConfig, category: AssignedCategory): void {
+  switch (category) {
+    case 'prostrations': target.prostrations = src.prostrations; break;
+    case 'quiet':        target.quietMinutes = src.quietMinutes; break;
+    case 'fasting':      target.fastUntil = src.fastUntil; break;
+    case 'bible':        target.bible = { ...src.bible }; break;
+    case 'book':         target.book = src.book ? { ...src.book } : null; break;
+    case 'confession':   target.confession = src.confession; break;
+    case 'agpeya_hours':
+      target.days = target.days.map((d, i) => ({ ...d, hours: [...(src.days[i]?.hours ?? [])] }));
+      break;
+    case 'services':
+      // The mode is part of what a services assignment sets, so it comes back too.
+      target.servicesMode = src.servicesMode;
+      target.serviceCounts = { ...(src.serviceCounts ?? {}) };
+      target.days = target.days.map((d, i) => ({ ...d, services: [...(src.days[i]?.services ?? [])] }));
+      break;
+    case 'heart_of_service':
+      target.days = target.days.map((d, i) => ({ ...d, serving: (src.days[i]?.serving ?? []).map(e => ({ ...e })) }));
+      break;
+  }
+}
+
 export function applyOverlay(rule: RuleConfig, assigned: AssignedCanon[], lastConfession: string | null): CanonOverlay {
   const eff = cloneRule(rule);
   const lockedCategories = new Set<AssignedCategory>();
   const lockedDays = emptyLockedDays();
   const customComponents: CustomComponent[] = [];
+  let servicesModeLocked = false;
   for (const a of assigned) {
     const locked = isLocked(a, lastConfession);
     if (a.category === 'custom') {
@@ -203,7 +282,11 @@ export function applyOverlay(rule: RuleConfig, assigned: AssignedCanon[], lastCo
       continue;
     }
     if (!locked) continue;   // member has confessed since — their own (folded) value stands
-    if (DAY_CATEGORIES.includes(a.category)) {
+    if (servicesAssignmentApplies(a)) servicesModeLocked = true;
+    if (isCountServices(a)) {
+      lockedCategories.add('services');
+      applyCategoryToRule(eff, a);
+    } else if (DAY_CATEGORIES.includes(a.category)) {
       applyCategoryToRule(eff, a);
       const set = lockedDays[a.category as 'agpeya_hours' | 'services' | 'heart_of_service'];
       for (const i of assignedDayIndices(a)) set.add(i);
@@ -212,7 +295,7 @@ export function applyOverlay(rule: RuleConfig, assigned: AssignedCanon[], lastCo
       applyCategoryToRule(eff, a);
     }
   }
-  return { rule: eff, lockedCategories, lockedDays, customComponents, hasAssignment: (assigned ?? []).length > 0 };
+  return { rule: eff, lockedCategories, lockedDays, customComponents, hasAssignment: (assigned ?? []).length > 0, servicesModeLocked };
 }
 
 // Map a today's-canon item key (from lib/canon/today) back to the assigned
@@ -224,7 +307,7 @@ export function categoryForItemKey(key: string): AssignedCategory | null {
   if (key === 'bible') return 'bible';
   if (key === 'book') return 'book';
   if (key.startsWith('hour_')) return 'agpeya_hours';
-  if (key.startsWith('svc_')) return 'services';
+  if (key.startsWith('svc_') || key.startsWith('svcw_')) return 'services';
   if (key.startsWith('serve_')) return 'heart_of_service';
   return null;
 }
@@ -251,20 +334,36 @@ export function foldReleasedIntoRule(
 }
 
 // ─── Loading / writing (demo-aware) ───────────────────────────────────────────
-// Demo mode keeps assignments in one local key so the priest→member flow can be
-// walked on a single device. `member` is ignored in demo (the demo congregant
-// is generic), so any assign shows up in the demo member's own Canon.
-
+// Demo mode keeps assignments in local storage so the priest→member flow can be
+// walked on a single device. Keyed PER MEMBER: one shared key meant a canon
+// assigned to anyone in the demo flock came back as every member's, so opening
+// the next member showed the previous one's canon already switched on.
+//
+// The demo congregant has no id of their own (there is no account), so they read
+// the key of one designated member of the demo flock — which is what keeps the
+// cross-role demo working: assign to Peter as the priest, see it as the member.
 const DEMO_KEY = 'poimen.demo.assignedCanon';
+const DEMO_SELF_MEMBER = 'demo-pb';
 
-async function loadDemoAssigned(): Promise<AssignedCanon[]> {
+const demoKey = (memberId: string) => `${DEMO_KEY}:${memberId || DEMO_SELF_MEMBER}`;
+
+async function loadDemoAssigned(memberId: string): Promise<AssignedCanon[]> {
   try {
-    const raw = await AsyncStorage.getItem(DEMO_KEY);
-    return raw ? normalizeAssigned(JSON.parse(raw)) : [];
+    const key = demoKey(memberId);
+    const raw = await AsyncStorage.getItem(key);
+    if (raw) return normalizeAssigned(JSON.parse(raw));
+    // One-time migration off the shared key: whatever was there belongs to the
+    // member the demo congregant stands in for, not to the whole flock.
+    const legacy = await AsyncStorage.getItem(DEMO_KEY);
+    if (!legacy) return [];
+    await AsyncStorage.removeItem(DEMO_KEY);
+    if (key !== demoKey(DEMO_SELF_MEMBER)) return [];
+    await AsyncStorage.setItem(key, legacy);
+    return normalizeAssigned(JSON.parse(legacy));
   } catch { return []; }
 }
-async function saveDemoAssigned(list: AssignedCanon[]): Promise<void> {
-  try { await AsyncStorage.setItem(DEMO_KEY, JSON.stringify(list)); } catch {}
+async function saveDemoAssigned(memberId: string, list: AssignedCanon[]): Promise<void> {
+  try { await AsyncStorage.setItem(demoKey(memberId), JSON.stringify(list)); } catch {}
 }
 
 // The member reads what their FOC has assigned them. The live spiritual_canons
@@ -273,7 +372,7 @@ async function saveDemoAssigned(list: AssignedCanon[]): Promise<void> {
 // the member's actual Father of Confession lock the personal rule, so filter
 // by focId. With no FOC on the profile nothing is treated as assigned.
 export async function loadAssignedForMember(memberId: string, demoMode: boolean, focId?: string | null): Promise<AssignedCanon[]> {
-  if (demoMode) return loadDemoAssigned();
+  if (demoMode) return loadDemoAssigned(memberId);
   try {
     const rows = normalizeAssigned(await db.getAssignedCanonsForMember(memberId));
     return focId ? rows.filter(a => a.priestId === focId) : [];
@@ -283,7 +382,7 @@ export async function loadAssignedForMember(memberId: string, demoMode: boolean,
 // The priest reads what THEY have already assigned this member (editor pre-fill),
 // scoped to their own priest_id so one FOC never sees/removes another's rows.
 export async function loadAssignedForPriest(memberId: string, priestId: string, demoMode: boolean): Promise<AssignedCanon[]> {
-  if (demoMode) return loadDemoAssigned();
+  if (demoMode) return loadDemoAssigned(memberId);
   try { return normalizeAssigned(await db.getMemberActiveCanonsByPriest(memberId, priestId)); }
   catch { return []; }
 }
@@ -295,7 +394,7 @@ export async function assignCategory(params: {
 }): Promise<void> {
   const { memberId, priestId, demoMode, category, component, payload, frequency } = params;
   if (demoMode) {
-    const list = await loadDemoAssigned();
+    const list = await loadDemoAssigned(memberId);
     // Custom components accumulate; structured categories replace.
     const kept = category === 'custom' ? list : list.filter(a => a.category !== category);
     kept.push({
@@ -308,7 +407,7 @@ export async function assignCategory(params: {
       createdAt: new Date().toISOString(),
       priestId: priestId || null,
     });
-    await saveDemoAssigned(kept);
+    await saveDemoAssigned(memberId, kept);
     return;
   }
   if (category !== 'custom') {
@@ -324,11 +423,11 @@ export async function removeAssignment(params: {
 }): Promise<void> {
   const { memberId, priestId, demoMode, category, id } = params;
   if (demoMode) {
-    const list = await loadDemoAssigned();
+    const list = await loadDemoAssigned(memberId);
     const next = category === 'custom' && id
       ? list.filter(a => a.id !== id)
       : list.filter(a => a.category !== category);
-    await saveDemoAssigned(next);
+    await saveDemoAssigned(memberId, next);
     return;
   }
   if (category === 'custom' && id) {
