@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
@@ -12,16 +12,19 @@ import { DrawerMenuButton } from '@/components/ui/DrawerMenuButton';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
-import { loadRule, WEEKDAYS } from '@/lib/canon/rule-store';
+import { loadRule, WEEKDAYS, SERVICES } from '@/lib/canon/rule-store';
+import {
+  loadServiceLog, ensureWeek, weekCounts, loggedOn, logAttendance, unlogLatest, weekStartStr,
+} from '@/lib/canon/service-log';
 import { hydrateRuleFromCloud } from '@/lib/canon/rule-sync';
-import { todayItems, customDueToday, RuleItem } from '@/lib/canon/today';
+import { todayItems, customDueToday, RuleItem, weeklyServiceKey, isWeeklyServiceKey } from '@/lib/canon/today';
 import { isFastDay } from '@/lib/canon/fasting';
-import { loadTodayChecks, saveTodayChecks } from '@/lib/canon/checks';
+import { loadChecks, saveChecks, backfillDates, isSameDay } from '@/lib/canon/checks';
 import {
   postponeOptionsFor, PostponeOption, loadPostponements, postponeServiceItem,
   loadServiceDone, recordServiceDone, clearServiceDone, localDateStr,
 } from '@/lib/canon/postpone';
-import { recordCanonDay } from '@/lib/canon/history';
+import { recordCanonDay, finalizeWeeklyServices } from '@/lib/canon/history';
 import { lastConfessionDate, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
 import { loadAssignedForMember, applyOverlay, categoryForItemKey } from '@/lib/canon/assigned';
 import { BookIcon, CandleIcon, PrayingHandsIcon, ChurchIcon, CrossIcon, HeartIcon } from '@/components/ui/TabIcons';
@@ -70,7 +73,7 @@ function CanonRow({ comp, done, assigned, onToggle, onPostpone }: {
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.compName, done && styles.compNameDone]}>{comp.name}</Text>
             {assigned && <Text style={styles.compAssignedTag}>🔒 Assigned by your Father of Confession</Text>}
-            {done && <Text style={styles.compStatus}>✓ Done today</Text>}
+            {done && <Text style={styles.compStatus}>{comp.doneLabel ?? '✓ Done today'}</Text>}
           </View>
         </TouchableOpacity>
         {onPostpone && !done && (
@@ -112,7 +115,24 @@ export default function CanonScreen() {
   const [ruleItems, setRuleItems] = useState<RuleItem[] | null>(null); // null = loading
   const [lockedKeys, setLockedKeys] = useState<Set<string>>(new Set()); // FOC-assigned item keys
   const [postponeFor, setPostponeFor] = useState<string | null>(null); // item key with open postpone options
+  // Count-per-week services: this week's tally + the effective targets, so a
+  // tap can log/undo without a full (network-touching) reload.
+  const [weekSvc, setWeekSvc] = useState<{ counts: Record<string, number>; loggedToday: Set<string> }>(
+    { counts: {}, loggedToday: new Set() });
+  const [ruleCounts, setRuleCounts] = useState<Record<string, number>>({});
+  const svcBusy = useRef(false);
+  const dayStripRef = useRef<ScrollView>(null);
+  const dayStripPinned = useRef(false);
   const [readiness, setReadiness] = useState<{ days: number; freqDays: number; freqLabel: string } | null>(null);
+  // The day being logged. A canon kept but only remembered after midnight — or
+  // over a few days away from the app — can be completed here rather than
+  // standing as a miss in Spiritual Vitals.
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
+  const viewingToday = isSameDay(selectedDate, new Date());
+  // Count-committed services are scored per WEEK, onto that week's Saturday,
+  // and a week that has closed is already scored — so attendance can only be
+  // logged inside the current week.
+  const weekEditable = weekStartStr(selectedDate) === weekStartStr(new Date());
 
   useEffect(() => {
     if (demoMode) {
@@ -123,10 +143,11 @@ export default function CanonScreen() {
   }, [user]);
 
   // Reload the canon every time the tab gains focus, so edits made in the
-  // rule editor reflect here immediately.
+  // rule editor reflect here immediately — and whenever the day being logged
+  // changes.
   useFocusEffect(useCallback(() => {
     loadCanon();
-  }, [user, demoMode]));
+  }, [user, demoMode, localDateStr(selectedDate)]));
 
   async function loadCanon() {
     if (user && !demoMode) await hydrateRuleFromCloud(user.id);
@@ -138,13 +159,37 @@ export default function CanonScreen() {
     const assigned = await loadAssignedForMember(user?.id ?? '', demoMode, profile?.foc_id);
     const overlay = applyOverlay(rule, assigned, last);
 
-    const [postponed, serviceDone] = await Promise.all([loadPostponements(), loadServiceDone()]);
-    const structured = todayItems(overlay.rule, new Date(), postponed, serviceDone);
+    const now = new Date();
+    const day = selectedDate;
+    const isToday = isSameDay(day, now);
+    const sameWeek = weekStartStr(day) === weekStartStr(now);
+    const [postponed, serviceDone, loadedLog] = await Promise.all([
+      loadPostponements(), loadServiceDone(), loadServiceLog(),
+    ]);
+    // Services committed by count-per-week: stamp THIS week's targets (which is
+    // also what makes a zero-attendance week count as a miss) — always the
+    // current week, never a past one being back-filled — then read the selected
+    // day's week for the "1 of 2 this week" labels.
+    const svcLog = overlay.rule.servicesMode === 'counts'
+      ? await ensureWeek(overlay.rule.serviceCounts ?? {}, now)
+      : loadedLog;
+    const weekServices = {
+      counts: weekCounts(svcLog, day),
+      loggedToday: new Set(SERVICES.filter(sv => loggedOn(svcLog, sv.key, day)).map(sv => sv.key)),
+    };
+    setWeekSvc(weekServices);
+    setRuleCounts(overlay.rule.servicesMode === 'counts' ? (overlay.rule.serviceCounts ?? {}) : {});
+    // A closed week's services are already scored, so those rows would be
+    // inert — leave them off a day outside this week entirely.
+    const structured = todayItems(overlay.rule, day, postponed, serviceDone, weekServices)
+      .filter(it => sameWeek || !isWeeklyServiceKey(it.key));
+    // Score any week that has fully elapsed (see finalizeWeeklyServices).
+    finalizeWeeklyServices(svcLog, now);
     // Priest-added free-text components appear as read-only canon rows — on
     // their scheduled weekdays only, resting for their period once checked
     // off (the same recurrence model as Heart of Service commitments).
     const customItems: RuleItem[] = overlay.customComponents
-      .filter(c => customDueToday(c.frequency, c.days, new Date(), serviceDone, `assigned_${c.id}`, postponed))
+      .filter(c => customDueToday(c.frequency, c.days, day, serviceDone, `assigned_${c.id}`, postponed))
       .map(c => {
         const daysLabel = c.days?.length ? ` · ${c.days.map(d => WEEKDAYS[d].slice(0, 3)).join(', ')}` : '';
         return {
@@ -159,7 +204,7 @@ export default function CanonScreen() {
 
     // Which of today's rows are FOC-assigned (locked) — badge them. Day-based
     // categories are locked only on the specific weekdays the priest set.
-    const todayIdx = new Date().getDay();
+    const todayIdx = day.getDay();
     const locked = new Set<string>();
     for (const it of structured) {
       const cat = categoryForItemKey(it.key);
@@ -169,11 +214,24 @@ export default function CanonScreen() {
     }
     overlay.customComponents.forEach(c => { if (c.locked) locked.add(`assigned_${c.id}`); });
 
-    const checks = await loadTodayChecks();
+    const checks = await loadChecks(day);
+    // A count-committed service is "done" when the WEEK's target is met — the
+    // attendance log decides that, never the daily check store.
+    if (sameWeek) {
+      for (const sv of SERVICES) {
+        const id = `rule_${weeklyServiceKey(sv.key)}`;
+        const target = overlay.rule.serviceCounts?.[sv.key] ?? 0;
+        target > 0 && (weekServices.counts[sv.key] ?? 0) >= target ? checks.add(id) : checks.delete(id);
+      }
+    }
     setRuleItems(items);
     setLockedKeys(locked);
     setChecked(checks);
-    recordCanonDay(items, checks); // keep the adherence history current
+    // Only today's record is written on load. A past day is recorded when the
+    // member actually marks something on it — merely looking back at a day they
+    // were away must not create a record, which would turn a day that simply
+    // didn't count into a day of misses.
+    if (isToday) recordCanonDay(items, checks, day);
 
     // Communion readiness measured against the effective confession frequency
     // (a priest-assigned frequency takes precedence while it's locked).
@@ -214,18 +272,54 @@ export default function CanonScreen() {
   function toggleCheck(item: RuleItem) {
     const id = `rule_${item.key}`;
     const isServe = item.key.startsWith('serve_') || (item.key.startsWith('assigned_') && !!item.freq);
+
+    // A count-committed service isn't a daily check-off — it's an attendance
+    // logged against this week's target. Tapping logs today, un-logs today if
+    // already logged, or (once the target is met) undoes the most recent
+    // attendance so a mistake made earlier in the week can still be corrected.
+    if (isWeeklyServiceKey(item.key)) {
+      if (svcBusy.current) return;                     // ignore double-taps mid-write
+      svcBusy.current = true;
+      const serviceKey = item.key.slice('svcw_'.length);
+      const logged = weekSvc.counts[serviceKey] ?? 0;
+      const target = ruleCounts[serviceKey] ?? 0;
+      const doneToday = weekSvc.loggedToday.has(serviceKey);
+      const adding = !doneToday && logged < target;
+      const next = Math.max(0, logged + (adding ? 1 : -1));
+      H.tap();
+      // Update label, tally and checkbox immediately — the write is local and
+      // a full reload would re-hit the network for the cloud rule hydrate.
+      setWeekSvc(prev => {
+        const loggedToday = new Set(prev.loggedToday);
+        adding ? loggedToday.add(serviceKey) : loggedToday.delete(serviceKey);
+        return { counts: { ...prev.counts, [serviceKey]: next }, loggedToday };
+      });
+      const svcName = SERVICES.find(s => s.key === serviceKey)?.name ?? serviceKey;
+      setRuleItems(prev => (prev ?? []).map(it => it.key === item.key
+        ? { ...it, label: `Attend ${svcName} — ${next} of ${target} this week`, doneLabel: '✓ Complete for this week' }
+        : it));
+      setChecked(prev => {
+        const set = new Set(prev);
+        next >= target ? set.add(id) : set.delete(id);
+        return set;
+      });
+      (adding ? logAttendance(serviceKey, selectedDate) : unlogLatest(serviceKey, selectedDate))
+        .finally(() => { svcBusy.current = false; });
+      return;
+    }
+
     setChecked(prev => {
       const next = new Set(prev);
       const nowChecked = !next.has(id);
       nowChecked ? next.add(id) : next.delete(id);
-      saveTodayChecks(next);
-      if (isServe) (nowChecked ? recordServiceDone(item.key) : clearServiceDone(item.key));
-      recordCanonDay(ruleItems ?? [], next);
+      saveChecks(next, selectedDate);
+      if (isServe) (nowChecked ? recordServiceDone(item.key, selectedDate) : clearServiceDone(item.key, selectedDate));
+      recordCanonDay(ruleItems ?? [], next, selectedDate);
       // Assigned components also mirror to canon_completions — the only
       // signal the assigning priest/servant's weekly counts can read.
       if (item.key.startsWith('assigned_') && user && !demoMode) {
         const canonId = item.key.slice('assigned_'.length);
-        const today = localDateStr(new Date());
+        const today = localDateStr(selectedDate);
         (nowChecked
           ? db.upsertCanonCompletion(canonId, user.id, today)
           : db.deleteCanonCompletion(canonId, user.id, today)
@@ -237,7 +331,8 @@ export default function CanonScreen() {
 
   const items = ruleItems ?? [];
   const completedCount = items.filter(it => checked.has(`rule_${it.key}`)).length;
-  const fastingToday = isFastDay(new Date());
+  const fastingToday = isFastDay(selectedDate);
+  const days = backfillDates();
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -267,6 +362,47 @@ export default function CanonScreen() {
             </View>
           }
         >
+          {/* Which day is being logged. The canon is often kept faithfully but
+              remembered only after midnight, or across a few days away from the
+              app — those days can be completed here instead of standing as
+              misses. */}
+          <ScrollView
+            ref={dayStripRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.dayStrip}
+            // Today is the right-hand end of the strip and the day you land on,
+            // so open there — scrolling back is the deliberate move.
+            onContentSizeChange={() => {
+              if (dayStripPinned.current) return;
+              dayStripPinned.current = true;
+              dayStripRef.current?.scrollToEnd({ animated: false });
+            }}
+          >
+            {days.map(d => {
+              const sel = isSameDay(d, selectedDate);
+              return (
+                <TouchableOpacity
+                  key={localDateStr(d)}
+                  style={[styles.dayChip, sel && styles.dayChipActive]}
+                  onPress={() => { H.tap(); setPostponeFor(null); setSelectedDate(d); }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.dayChipLabel, sel && styles.dayChipTextActive]}>
+                    {isSameDay(d, new Date()) ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'short' })}
+                  </Text>
+                  <Text style={[styles.dayChipDate, sel && styles.dayChipTextActive]}>{d.getDate()}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          {!viewingToday && (
+            <Text style={styles.backfillNote}>
+              Completing {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              {weekEditable ? '' : ' · services counted by week are already settled for that week'}
+            </Text>
+          )}
+
           {ruleItems == null ? (
             <ActivityIndicator color={colors.gold} style={{ paddingVertical: 20 }} />
           ) : items.length === 0 ? (
@@ -291,11 +427,13 @@ export default function CanonScreen() {
                 return (
                   <View key={item.key} style={{ marginBottom: 10 }}>
                     <CanonRow
-                      comp={{ id: rk, icon: item.icon, name: item.label }}
+                      comp={{ id: rk, icon: item.icon, name: item.label, doneLabel: item.doneLabel }}
                       done={checked.has(rk)}
                       assigned={lockedKeys.has(item.key)}
                       onToggle={() => { setPostponeFor(null); toggleCheck(item); }}
-                      onPostpone={options.length > 0 ? () => setPostponeFor(prev => (prev === item.key ? null : item.key)) : undefined}
+                      // Postponing defers an item to a future date, so it only
+                      // makes sense from today — not while completing a past day.
+                      onPostpone={options.length > 0 && viewingToday ? () => setPostponeFor(prev => (prev === item.key ? null : item.key)) : undefined}
                     />
                     {postponeFor === item.key && !checked.has(rk) && (
                       <View style={styles.postponeRow}>
@@ -366,6 +504,14 @@ const styles = lazyThemed(() => StyleSheet.create({
   editLink: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.gold },
   fastBadge: { backgroundColor: 'rgba(201,168,76,0.15)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
   fastBadgeText: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.goldLight },
+
+  dayStrip: { flexDirection: 'row', gap: 8, paddingBottom: 14, paddingRight: 4 },
+  dayChip: { minWidth: 52, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel, alignItems: 'center' },
+  dayChipActive: { borderColor: colors.gold, backgroundColor: colors.goldDim },
+  dayChipLabel: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.muted, letterSpacing: 0.3 },
+  dayChipDate: { fontFamily: fonts.cormorantMedium, fontSize: 17, color: colors.cream, marginTop: 1 },
+  dayChipTextActive: { color: colors.goldLight },
+  backfillNote: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 16, marginBottom: 12, fontStyle: 'italic' },
 
   compItem: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: 'hidden' },
   compItemDone: { opacity: 0.65 },

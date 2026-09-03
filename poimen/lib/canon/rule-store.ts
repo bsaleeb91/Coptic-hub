@@ -72,6 +72,12 @@ export interface DayPlan {
   serving: ServiceCommitment[];  // Heart of Service commitments this weekday
 }
 
+// Church services are committed to in ONE of two ways, never both:
+//   'days'   — specific weekdays (DayPlan.services), the original model
+//   'counts' — a number of times per week per service (serviceCounts), logged
+//              by the member as they attend
+export type ServicesMode = 'days' | 'counts';
+
 export interface RuleConfig {
   prostrations: number;
   fastUntil: string;    // abstain from food until this time on fasting days
@@ -80,7 +86,12 @@ export interface RuleConfig {
   book: { title: string; mode: ReadMode; amount: number } | null;
   confession: string;
   days: DayPlan[];      // length 7, index 0 = Sunday
+  servicesMode: ServicesMode;
+  serviceCounts: Record<string, number>;   // service key → times per week
 }
+
+// One attendance can be logged per service per day, so a week tops out at 7.
+export const MAX_SERVICE_COUNT = 7;
 
 export const DEFAULT_RULE: RuleConfig = {
   prostrations: 0,
@@ -90,7 +101,31 @@ export const DEFAULT_RULE: RuleConfig = {
   book: null,
   confession: 'Monthly',
   days: Array.from({ length: 7 }, () => ({ hours: [], services: [], serving: [] })),
+  servicesMode: 'days',
+  serviceCounts: {},
 };
+
+// Switch how church services are committed, clearing the other mode's data so
+// a rule can never carry both weekday services and per-week counts. This is
+// what makes the either/or exclusive in the DATA, not just in the UI.
+export function setServicesMode(rule: RuleConfig, mode: ServicesMode): RuleConfig {
+  if (mode === rule.servicesMode) return rule;
+  return mode === 'counts'
+    ? { ...rule, servicesMode: 'counts', days: rule.days.map(d => ({ ...d, services: [] })) }
+    : { ...rule, servicesMode: 'days', serviceCounts: {} };
+}
+
+// Keep only known service keys with a sane positive count.
+export function normalizeServiceCounts(raw: any): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    for (const sv of SERVICES) {
+      const n = Math.floor(Number(raw[sv.key]));
+      if (Number.isFinite(n) && n > 0) out[sv.key] = Math.min(n, MAX_SERVICE_COUNT);
+    }
+  }
+  return out;
+}
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
@@ -107,7 +142,16 @@ function normalize(parsed: any): RuleConfig {
       ? parsed.days[i].serving.map((e: any) => ({ text: String(e?.text ?? ''), freq: String(e?.freq ?? 'Weekly') }))
       : [],
   }));
-  return { ...DEFAULT_RULE, ...parsed, bible: { ...DEFAULT_RULE.bible, ...parsed?.bible }, days };
+  const serviceCounts = normalizeServiceCounts(parsed?.serviceCounts);
+  // Saves predating the two-mode model have no servicesMode — they are 'days'.
+  // The stored mode is otherwise taken at face value: coercing 'counts' back to
+  // 'days' when every count reads 0 would silently resurrect weekday services
+  // the member had moved away from, and leave the editor and canon disagreeing
+  // about which mode is in force. Switching to 'counts' clears the weekday
+  // services (see setServicesMode), so "counts with nothing set" simply means
+  // no church services — the same as "days with none picked".
+  const servicesMode: ServicesMode = parsed?.servicesMode === 'counts' ? 'counts' : 'days';
+  return { ...DEFAULT_RULE, ...parsed, bible: { ...DEFAULT_RULE.bible, ...parsed?.bible }, days, servicesMode, serviceCounts };
 }
 
 export async function loadRule(): Promise<RuleConfig> {

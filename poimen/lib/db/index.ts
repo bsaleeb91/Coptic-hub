@@ -15,3 +15,5 @@ export * from './prayer';
 export * from './progress';
 export * from './admin';
 export * from './scheduling';
+export * from './photos';
+export * from './templates';

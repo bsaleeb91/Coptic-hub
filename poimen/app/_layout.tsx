@@ -23,6 +23,7 @@ import { setStorageScope } from '@/lib/storage';
 import * as db from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { TutorialProvider } from '@/lib/tutorial-context';
+import RouteMemory from '@/components/RouteMemory';
 import { Modal, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView } from 'react-native';
 import { colors, fonts, applyTheme, loadThemeMode, lazyThemed, ThemeMode } from '@/lib/theme';
 import { isBiometricAvailable, loadFaceIdLockEnabled, authenticateWithBiometrics, onFaceIdLockChange } from '@/lib/biometrics';
@@ -299,6 +300,10 @@ function RootLayoutNav() {
         <Stack.Screen name="auth-callback" />
         <Stack.Screen name="link-to-foc" />
       </Stack>
+      {/* Land back where you left off after the app is reclaimed in the
+          background — only once signed in (or exploring a demo), so it can
+          never take over the sign-in redirect above. */}
+      <RouteMemory enabled={!!session || demoMode} />
       {!demoMode && session && <PINModal />}
     </>
   );

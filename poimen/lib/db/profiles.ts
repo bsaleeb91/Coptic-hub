@@ -114,6 +114,15 @@ export async function setLastConfession(userId: string, isoDate: string | null):
   return { error: error?.message ?? null };
 }
 
+// Own profile picture (public URL into the avatars bucket, or null to clear).
+export async function setAvatarUrl(userId: string, url: string | null): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ avatar_url: url })
+    .eq('id', userId);
+  return { error: error?.message ?? null };
+}
+
 export async function setVitalsConsent(userId: string, consent: boolean): Promise<{ error: string | null }> {
   const { error } = await supabase
     .from('profiles')
@@ -144,28 +153,28 @@ export async function getFocProfile(focId: string): Promise<{ full_name: string 
 }
 
 // Member detail header (priest view).
-export async function getMemberProfile(memberId: string): Promise<{ full_name: string | null; created_at: string; role: string; foc_consent_at: string | null; last_confession_at: string | null } | null> {
+export async function getMemberProfile(memberId: string): Promise<{ full_name: string | null; created_at: string; role: string; foc_consent_at: string | null; last_confession_at: string | null; avatar_url: string | null } | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('full_name, created_at, role, foc_consent_at, last_confession_at')
+    .select('full_name, created_at, role, foc_consent_at, last_confession_at, avatar_url')
     .eq('id', memberId)
     .single();
   return data ?? null;
 }
 
 // Members who list this priest as their Father of Confession.
-export async function getFlock(focId: string, opts?: { ordered?: boolean }): Promise<{ id: string; full_name: string | null; last_confession_at: string | null }[]> {
-  let query = supabase.from('profiles').select('id, full_name, last_confession_at').eq('foc_id', focId);
+export async function getFlock(focId: string, opts?: { ordered?: boolean }): Promise<{ id: string; full_name: string | null; last_confession_at: string | null; avatar_url: string | null }[]> {
+  let query = supabase.from('profiles').select('id, full_name, last_confession_at, avatar_url').eq('foc_id', focId);
   if (opts?.ordered) query = query.order('full_name');
   const { data } = await query;
   return data ?? [];
 }
 
 // Students who list this servant.
-export async function getServantStudents(servantId: string): Promise<{ id: string; full_name: string | null }[]> {
+export async function getServantStudents(servantId: string): Promise<{ id: string; full_name: string | null; avatar_url: string | null }[]> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name')
+    .select('id, full_name, avatar_url')
     .eq('servant_id', servantId);
   return data ?? [];
 }

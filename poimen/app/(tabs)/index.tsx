@@ -8,19 +8,22 @@ import { useRouter, useFocusEffect, useNavigation } from 'expo-router';
 import { DrawerActions } from '@react-navigation/native';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { Avatar } from '@/components/ui/Avatar';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 import { loadSections, saveSections, SECTION_DEFS, DEFAULT_SECTIONS, type SectionId } from '@/lib/dashboard-layout';
 import * as H from '@/lib/haptics';
-import { loadRule } from '@/lib/canon/rule-store';
-import { todayItems, customDueToday, RuleItem } from '@/lib/canon/today';
+import { loadRule, SERVICES } from '@/lib/canon/rule-store';
+import { todayItems, customDueToday, RuleItem, weeklyServiceKey } from '@/lib/canon/today';
 import { loadAssignedForMember, applyOverlay } from '@/lib/canon/assigned';
 import { loadTodayChecks } from '@/lib/canon/checks';
 import { loadPostponements, loadServiceDone } from '@/lib/canon/postpone';
-import { recordCanonDay, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
+import { loadServiceLog, ensureWeek, weekCounts, loggedOn } from '@/lib/canon/service-log';
+import { recordCanonDay, finalizeWeeklyServices, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
 import { lastConfessionDate, loadConfessionDates, hydrateConfessionDatesFromCloud, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
+import { VISIT_TYPE_KEYWORD } from '@/lib/scheduling/slots';
 import { currentFast } from '@/lib/canon/fasting';
 import { loadStreak } from '@/lib/psalms/store';
 import { upcomingFeasts, feastOn } from '@/lib/feasts';
@@ -192,6 +195,10 @@ export default function DashboardScreen() {
   const [lastVisit, setLastVisit] = useState<string | null>(null);
   const [visitRequested, setVisitRequested] = useState(false);
   const [visitBusy, setVisitBusy] = useState(false);
+  // Can a visit actually be booked — is the FOC accepting requests AND does he
+  // offer a visitation type? null until we know, so the card doesn't flash the
+  // wrong chip. Demo has both.
+  const [visitBookable, setVisitBookable] = useState<boolean | null>(demoMode ? true : null);
   const [focProfile, setFocProfile] = useState<any>(null);
   const [sections, setSections] = useState<SectionId[]>(DEFAULT_SECTIONS);
   const [customizing, setCustomizing] = useState(false);
@@ -236,10 +243,10 @@ export default function DashboardScreen() {
       // Journey + FOC card refresh on every focus, so a confession recorded
       // moments ago on the Confession tab appears in the timeline immediately.
       if (!demoMode) loadAll();
-      const [rule, checks, postponed, serviceDone, assigned, last, psalmStreakVal] = await Promise.all([
+      const [rule, checks, postponed, serviceDone, assigned, last, loadedLog, psalmStreakVal] = await Promise.all([
         loadRule(), loadTodayChecks(), loadPostponements(), loadServiceDone(),
         loadAssignedForMember(user?.id ?? '', demoMode, profile?.foc_id ?? undefined),
-        lastConfessionDate(),
+        lastConfessionDate(), loadServiceLog(),
         loadStreak(),
       ]);
       setPsalmStreak(psalmStreakVal.current);
@@ -249,7 +256,22 @@ export default function DashboardScreen() {
       // it from the bare rule here made the tile and the adherence history
       // disagree with the Canon tab depending on which screen focused last.
       const overlay = applyOverlay(rule, assigned, last);
-      const structured = todayItems(overlay.rule, new Date(), postponed, serviceDone);
+      // Count-committed services are tracked in the attendance log, not the
+      // daily checks — mirror the Canon tab so the tile agrees with it.
+      const nowDate = new Date();
+      const svcLog = overlay.rule.servicesMode === 'counts'
+        ? await ensureWeek(overlay.rule.serviceCounts ?? {}, nowDate)
+        : loadedLog;
+      const weekServices = {
+        counts: weekCounts(svcLog, nowDate),
+        loggedToday: new Set(SERVICES.filter(sv => loggedOn(svcLog, sv.key, nowDate)).map(sv => sv.key)),
+      };
+      for (const sv of SERVICES) {
+        const id = `rule_${weeklyServiceKey(sv.key)}`;
+        const target = overlay.rule.serviceCounts?.[sv.key] ?? 0;
+        target > 0 && (weekServices.counts[sv.key] ?? 0) >= target ? checks.add(id) : checks.delete(id);
+      }
+      const structured = todayItems(overlay.rule, nowDate, postponed, serviceDone, weekServices);
       const customItems: RuleItem[] = overlay.customComponents
         .filter(c => customDueToday(c.frequency, c.days, new Date(), serviceDone, `assigned_${c.id}`, postponed))
         .map(c => ({ key: `assigned_${c.id}`, icon: 'quiet', label: c.text }));
@@ -263,6 +285,7 @@ export default function DashboardScreen() {
 
 
       await recordCanonDay(items, checks);
+      await finalizeWeeklyServices(svcLog, nowDate);
       const epoch = await loadVitalsEpoch();
       setVitalsEpoch(epoch);
       const stats = computeVitals(await loadCanonHistory(), epoch);
@@ -287,14 +310,27 @@ export default function DashboardScreen() {
     if (!demoMode) await hydrateConfessionDatesFromCloud(user.id);
     // Fetch more than the 4 shown so same-day dedupe sees confession
     // encounters even when other encounters crowd the top of the list.
-    const [enc, selfDates, foc, visit, visitReq] = await Promise.all([
+    const [enc, selfDates, foc, visit, visitReq, schedOpen, apptTypes, apptRules] = await Promise.all([
       db.getRecentEncounters(user.id, 12),
       loadConfessionDates(),
       profile?.foc_id ? db.getFocProfile(profile.foc_id) : null,
       db.getLastEncounterDate(user.id, 'visit'),
       db.getVisitRequest(user.id),
+      profile?.foc_id ? db.getSchedulingOpen(profile.foc_id) : false,
+      profile?.foc_id ? db.getAppointmentTypes(profile.foc_id) : [],
+      profile?.foc_id ? db.getAvailabilityRules(profile.foc_id) : [],
     ]);
     setLastVisit(visit);
+    // Booking a visit takes all three: the priest is open, he has a visitation
+    // type, and he has opened hours FOR that type. Defining the type but never
+    // publishing hours for it is the common case (visits get arranged ad hoc),
+    // and it would send the member to an empty screen — so anything short of
+    // all three falls back to the standing request flag, which is then the only
+    // way left to reach him.
+    const visitTypeIds = apptTypes
+      .filter(t => t.active && t.label.toLowerCase().includes(VISIT_TYPE_KEYWORD))
+      .map(t => t.id);
+    setVisitBookable(schedOpen && apptRules.some(r => r.active && visitTypeIds.includes(r.type_id)));
     // Auto-clear a pending visit request once the priest has logged a visit
     // on or after it was requested (the priest can't write the member's row,
     // so the member's app resolves it).
@@ -336,26 +372,53 @@ export default function DashboardScreen() {
     setVisitBusy(false);
   }
 
-  const visitRequestChip = (
-    <TouchableOpacity
-      style={[styles.visitChip, visitRequested && styles.visitChipActive, visitBusy && { opacity: 0.6 }]}
-      onPress={toggleVisitRequest}
-      disabled={visitBusy}
-      activeOpacity={0.8}
-    >
-      <Text style={[styles.scheduleIcon, visitRequested && { color: colors.green }]}>◎</Text>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.scheduleText}>
-          {visitRequested ? 'Pastoral Visit Requested' : 'Request Pastoral Visit'}
-        </Text>
-        <Text style={styles.scheduleSub}>
-          {visitRequested
-            ? 'Your Father of Confession has been notified · tap to cancel'
-            : 'Let your Father of Confession know you’d like a visit'}
-        </Text>
-      </View>
-      {visitRequested && <Text style={styles.visitCheck}>✓</Text>}
-    </TouchableOpacity>
+  // A visit is normally booked like any other appointment, so this links into
+  // Appointments (which owns the not-linked / no-open-times states) filtered to
+  // the priest's visitation type. When he can't be booked for one, the older
+  // standing-flag request stays as the fallback and is then the only way to ask.
+  // A flag already raised keeps its chip even once booking becomes possible —
+  // it's the member's only way to cancel it, and the priest is still looking at
+  // it on his roster.
+  const showVisitLink = visitBookable === true;
+  const showVisitFlag = visitRequested || visitBookable === false;
+  const visitRequestChip = !showVisitLink && !showVisitFlag ? null : (
+    <>
+      {showVisitFlag && (
+        <TouchableOpacity
+          style={[styles.visitChip, visitRequested && styles.visitChipActive, visitBusy && { opacity: 0.6 }]}
+          onPress={toggleVisitRequest}
+          disabled={visitBusy}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.scheduleIcon, visitRequested && { color: colors.green }]}>◎</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.scheduleText}>
+              {visitRequested ? 'Pastoral Visit Requested' : 'Request Pastoral Visit'}
+            </Text>
+            <Text style={styles.scheduleSub}>
+              {visitRequested
+                ? 'Your Father of Confession has been notified · tap to cancel'
+                : 'Let your Father of Confession know you’d like a visit'}
+            </Text>
+          </View>
+          {visitRequested && <Text style={styles.visitCheck}>✓</Text>}
+        </TouchableOpacity>
+      )}
+      {showVisitLink && (
+        <TouchableOpacity
+          style={styles.visitChip}
+          onPress={() => { H.tap(); router.push(`/(tabs)/appointments?focus=${VISIT_TYPE_KEYWORD}`); }}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.scheduleIcon}>◎</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.scheduleText}>Schedule a Pastoral Visit</Text>
+            <Text style={styles.scheduleSub}>Request a time from your Father of Confession</Text>
+          </View>
+          <Text style={styles.visitChevron}>›</Text>
+        </TouchableOpacity>
+      )}
+    </>
   );
 
   function enterCustomize() {
@@ -454,8 +517,8 @@ export default function DashboardScreen() {
             <TouchableOpacity style={styles.chipBtn} onPress={enterCustomize}>
               <Text style={styles.chipBtnText}>⊞</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.avatarBtn} onPress={() => { H.tap(); router.push('/profile'); }}>
-              <Text style={styles.avatarBtnText}>{firstName.charAt(0).toUpperCase()}</Text>
+            <TouchableOpacity onPress={() => { H.tap(); router.push('/profile'); }}>
+              <Avatar url={profile?.avatar_url} initials={firstName.charAt(0).toUpperCase()} size={34} style={styles.avatarBtn} textStyle={styles.avatarBtnText} />
             </TouchableOpacity>
           </View>
         </View>
@@ -650,7 +713,7 @@ export default function DashboardScreen() {
                     <Text style={styles.focChurch}>St. Mary's Coptic Orthodox Church</Text>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.scheduleChip} onPress={() => { H.tap(); router.push('/(tabs)/confession'); }} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.scheduleChip} onPress={() => { H.tap(); router.push('/(tabs)/appointments?focus=confession'); }} activeOpacity={0.8}>
                   <Text style={styles.scheduleIcon}>✝︎</Text>
                   <View>
                     <Text style={styles.scheduleText}>Request Confession Appointment</Text>
@@ -851,4 +914,5 @@ const styles = lazyThemed(() => StyleSheet.create({
   visitChip: { flexDirection: 'row', gap: 10, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 8 },
   visitChipActive: { borderColor: colors.green, backgroundColor: colors.greenBg },
   visitCheck: { fontFamily: fonts.latoBold, fontSize: 16, color: colors.green },
+  visitChevron: { fontSize: 18, color: colors.gold },
 }));

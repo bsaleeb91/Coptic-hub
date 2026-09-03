@@ -143,7 +143,7 @@ export default function LogEncounterScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
 
         <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
           <Text style={styles.backArrow}>‹</Text>

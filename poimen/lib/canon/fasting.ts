@@ -100,6 +100,18 @@ export function isFastDay(date: Date): boolean {
   return !isHolyFifty(date);
 }
 
+// Days the appointed-hour abstinence is kept — going without food until the
+// hour set in the rule. Never a Saturday or a Sunday: the Church does not fast
+// in that sense on the Sabbath or the Lord's Day. Those days remain fast days
+// inside a season (isFastDay stays true, and its food restrictions stand) —
+// what lifts is the delaying of the meal. Wednesdays and Fridays can never fall
+// on a weekend, so this only ever relaxes a season.
+export function isAbstinenceDay(date: Date): boolean {
+  const wd = date.getDay();
+  if (wd === 0 || wd === 6) return false;
+  return isFastDay(date);
+}
+
 // Prostrations are not done on Saturdays, Sundays, or during the Holy Fifty.
 export function prostrationsAllowed(date: Date): boolean {
   const wd = date.getDay();

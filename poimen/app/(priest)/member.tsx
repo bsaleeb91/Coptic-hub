@@ -7,9 +7,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { Avatar } from '@/components/ui/Avatar';
 import { CandleIcon } from '@/components/ui/TabIcons';
 import Harp from '@/components/ui/Harp';
 import { useSession } from '@/lib/auth';
+import { confirmDestructive } from '@/lib/confirm';
+import { pickPhoto, uploadAvatarImage, removeAvatarImage, newFlockPhotoPath, pathFromAvatarUrl, cameraAvailable, PhotoSource } from '@/lib/avatar';
 import { latestConfessionMs, daysSinceMs } from '@/lib/confession/dates';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
@@ -63,10 +66,18 @@ function ruleSummaryLines(r: RuleConfig): { label: string; value: string }[] {
     .filter(Boolean) as string[];
   if (agpeya.length) lines.push({ label: 'Agpeya hours', value: agpeya.join('\n') });
 
-  const services = r.days
-    .map((d, i) => (d.services.length ? `${dayName(i)} · ${d.services.map(svcName).join(', ')}` : null))
-    .filter(Boolean) as string[];
-  if (services.length) lines.push({ label: 'Church services', value: services.join('\n') });
+  // Services are committed either by weekday or by times-per-week, never both.
+  if (r.servicesMode === 'counts') {
+    const counts = SERVICES
+      .filter(sv => (r.serviceCounts?.[sv.key] ?? 0) > 0)
+      .map(sv => `${svcName(sv.key)} · ${r.serviceCounts[sv.key]}× per week`);
+    if (counts.length) lines.push({ label: 'Church services', value: counts.join('\n') });
+  } else {
+    const services = r.days
+      .map((d, i) => (d.services.length ? `${dayName(i)} · ${d.services.map(svcName).join(', ')}` : null))
+      .filter(Boolean) as string[];
+    if (services.length) lines.push({ label: 'Church services', value: services.join('\n') });
+  }
 
   const serving = r.days
     .map((d, i) => (d.serving.length ? `${dayName(i)} · ${d.serving.map(s => `${s.text} (${s.freq})`).join(', ')}` : null))
@@ -246,6 +257,46 @@ export default function MemberScreen() {
   const [lastVisit, setLastVisit] = useState<string | null>(demoMode ? '2026-05-04' : null);
   const [visitRequested, setVisitRequested] = useState(false);
 
+  // Photos: the member's own picture (profiles.avatar_url) wins; otherwise
+  // this priest's roster photo (member_photos, visible only to him).
+  const [memberAvatarUrl, setMemberAvatarUrl] = useState<string | null>(null);
+  const [myPhotoUrl, setMyPhotoUrl] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+
+  async function addMemberPhoto(source: PhotoSource) {
+    if (!user || !memberId || photoBusy) return;
+    setPhotoError('');
+    setPhotoBusy(true);   // before the picker, so a double-tap can't open two
+    try {
+      const base64 = await pickPhoto(source);
+      if (!base64) return;
+      // Fresh random path per upload (see newFlockPhotoPath); drop the old object.
+      const oldPath = myPhotoUrl ? pathFromAvatarUrl(myPhotoUrl) : null;
+      const { url, error } = await uploadAvatarImage(newFlockPhotoPath(user.id, memberId), base64);
+      if (!url) { setPhotoError(`Couldn't upload: ${error}`); return; }
+      const { error: dbErr } = await db.upsertMemberPhoto(user.id, memberId, url);
+      if (dbErr) { setPhotoError(`Couldn't save: ${dbErr}`); return; }
+      if (oldPath) removeAvatarImage(oldPath);
+      setMyPhotoUrl(url);
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  function removeMemberPhoto() {
+    if (!user || !memberId || !myPhotoUrl) return;
+    confirmDestructive('Remove photo', 'Remove the photo you added for this member?', 'Remove', async () => {
+      setPhotoBusy(true);
+      const path = pathFromAvatarUrl(myPhotoUrl);
+      const { error } = await db.deleteMemberPhoto(user.id, memberId);
+      if (error) { setPhotoError(`Couldn't remove: ${error}`); setPhotoBusy(false); return; }
+      if (path) removeAvatarImage(path);
+      setMyPhotoUrl(null);
+      setPhotoBusy(false);
+    });
+  }
+
   const loadEffectiveRule = useCallback(async (lastConfessionIso: string | null) => {
     const [base, assigned] = await Promise.all([
       loadMemberRule(memberId ?? '', demoMode),
@@ -269,6 +320,8 @@ export default function MemberScreen() {
       if (demoMode) {
         const d = getDemoData(memberId ?? '');
         setVisitRequested(d.member.name === 'Peter Botros');
+        setMemberAvatarUrl(null);
+        setMyPhotoUrl(null);
         setMemberInfo(d.member);
         setContact(d.contact);
         setLifeStageData(d.life);
@@ -307,6 +360,8 @@ export default function MemberScreen() {
     loadEffectiveRule(profileData?.last_confession_at ?? null);
     db.getLastEncounterDate(memberId, 'visit').then(setLastVisit);
     db.getVisitRequest(memberId).then(r => setVisitRequested(r.active));
+    db.getMemberPhoto(user.id, memberId).then(setMyPhotoUrl);
+    setMemberAvatarUrl(profileData?.avatar_url ?? null);
 
     if (profileData) {
       const p = profileData;
@@ -456,7 +511,7 @@ export default function MemberScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
 
         <TouchableOpacity style={styles.backRow} onPress={() => router.push('/(priest)')}>
           <Text style={styles.backArrow}>‹</Text>
@@ -469,9 +524,13 @@ export default function MemberScreen() {
           <>
             {/* ── Hero card ── */}
             <View style={styles.heroCard}>
-              <View style={[styles.heroAvatar, memberInfo?.flagged && styles.heroAvatarFlagged]}>
-                <Text style={styles.heroAvatarText}>{memberInfo?.initials ?? '?'}</Text>
-              </View>
+              <Avatar
+                url={memberAvatarUrl ?? myPhotoUrl}
+                initials={memberInfo?.initials ?? '?'}
+                size={52}
+                style={[styles.heroAvatar, memberInfo?.flagged && styles.heroAvatarFlagged]}
+                textStyle={styles.heroAvatarText}
+              />
               <View style={{ flex: 1 }}>
                 <Text style={styles.heroName}>{memberInfo?.name ?? memberName ?? 'Member'}</Text>
                 <Text style={styles.heroMeta}>
@@ -493,6 +552,32 @@ export default function MemberScreen() {
                 )}
               </View>
             </View>
+
+            {/* ── Member photo (only when they haven't set their own) ── */}
+            {!demoMode && !loading && !memberAvatarUrl && (
+              <View style={styles.photoRow}>
+                <Text style={styles.photoRowLabel}>
+                  {myPhotoUrl ? 'Your photo of this member (visible only to you)' : 'No profile photo — add one (visible only to you)'}
+                </Text>
+                <View style={styles.photoChipRow}>
+                  {cameraAvailable && (
+                    <TouchableOpacity style={styles.photoChip} onPress={() => addMemberPhoto('camera')} disabled={photoBusy}>
+                      <Text style={styles.photoChipText}>◉ Camera</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity style={styles.photoChip} onPress={() => addMemberPhoto('library')} disabled={photoBusy}>
+                    <Text style={styles.photoChipText}>{myPhotoUrl ? '▤ Change' : '▤ Upload'}</Text>
+                  </TouchableOpacity>
+                  {!!myPhotoUrl && (
+                    <TouchableOpacity style={styles.photoChip} onPress={removeMemberPhoto} disabled={photoBusy}>
+                      <Text style={[styles.photoChipText, { color: colors.red }]}>✕ Remove</Text>
+                    </TouchableOpacity>
+                  )}
+                  {photoBusy && <ActivityIndicator color={colors.gold} size="small" />}
+                </View>
+                {!!photoError && <Text style={styles.photoErrorText}>{photoError}</Text>}
+              </View>
+            )}
 
             {/* ── Stats strip ── */}
             <View style={styles.statStrip}>
@@ -887,6 +972,12 @@ const styles = lazyThemed(() => StyleSheet.create({
   backText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted },
 
   heroCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 16, marginBottom: 12 },
+  photoRow: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 12 },
+  photoRowLabel: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 8 },
+  photoChipRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  photoChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel },
+  photoChipText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.gold },
+  photoErrorText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginTop: 8 },
   heroAvatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.blueBg, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   heroAvatarFlagged: { borderColor: colors.red, backgroundColor: 'rgba(192,57,43,0.2)' },
   heroAvatarText: { fontFamily: fonts.cormorantMedium, fontSize: 20, color: colors.blue },

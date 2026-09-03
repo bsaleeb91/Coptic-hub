@@ -2,6 +2,7 @@ import React from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { useSession } from '@/lib/auth';
 
@@ -43,7 +44,7 @@ export default function PortalsScreen() {
     <SafeAreaView style={styles.safe}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
 
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => goBack('/(tabs)')}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 

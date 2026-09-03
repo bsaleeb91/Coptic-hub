@@ -62,9 +62,15 @@ export default function PriestLayout() {
         title: 'Member',
         drawerIcon: ({ color }: IconProps) => <PersonIcon size={20} color={color} />,
       }} />
-      <Drawer.Screen name="assign-canon" options={{
+      <Drawer.Screen name="canon-templates" options={{
         title: 'Canon',
         drawerIcon: ({ color }: IconProps) => <CandleIcon size={20} color={color} />,
+      }} />
+      {/* One member's canon — always opened from their screen with a memberId,
+          never from the drawer. Listing it here would give it a second entrance
+          that carries whatever member was edited last. */}
+      <Drawer.Screen name="assign-canon" options={{
+        drawerItemStyle: { display: 'none' },
       }} />
       <Drawer.Screen name="log-encounter" options={{
         title: 'Encounter',

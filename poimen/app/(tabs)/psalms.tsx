@@ -489,7 +489,7 @@ export default function PsalmsScreen() {
           <>
             <View style={styles.hero}>
               <Text style={styles.heroLabel}>MEMORIZE THE AGPEYA</Text>
-              <Text style={styles.heroBig}>{stats.mastered} <Text style={styles.heroOf}>/ {stats.totalParts} passages mature</Text></Text>
+              <Text style={styles.heroBig}>{stats.mastered} <Text style={styles.heroOf}>/ {stats.totalParts} portions mature</Text></Text>
               <View style={styles.heroBarTrack}><View style={[styles.heroBarFill, { width: `${masteredPct}%` }]} /></View>
               {streak.current > 0 && (
                 <View style={styles.streakRow}>
@@ -505,7 +505,10 @@ export default function PsalmsScreen() {
             <View style={styles.statRow}>
               <Stat label="New" value={stats.newCount} color={colors.textSecond} />
               <Stat label="Learning" value={stats.learning} color={colors.yellow} />
-              <Stat label="Memorized" value={stats.mastered} color={colors.green} />
+              {/* Whole psalms/passages with every portion mature — a psalm only
+                  counts as memorized when ALL of it is. Portion-level progress
+                  lives in the hero bar above. */}
+              <Stat label="Memorized" value={stats.itemsMemorized} color={colors.green} />
             </View>
 
             {dueCount === 0 && newAvailable === 0 ? (

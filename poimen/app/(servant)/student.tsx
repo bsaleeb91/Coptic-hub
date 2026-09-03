@@ -4,12 +4,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { Avatar } from '@/components/ui/Avatar';
 import { CandleIcon, PencilIcon, PrayingHandsIcon } from '@/components/ui/TabIcons';
 import Harp from '@/components/ui/Harp';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 import { decryptFromSender } from '@/lib/crypto';
+import { confirmDestructive } from '@/lib/confirm';
+import { pickPhoto, uploadAvatarImage, removeAvatarImage, newFlockPhotoPath, pathFromAvatarUrl, cameraAvailable, PhotoSource } from '@/lib/avatar';
 
 // ── Demo data ─────────────────────────────────────────────────
 const DEMO_DB: Record<string, {
@@ -76,9 +79,51 @@ export default function StudentScreen() {
   const displayName = studentName ?? 'Student';
   const initials = displayName.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
 
+  // Photos: the student's own picture wins; otherwise this servant's roster
+  // photo (member_photos, visible only to them).
+  const [studentAvatarUrl, setStudentAvatarUrl] = useState<string | null>(null);
+  const [myPhotoUrl, setMyPhotoUrl] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+
+  async function addStudentPhoto(source: PhotoSource) {
+    if (!user || !studentId || photoBusy) return;
+    setPhotoError('');
+    setPhotoBusy(true);   // before the picker, so a double-tap can't open two
+    try {
+      const base64 = await pickPhoto(source);
+      if (!base64) return;
+      // Fresh random path per upload (see newFlockPhotoPath); drop the old object.
+      const oldPath = myPhotoUrl ? pathFromAvatarUrl(myPhotoUrl) : null;
+      const { url, error } = await uploadAvatarImage(newFlockPhotoPath(user.id, studentId), base64);
+      if (!url) { setPhotoError(`Couldn't upload: ${error}`); return; }
+      const { error: dbErr } = await db.upsertMemberPhoto(user.id, studentId, url);
+      if (dbErr) { setPhotoError(`Couldn't save: ${dbErr}`); return; }
+      if (oldPath) removeAvatarImage(oldPath);
+      setMyPhotoUrl(url);
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  function removeStudentPhoto() {
+    if (!user || !studentId || !myPhotoUrl) return;
+    confirmDestructive('Remove photo', 'Remove the photo you added for this student?', 'Remove', async () => {
+      setPhotoBusy(true);
+      const path = pathFromAvatarUrl(myPhotoUrl);
+      const { error } = await db.deleteMemberPhoto(user.id, studentId);
+      if (error) { setPhotoError(`Couldn't remove: ${error}`); setPhotoBusy(false); return; }
+      if (path) removeAvatarImage(path);
+      setMyPhotoUrl(null);
+      setPhotoBusy(false);
+    });
+  }
+
   useEffect(() => {
     if (demoMode) {
       const d = getDemoData(studentId ?? '');
+      setStudentAvatarUrl(null);
+      setMyPhotoUrl(null);
       setCanons(d.canons);
       setNotes(d.note ? [{ id: 'demo-note-1', author_id: 'demo-servant', member_id: studentId ?? '', body: d.note, created_at: new Date(Date.now() - 86400000 * 5).toISOString(), updated_at: new Date(Date.now() - 86400000 * 5).toISOString() }] : []);
       setPrayer(d.prayer.map(p => ({ topic: p, date: '' })));
@@ -93,17 +138,22 @@ export default function StudentScreen() {
     if (!user || !studentId) return;
     setLoading(true);
 
-    const [canonData, notesData, prayerData, psalmStatsPayload] = await Promise.all([
+    const [canonData, notesData, prayerData, psalmStatsPayload, students, photo] = await Promise.all([
       db.getStudentActiveCanons(studentId, user.id),
       db.getPastoralNotes(user.id, studentId),
       db.getServantSharedPrayer(studentId),
       db.getAgentProgress(studentId, 'psalm-stats'),
+      db.getServantStudents(user.id),
+      db.getMemberPhoto(user.id, studentId),
     ]);
     setPsalmStats(psalmStatsPayload ? {
       streak: psalmStatsPayload.streak ?? 0,
       longestStreak: psalmStatsPayload.longestStreak ?? 0,
       masteredItems: psalmStatsPayload.masteredItems ?? 0,
     } : null);
+
+    setStudentAvatarUrl(students.find(s => s.id === studentId)?.avatar_url ?? null);
+    setMyPhotoUrl(photo);
 
     if (canonData) {
       const enriched = await Promise.all(canonData.map(async c => {
@@ -189,7 +239,7 @@ export default function StudentScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
 
         <TouchableOpacity style={styles.backRow} onPress={() => router.push('/(servant)')}>
           <Text style={styles.backArrow}>‹</Text>
@@ -197,14 +247,38 @@ export default function StudentScreen() {
         </TouchableOpacity>
 
         <View style={styles.heroCard}>
-          <View style={styles.heroAvatar}>
-            <Text style={styles.heroAvatarText}>{initials}</Text>
-          </View>
+          <Avatar url={studentAvatarUrl ?? myPhotoUrl} initials={initials} size={52} style={styles.heroAvatar} textStyle={styles.heroAvatarText} />
           <View style={{ flex: 1 }}>
             <Text style={styles.heroName}>{displayName}</Text>
             <Text style={styles.heroMeta}>Sunday School Student</Text>
           </View>
         </View>
+
+        {/* ── Student photo (only when they haven't set their own) ── */}
+        {!demoMode && !loading && !studentAvatarUrl && (
+          <View style={styles.photoRow}>
+            <Text style={styles.photoRowLabel}>
+              {myPhotoUrl ? 'Your photo of this student (visible only to you)' : 'No profile photo — add one (visible only to you)'}
+            </Text>
+            <View style={styles.photoChipRow}>
+              {cameraAvailable && (
+                <TouchableOpacity style={styles.photoChip} onPress={() => addStudentPhoto('camera')} disabled={photoBusy}>
+                  <Text style={styles.photoChipText}>◉ Camera</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.photoChip} onPress={() => addStudentPhoto('library')} disabled={photoBusy}>
+                <Text style={styles.photoChipText}>{myPhotoUrl ? '▤ Change' : '▤ Upload'}</Text>
+              </TouchableOpacity>
+              {!!myPhotoUrl && (
+                <TouchableOpacity style={styles.photoChip} onPress={removeStudentPhoto} disabled={photoBusy}>
+                  <Text style={[styles.photoChipText, { color: colors.red }]}>✕ Remove</Text>
+                </TouchableOpacity>
+              )}
+              {photoBusy && <ActivityIndicator color={colors.gold} size="small" />}
+            </View>
+            {!!photoError && <Text style={styles.photoErrorText}>{photoError}</Text>}
+          </View>
+        )}
 
         {/* Tabs */}
         <View style={styles.tabs}>
@@ -403,6 +477,12 @@ const styles = lazyThemed(() => StyleSheet.create({
   backText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted },
 
   heroCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 16, marginBottom: 16 },
+  photoRow: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 16, marginTop: -4 },
+  photoRowLabel: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 8 },
+  photoChipRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  photoChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel },
+  photoChipText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.gold },
+  photoErrorText: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginTop: 8 },
   heroAvatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#1e3a5f', borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   heroAvatarText: { fontFamily: fonts.cormorantMedium, fontSize: 20, color: colors.cream },
   heroName: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 2 },

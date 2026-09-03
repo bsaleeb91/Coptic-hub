@@ -36,7 +36,20 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Poimen uses your photo library so you can choose a profile picture.",
+          "cameraPermission": "Poimen uses the camera so you can take a profile picture."
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Poimen adds confirmed appointments to your calendar so times booked here are blocked on Calendly and anywhere else that reads it."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

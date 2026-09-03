@@ -6,6 +6,7 @@ import {
 import type { Church } from '@/lib/db';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
 import { Switch } from 'react-native';
@@ -16,6 +17,9 @@ import { useTutorial } from '@/lib/tutorial-context';
 import { isBiometricAvailable, loadFaceIdLockEnabled, saveFaceIdLockEnabled } from '@/lib/biometrics';
 import { clergyDisplayName } from '@/lib/names';
 import * as Updates from 'expo-updates';
+import { Avatar } from '@/components/ui/Avatar';
+import { confirmDestructive } from '@/lib/confirm';
+import { pickPhoto, uploadAvatarImage, removeAvatarImage, selfAvatarPath, cameraAvailable, PhotoSource } from '@/lib/avatar';
 
 const LIFE_STAGES = ['single', 'engaged', 'married', 'widowed', 'divorced'] as const;
 type LifeStageType = typeof LIFE_STAGES[number];
@@ -248,6 +252,38 @@ export default function ProfileScreen() {
     .toUpperCase()
     .slice(0, 2);
 
+  // ── Profile photo ─────────────────────────────────────────
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+
+  async function changePhoto(source: PhotoSource) {
+    if (demoMode || !user || photoBusy) return;
+    setPhotoError('');
+    setPhotoBusy(true);   // before the picker, so a double-tap can't open two
+    try {
+      const base64 = await pickPhoto(source);
+      if (!base64) return;   // denied or cancelled
+      const { url, error } = await uploadAvatarImage(selfAvatarPath(user.id), base64);
+      if (!url) { setPhotoError(`Couldn't upload: ${error}`); return; }
+      const { error: dbErr } = await db.setAvatarUrl(user.id, url);
+      if (dbErr) setPhotoError(`Couldn't save: ${dbErr}`);
+      await refreshProfile();
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  function removePhoto() {
+    if (demoMode || !user) return;
+    confirmDestructive('Remove photo', 'Remove your profile picture?', 'Remove', async () => {
+      setPhotoBusy(true);
+      await removeAvatarImage(selfAvatarPath(user.id));
+      await db.setAvatarUrl(user.id, null);
+      await refreshProfile();
+      setPhotoBusy(false);
+    });
+  }
+
   const showSpouseField = lifeStage === 'married' || lifeStage === 'engaged';
   const currentYear = new Date().getFullYear();
   const canAddChild = newChildName.trim().length > 0 && newChildYear.length === 4;
@@ -258,17 +294,33 @@ export default function ProfileScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
-        <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backRow} onPress={() => goBack('/(tabs)')}>
           <Text style={styles.backArrow}>‹</Text>
           <Text style={styles.backText}>Home</Text>
         </TouchableOpacity>
 
         {/* ── Avatar ── */}
         <View style={styles.avatarSection}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
+          <Avatar url={profile?.avatar_url} initials={initials} size={72} style={styles.avatar} textStyle={styles.avatarText} />
+          {!demoMode && user && <View style={styles.photoChipRow}>
+            {cameraAvailable && (
+              <TouchableOpacity style={styles.photoChip} onPress={() => changePhoto('camera')} disabled={photoBusy}>
+                <Text style={styles.photoChipText}>◉ Camera</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.photoChip} onPress={() => changePhoto('library')} disabled={photoBusy}>
+              <Text style={styles.photoChipText}>{profile?.avatar_url ? '▤ Change Photo' : '▤ Add Photo'}</Text>
+            </TouchableOpacity>
+            {!!profile?.avatar_url && (
+              <TouchableOpacity style={styles.photoChip} onPress={removePhoto} disabled={photoBusy}>
+                <Text style={[styles.photoChipText, { color: colors.red }]}>✕ Remove</Text>
+              </TouchableOpacity>
+            )}
+          </View>}
+          {photoBusy && <ActivityIndicator color={colors.gold} style={{ marginBottom: 6 }} />}
+          {!!photoError && <Text style={styles.photoError}>{photoError}</Text>}
           <Text style={styles.avatarName}>{profile?.full_name ?? '—'}</Text>
           <Text style={styles.avatarEmail}>{user?.email}</Text>
           <View style={styles.roleBadge}>
@@ -711,6 +763,10 @@ const styles = lazyThemed(() => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginBottom: 12,
   },
   avatarText: { fontFamily: fonts.cormorantMedium, fontSize: 28, color: colors.goldLight },
+  photoChipRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 10, marginBottom: 8 },
+  photoChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  photoChipText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.gold },
+  photoError: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.red, marginBottom: 6, textAlign: 'center' },
   avatarName: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 4 },
   avatarEmail: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, marginBottom: 8 },
   roleBadge: {

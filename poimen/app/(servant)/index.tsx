@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useNavigation } from 'expo-router';
+import { useRouter, useNavigation, useFocusEffect } from 'expo-router';
 import { DrawerActions } from '@react-navigation/native';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
+import { Avatar } from '@/components/ui/Avatar';
 import { CandleIcon } from '@/components/ui/TabIcons';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
@@ -16,6 +17,8 @@ interface Student {
   name: string;
   canonCount: number;
   lastActivity: string | null;
+  // Student's own picture, else this servant's roster photo (member_photos).
+  avatarUrl?: string | null;
 }
 
 const DEMO_STUDENTS: Student[] = [
@@ -35,13 +38,17 @@ export default function ServantFlockScreen() {
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const greeting = profile?.full_name?.split(' ')[0] ?? 'Servant';
 
-  useEffect(() => {
-    if (demoMode) {
-      setStudents(DEMO_STUDENTS);
-    } else {
-      loadStudents();
-    }
-  }, [user]);
+  // Reload on focus (not just mount) so changes made in the student detail —
+  // e.g. a roster photo added there — show up when returning to the list.
+  useFocusEffect(
+    useCallback(() => {
+      if (demoMode) {
+        setStudents(DEMO_STUDENTS);
+      } else {
+        loadStudents();
+      }
+    }, [user, demoMode]) // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   async function loadStudents() {
     if (!user) return;
@@ -56,10 +63,13 @@ export default function ServantFlockScreen() {
       canonCountByStudent[c.congregant_id] = (canonCountByStudent[c.congregant_id] ?? 0) + 1;
     }
 
+    // Roster photos this servant set for students without a picture of their own.
+    const myPhotos = await db.getMyMemberPhotos(user.id);
+
     const mapped: Student[] = profiles.map(p => {
       const parts = (p.full_name ?? '?').split(' ');
       const init = ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
-      return { id: p.id, initials: init, name: p.full_name ?? 'Unknown', canonCount: canonCountByStudent[p.id] ?? 0, lastActivity: null };
+      return { id: p.id, initials: init, name: p.full_name ?? 'Unknown', canonCount: canonCountByStudent[p.id] ?? 0, lastActivity: null, avatarUrl: p.avatar_url ?? myPhotos[p.id] ?? null };
     });
 
     setStudents(mapped);
@@ -70,7 +80,7 @@ export default function ServantFlockScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
 
         <View style={styles.topbar}>
           <View style={styles.topbarLeft}>
@@ -126,9 +136,7 @@ export default function ServantFlockScreen() {
                 onPress={() => router.push({ pathname: '/(servant)/student', params: { id: student.id, name: student.name } })}
                 activeOpacity={0.7}
               >
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{student.initials}</Text>
-                </View>
+                <Avatar url={student.avatarUrl} initials={student.initials} size={40} style={styles.avatar} textStyle={styles.avatarText} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.studentName}>{student.name}</Text>
                   <View style={styles.studentMeta}>
