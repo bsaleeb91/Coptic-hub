@@ -1,5 +1,17 @@
 # Coptic Hub Roadmap
 
+## Next Up — post-launch ideas (queued 2026-09-02)
+
+Not scheduled yet — captured here so they aren't lost between sessions.
+
+- Add full address to the database (congregant profile/contact)
+- In-app feedback mechanism built into the app
+- Community feature: streaks and leaderboards for Psalm memorization
+- Reminder notifications for Psalms and Canon
+- Tutorial of the app, especially the Confession module
+
+---
+
 A commit-by-commit plan. Each commit is meant to be independently reviewable, ship-ready on your phone (from commit 1 onwards), and focused on one theme. Effort estimates assume part-time work; double them if you have a busy week.
 
 Each commit answers one question: "what can you demo at the end of it?"
