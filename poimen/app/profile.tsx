@@ -555,8 +555,8 @@ export default function ProfileScreen() {
           </Card>
         )}
 
-        {/* FOC linking — shown to congregants */}
-        {(profile?.role === 'congregant' || !profile?.role) && (
+        {/* FOC linking — shown to congregants and admins */}
+        {(profile?.role === 'congregant' || profile?.role === 'admin' || !profile?.role) && (
           <Card title="Father of Confession" titleIcon="✝︎">
             {profile?.foc_id ? (
               <>
