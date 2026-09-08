@@ -19,6 +19,7 @@ import { useDemoMode } from '@/lib/demo';
 import { decryptFromSender } from '@/lib/crypto';
 import { VITAL_CATEGORIES } from '@/lib/canon/history';
 import { RuleConfig, WEEKDAYS, AGPEYA_HOURS, SERVICES } from '@/lib/canon/rule-store';
+import { periodNoun } from '@/lib/canon/periods';
 import { loadMemberRule } from '@/lib/canon/rule-sync';
 import { AssignedCategory, applyOverlay, loadAssignedForPriest } from '@/lib/canon/assigned';
 
@@ -66,11 +67,11 @@ function ruleSummaryLines(r: RuleConfig): { label: string; value: string }[] {
     .filter(Boolean) as string[];
   if (agpeya.length) lines.push({ label: 'Agpeya hours', value: agpeya.join('\n') });
 
-  // Services are committed either by weekday or by times-per-week, never both.
+  // Services are committed either by weekday or by times-per-period, never both.
   if (r.servicesMode === 'counts') {
     const counts = SERVICES
-      .filter(sv => (r.serviceCounts?.[sv.key] ?? 0) > 0)
-      .map(sv => `${svcName(sv.key)} · ${r.serviceCounts[sv.key]}× per week`);
+      .filter(sv => (r.serviceCounts?.[sv.key]?.n ?? 0) > 0)
+      .map(sv => `${svcName(sv.key)} · ${r.serviceCounts[sv.key].n}× per ${periodNoun(r.serviceCounts[sv.key].freq)}`);
     if (counts.length) lines.push({ label: 'Church services', value: counts.join('\n') });
   } else {
     const services = r.days

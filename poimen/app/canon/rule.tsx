@@ -19,6 +19,7 @@ import {
   AGPEYA_HOURS, SERVICES, CONFESSION_OPTIONS, SERVICE_FREQUENCY_OPTIONS,
   FAST_UNTIL_OPTIONS, WEEKDAYS, MAX_SERVICE_COUNT, setServicesMode,
 } from '@/lib/canon/rule-store';
+import { periodUnit, maxPerPeriod } from '@/lib/canon/periods';
 import { hydrateRuleFromCloud, pushRuleToCloud } from '@/lib/canon/rule-sync';
 import {
   AssignedCategory, AssignedCanon, loadAssignedForMember, applyOverlay,
@@ -306,11 +307,11 @@ export default function RuleScreen() {
             <>
               {effRule.servicesMode === 'counts' ? (
                 <View style={[s.chipRow, { flexWrap: 'wrap' }]}>
-                  {SERVICES.filter(sv => (effRule.serviceCounts?.[sv.key] ?? 0) > 0).length === 0
+                  {SERVICES.filter(sv => (effRule.serviceCounts?.[sv.key]?.n ?? 0) > 0).length === 0
                     ? <Text style={s.mutedSmall}>None</Text>
-                    : SERVICES.filter(sv => (effRule.serviceCounts?.[sv.key] ?? 0) > 0).map(sv => (
+                    : SERVICES.filter(sv => (effRule.serviceCounts?.[sv.key]?.n ?? 0) > 0).map(sv => (
                         <View key={sv.key} style={s.roChip}>
-                          <Text style={s.roChipText}>{sv.name} · {effRule.serviceCounts[sv.key]}×/week</Text>
+                          <Text style={s.roChipText}>{sv.name} · {effRule.serviceCounts[sv.key].n}{periodUnit(effRule.serviceCounts[sv.key].freq).replace('× ', '')}</Text>
                         </View>
                       ))}
                 </View>
@@ -340,22 +341,41 @@ export default function RuleScreen() {
               </View>
               {rule.servicesMode === 'counts' && (
                 <View style={{ marginTop: SP.sm }}>
-                  {SERVICES.map(sv => (
-                    <FieldRow key={sv.key} label={sv.name}>
-                      <Stepper
-                        value={rule.serviceCounts?.[sv.key] ?? 0}
-                        onChange={n => {
-                          const counts = { ...(rule.serviceCounts ?? {}) };
-                          if (n > 0) counts[sv.key] = n; else delete counts[sv.key];
-                          update({ ...rule, serviceCounts: counts });
-                        }}
-                        max={MAX_SERVICE_COUNT}
-                        unit="× / week"
-                      />
-                    </FieldRow>
-                  ))}
+                  {SERVICES.map(sv => {
+                    // Each service carries its own cadence, so communion can be
+                    // monthly while liturgy stays weekly — the frequencies are
+                    // the same set Heart of Service and confession already use.
+                    const cfg = rule.serviceCounts?.[sv.key];
+                    const freq = cfg?.freq ?? 'Weekly';
+                    const setCount = (n: number, f = freq) => {
+                      const counts = { ...(rule.serviceCounts ?? {}) };
+                      if (n > 0) counts[sv.key] = { n: Math.min(n, maxPerPeriod(f)), freq: f };
+                      else delete counts[sv.key];
+                      update({ ...rule, serviceCounts: counts });
+                    };
+                    return (
+                      <View key={sv.key} style={{ marginBottom: SP.sm }}>
+                        <FieldRow label={sv.name}>
+                          <Stepper
+                            value={cfg?.n ?? 0}
+                            onChange={n => setCount(n)}
+                            max={maxPerPeriod(freq)}
+                            unit={periodUnit(freq)}
+                          />
+                        </FieldRow>
+                        {(cfg?.n ?? 0) > 0 && (
+                          <View style={[s.chipRow, { flexWrap: 'wrap', marginTop: 6 }]}>
+                            {SERVICE_FREQUENCY_OPTIONS.map(f => (
+                              <Chip key={f} label={f} on={freq === f}
+                                onPress={() => setCount(cfg?.n ?? 1, f)} />
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
                   <Text style={s.helpText}>
-                    These appear in your canon every day until you've logged them for the week.
+                    These appear in your canon every day until you've logged them for the period.
                   </Text>
                 </View>
               )}

@@ -36,6 +36,7 @@ import {
   AGPEYA_HOURS, SERVICES, CONFESSION_OPTIONS, SERVICE_FREQUENCY_OPTIONS,
   FAST_UNTIL_OPTIONS, WEEKDAYS, MAX_SERVICE_COUNT, setServicesMode,
 } from '@/lib/canon/rule-store';
+import { periodUnit, maxPerPeriod } from '@/lib/canon/periods';
 import {
   AssignedCategory, CATEGORY_LABEL, STRUCTURED_CATEGORIES,
   AssignedCanon, applyCategoryToRule, copyCategoryFromRule, loadAssignedForPriest,
@@ -491,7 +492,7 @@ export default function CanonEditor({ memberId, memberName }: { memberId?: strin
       case 'confession':       return w.confession;
       case 'agpeya_hours':     return `${w.days.reduce((n, d) => n + d.hours.length, 0)} hour-days`;
       case 'services':         return w.servicesMode === 'counts'
-                                 ? `${Object.values(w.serviceCounts ?? {}).reduce((n, c) => n + c, 0)}× / week`
+                                 ? `${Object.values(w.serviceCounts ?? {}).reduce((n, c) => n + c.n, 0)}× / period`
                                  : `${w.days.reduce((n, d) => n + d.services.length, 0)} service-days`;
       case 'heart_of_service': return `${w.days.reduce((n, d) => n + d.serving.filter(x => x.text.trim()).length, 0)} commitments`;
       default:                 return '';
@@ -713,22 +714,39 @@ export default function CanonEditor({ memberId, memberName }: { memberId?: strin
                 </View>
                 {work.servicesMode === 'counts' && (
                   <>
-                    <Text style={s.fieldNote}>How many times a week to attend each service. The member logs each one as they attend.</Text>
-                    {SERVICES.map(sv => (
-                      <View key={sv.key} style={s.countRow}>
+                    <Text style={s.fieldNote}>How often to attend each service, and how many times per period. The member logs each one as they attend.</Text>
+                    {SERVICES.map(sv => {
+                      // Per-service cadence, so a monthly communion and a weekly
+                      // liturgy can be assigned in the same rule.
+                      const cfg = work.serviceCounts?.[sv.key];
+                      const freq = cfg?.freq ?? 'Weekly';
+                      const setCount = (n: number, f = freq) => {
+                        const counts = { ...(work.serviceCounts ?? {}) };
+                        if (n > 0) counts[sv.key] = { n: Math.min(n, maxPerPeriod(f)), freq: f };
+                        else delete counts[sv.key];
+                        patch({ serviceCounts: counts });
+                      };
+                      return (
+                      <View key={sv.key}>
+                      <View style={s.countRow}>
                         <Text style={s.countLabel}>{sv.name}</Text>
                         <Stepper
-                          value={work.serviceCounts?.[sv.key] ?? 0}
-                          onChange={n => {
-                            const counts = { ...(work.serviceCounts ?? {}) };
-                            if (n > 0) counts[sv.key] = n; else delete counts[sv.key];
-                            patch({ serviceCounts: counts });
-                          }}
-                          max={MAX_SERVICE_COUNT}
-                          unit="× / week"
+                          value={cfg?.n ?? 0}
+                          onChange={n => setCount(n)}
+                          max={maxPerPeriod(freq)}
+                          unit={periodUnit(freq)}
                         />
                       </View>
-                    ))}
+                      {(cfg?.n ?? 0) > 0 && (
+                        <View style={[s.chipRow, { flexWrap: 'wrap', marginBottom: SP.sm }]}>
+                          {SERVICE_FREQUENCY_OPTIONS.map(f => (
+                            <Chip key={f} label={f} on={freq === f} onPress={() => setCount(cfg?.n ?? 1, f)} />
+                          ))}
+                        </View>
+                      )}
+                      </View>
+                      );
+                    })}
                   </>
                 )}
               </>

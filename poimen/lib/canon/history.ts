@@ -10,7 +10,8 @@
 import { userStorage as AsyncStorage } from '@/lib/storage';
 import { RuleItem } from './today';
 import { isWeeklyServiceKey, weeklyServiceKey } from './keys';
-import { ServiceLog, unfinalizedWeeks, markFinalized } from './service-log';
+import { ServiceLog, unfinalizedPeriods, markFinalized, type ElapsedPeriod } from './service-log';
+import { periodEnd } from './periods';
 import { localDateStr } from './postpone';
 
 const KEY = 'poimen.canon.history';
@@ -59,42 +60,39 @@ export async function recordCanonDay(items: RuleItem[], checked: Set<string>, da
   } catch {}
 }
 
-// Score count-committed services for every week that has fully elapsed, so
-// "attended 1 of 2" reads as 50% for that week rather than penalizing the days
-// in between. The result is written under the week's Saturday, repeating each
-// service key `target` times in `due` and `attended` times in `done` — the same
-// shape computeVitals already counts.
+// Score count-committed services for every PERIOD that has fully elapsed, so
+// "attended 1 of 2" reads as 50% for that period rather than penalizing the
+// days in between. The result is written on the period's last day, repeating
+// each service key `target` times in `due` and `attended` times in `done` —
+// the same shape computeVitals already counts.
 //
-// Each week is scored against the targets STORED WITH THAT WEEK (see
-// service-log.ensureWeek), never against the rule's current values, so:
-//   • a week the member attended nothing still counts as a miss (the week
-//     exists because ensureWeek wrote its targets),
-//   • changing a target, or leaving counts mode entirely, can't rescore or
-//     strand past weeks.
-// Weeks are marked finalized so this is idempotent across app focuses.
+// Each period is scored against the target and frequency STORED WITH THAT
+// PERIOD (see service-log.ensurePeriods), never against the rule's current
+// values, so:
+//   • a period the member attended nothing in still counts as a miss (the
+//     period exists because ensurePeriods wrote its target),
+//   • changing a target or cadence, or leaving counts mode entirely, can't
+//     rescore or strand past periods.
+// Periods are marked finalized so this is idempotent across app focuses.
 export async function finalizeWeeklyServices(log: ServiceLog, now = new Date()): Promise<void> {
   try {
-    const weeks = unfinalizedWeeks(log, now);
-    if (!weeks.length) return;
+    const periods = unfinalizedPeriods(log, now);
+    if (!periods.length) return;
 
     const map = await loadCanonHistory();
     const cutoff = localDateStr(new Date(now.getTime() - KEEP_DAYS * 86400000));
-    const scored: string[] = [];
+    const scored: ElapsedPeriod[] = [];
 
-    for (const week of weeks) {
-      const satDate = new Date(`${week}T12:00:00`);
-      satDate.setDate(satDate.getDate() + 6);
-      const sat = localDateStr(satDate);
-      scored.push(week);
-      if (sat < cutoff) continue;                     // older than history keeps
-      const rec: DayRecord = map[sat] ?? { due: [], done: [] };
-      for (const [svKey, target] of Object.entries(log[week].targets)) {
-        const key = weeklyServiceKey(svKey);
-        const attended = Math.min((log[week].attended?.[svKey] ?? []).length, target);
-        for (let i = 0; i < target; i++) rec.due.push(key);
-        for (let i = 0; i < attended; i++) rec.done.push(key);
-      }
-      map[sat] = rec;
+    for (const p of periods) {
+      scored.push(p);
+      const last = periodEnd(p.freq, p.start);
+      if (last < cutoff) continue;                    // older than history keeps
+      const rec: DayRecord = map[last] ?? { due: [], done: [] };
+      const key = weeklyServiceKey(p.serviceKey);
+      const done = Math.min(p.done, p.target);
+      for (let i = 0; i < p.target; i++) rec.due.push(key);
+      for (let i = 0; i < done; i++) rec.done.push(key);
+      map[last] = rec;
     }
 
     for (const k of Object.keys(map)) if (k < cutoff) delete map[k];

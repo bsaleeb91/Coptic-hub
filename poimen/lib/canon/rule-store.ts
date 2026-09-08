@@ -8,6 +8,7 @@
 // Per-user-scoped storage (see lib/storage.ts) — keeps one account's spiritual
 // data from bleeding into another's on a shared device.
 import { userStorage as AsyncStorage } from '@/lib/storage';
+import { maxPerPeriod } from './periods';
 
 const KEY = 'poimen.rule';
 
@@ -79,9 +80,15 @@ export interface DayPlan {
 
 // Church services are committed to in ONE of two ways, never both:
 //   'days'   — specific weekdays (DayPlan.services), the original model
-//   'counts' — a number of times per week per service (serviceCounts), logged
+//   'counts' — a number of times per PERIOD per service (serviceCounts), logged
 //              by the member as they attend
 export type ServicesMode = 'days' | 'counts';
+
+// A counted service commitment: n times per `freq`. Services were once weekly
+// only, which left communion unable to express a monthly or fortnightly rhythm
+// while every other part of the rule already could. `freq` is one of
+// SERVICE_FREQUENCY_OPTIONS, matching Heart of Service.
+export interface ServiceCount { n: number; freq: string; }
 
 export interface RuleConfig {
   prostrations: number;
@@ -92,11 +99,12 @@ export interface RuleConfig {
   confession: string;
   days: DayPlan[];      // length 7, index 0 = Sunday
   servicesMode: ServicesMode;
-  serviceCounts: Record<string, number>;   // service key → times per week
+  serviceCounts: Record<string, ServiceCount>;   // service key → times per period
 }
 
-// One attendance can be logged per service per day, so a week tops out at 7.
-export const MAX_SERVICE_COUNT = 7;
+// One attendance can be logged per service per day, so a period tops out at
+// its own length in days. See periods.maxPerPeriod.
+export const MAX_SERVICE_COUNT = 7;   // kept for the weekly default
 
 export const DEFAULT_RULE: RuleConfig = {
   prostrations: 0,
@@ -120,13 +128,20 @@ export function setServicesMode(rule: RuleConfig, mode: ServicesMode): RuleConfi
     : { ...rule, servicesMode: 'days', serviceCounts: {} };
 }
 
-// Keep only known service keys with a sane positive count.
-export function normalizeServiceCounts(raw: any): Record<string, number> {
-  const out: Record<string, number> = {};
+// Keep only known service keys with a sane positive count. Saves predating
+// per-service frequencies stored a bare number, which meant "per week" — those
+// migrate in place rather than being dropped.
+export function normalizeServiceCounts(raw: any): Record<string, ServiceCount> {
+  const out: Record<string, ServiceCount> = {};
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     for (const sv of SERVICES) {
-      const n = Math.floor(Number(raw[sv.key]));
-      if (Number.isFinite(n) && n > 0) out[sv.key] = Math.min(n, MAX_SERVICE_COUNT);
+      const v = raw[sv.key];
+      const legacy = typeof v === 'number' || typeof v === 'string';
+      const n = Math.floor(Number(legacy ? v : v?.n));
+      if (!Number.isFinite(n) || n <= 0) continue;
+      const rawFreq = legacy ? 'Weekly' : String(v?.freq ?? 'Weekly');
+      const freq = SERVICE_FREQUENCY_OPTIONS.includes(rawFreq) ? rawFreq : 'Weekly';
+      out[sv.key] = { n: Math.min(n, maxPerPeriod(freq)), freq };
     }
   }
   return out;

@@ -20,7 +20,7 @@ import { todayItems, customDueToday, RuleItem, weeklyServiceKey } from '@/lib/ca
 import { loadAssignedForMember, applyOverlay } from '@/lib/canon/assigned';
 import { loadTodayChecks } from '@/lib/canon/checks';
 import { loadPostponements, loadServiceDone } from '@/lib/canon/postpone';
-import { loadServiceLog, ensureWeek, weekCounts, loggedOn } from '@/lib/canon/service-log';
+import { loadServiceLog, ensurePeriods, periodCounts, loggedOn } from '@/lib/canon/service-log';
 import { recordCanonDay, finalizeWeeklyServices, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
 import { loadAttendance } from '@/lib/canon/attendance';
 import { lastConfessionDate, loadConfessionDates, hydrateConfessionDatesFromCloud, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
@@ -261,15 +261,15 @@ export default function DashboardScreen() {
       // daily checks — mirror the Canon tab so the tile agrees with it.
       const nowDate = new Date();
       const svcLog = overlay.rule.servicesMode === 'counts'
-        ? await ensureWeek(overlay.rule.serviceCounts ?? {}, nowDate)
+        ? await ensurePeriods(overlay.rule.serviceCounts ?? {}, nowDate)
         : loadedLog;
       const weekServices = {
-        counts: weekCounts(svcLog, nowDate),
-        loggedToday: new Set(SERVICES.filter(sv => loggedOn(svcLog, sv.key, nowDate)).map(sv => sv.key)),
+        counts: periodCounts(svcLog, overlay.rule.serviceCounts ?? {}, nowDate),
+        loggedToday: new Set(SERVICES.filter(sv => loggedOn(svcLog, sv.key, overlay.rule.serviceCounts?.[sv.key]?.freq ?? 'Weekly', nowDate)).map(sv => sv.key)),
       };
       for (const sv of SERVICES) {
         const id = `rule_${weeklyServiceKey(sv.key)}`;
-        const target = overlay.rule.serviceCounts?.[sv.key] ?? 0;
+        const target = overlay.rule.serviceCounts?.[sv.key]?.n ?? 0;
         target > 0 && (weekServices.counts[sv.key] ?? 0) >= target ? checks.add(id) : checks.delete(id);
       }
       // Ad-hoc attendances count here too, or the Home tile's "canon today"

@@ -6,6 +6,7 @@
 import { RuleConfig, ReadMode, AGPEYA_HOURS, SERVICES, serviceVerb } from './rule-store';
 import { isAbstinenceDay, prostrationsAllowed } from './fasting';
 import { localDateStr } from './postpone';
+import { periodNoun } from './periods';
 import { weeklyServiceKey } from './keys';
 
 // `freq` is set only on Heart of Service items — it drives which postpone
@@ -101,7 +102,8 @@ export function todayItems(
     // Committed by count: one row per service showing this week's progress.
     // The member logs each attendance as they attend it.
     for (const sv of SERVICES) {
-      const target = rule.serviceCounts?.[sv.key] ?? 0;
+      const cfg = rule.serviceCounts?.[sv.key];
+      const target = cfg?.n ?? 0;
       if (target <= 0) continue;
       const logged = weekServices?.counts?.[sv.key] ?? 0;
       // The row stays for the whole week, including after the target is met —
@@ -109,9 +111,9 @@ export function todayItems(
       // logged by mistake earlier in the week.
       items.push({
         key: weeklyServiceKey(sv.key),
-        label: `${sv.verb ?? 'Attend'} ${sv.name} — ${logged} of ${target} this week`,
+        label: `${sv.verb ?? 'Attend'} ${sv.name} — ${logged} of ${target} this ${periodNoun(cfg!.freq)}`,
         icon: ICON_CHURCH,
-        doneLabel: '✓ Complete for this week',
+        doneLabel: `✓ Complete for this ${periodNoun(cfg!.freq)}`,
       });
     }
   } else {

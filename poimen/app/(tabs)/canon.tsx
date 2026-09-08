@@ -14,13 +14,15 @@ import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 import { loadRule, WEEKDAYS, SERVICES } from '@/lib/canon/rule-store';
 import {
-  loadServiceLog, ensureWeek, weekCounts, loggedOn, logAttendance, unlogLatest, weekStartStr,
+  loadServiceLog, ensurePeriods, periodCounts, loggedOn, logAttendance, unlogLatest,
 } from '@/lib/canon/service-log';
 import { hydrateRuleFromCloud } from '@/lib/canon/rule-sync';
 import { todayItems, customDueToday, RuleItem, weeklyServiceKey, isWeeklyServiceKey, serviceKeyOf } from '@/lib/canon/today';
 import { isFastDay } from '@/lib/canon/fasting';
 import { loadChecks, saveChecks, backfillDates, isSameDay } from '@/lib/canon/checks';
 import { loadAttendance, logAttendanceOn, unlogAttendanceOn } from '@/lib/canon/attendance';
+import { periodStart, periodNoun } from '@/lib/canon/periods';
+import type { ServiceCount } from '@/lib/canon/rule-store';
 import {
   postponeOptionsFor, PostponeOption, loadPostponements, postponeServiceItem,
   loadServiceDone, recordServiceDone, clearServiceDone, localDateStr,
@@ -121,7 +123,7 @@ export default function CanonScreen() {
   // tap can log/undo without a full (network-touching) reload.
   const [weekSvc, setWeekSvc] = useState<{ counts: Record<string, number>; loggedToday: Set<string> }>(
     { counts: {}, loggedToday: new Set() });
-  const [ruleCounts, setRuleCounts] = useState<Record<string, number>>({});
+  const [ruleCounts, setRuleCounts] = useState<Record<string, ServiceCount>>({});
   const svcBusy = useRef(false);
   const dayStripRef = useRef<ScrollView>(null);
   const dayStripPinned = useRef(false);
@@ -134,7 +136,10 @@ export default function CanonScreen() {
   // Count-committed services are scored per WEEK, onto that week's Saturday,
   // and a week that has closed is already scored — so attendance can only be
   // logged inside the current week.
-  const weekEditable = weekStartStr(selectedDate) === weekStartStr(new Date());
+  // Each counted service has its own cadence, so "is this day still open" is
+  // per-service. The note below is shown when any of them has already closed.
+  const countsEditable = Object.values(ruleCounts).every(
+    c => periodStart(c.freq, selectedDate) === periodStart(c.freq, new Date()));
 
   useEffect(() => {
     if (demoMode) {
@@ -164,7 +169,12 @@ export default function CanonScreen() {
     const now = new Date();
     const day = selectedDate;
     const isToday = isSameDay(day, now);
-    const sameWeek = weekStartStr(day) === weekStartStr(now);
+    // Whether the day being viewed still falls in a given service's current
+    // period — a past period is settled and must not be re-scored.
+    const inCurrentPeriod = (svcKey: string) => {
+      const cfg = overlay.rule.serviceCounts?.[svcKey];
+      return !cfg || periodStart(cfg.freq, day) === periodStart(cfg.freq, now);
+    };
     const [postponed, serviceDone, loadedLog, adhoc] = await Promise.all([
       loadPostponements(), loadServiceDone(), loadServiceLog(), loadAttendance(day),
     ]);
@@ -173,18 +183,22 @@ export default function CanonScreen() {
     // current week, never a past one being back-filled — then read the selected
     // day's week for the "1 of 2 this week" labels.
     const svcLog = overlay.rule.servicesMode === 'counts'
-      ? await ensureWeek(overlay.rule.serviceCounts ?? {}, now)
+      ? await ensurePeriods(overlay.rule.serviceCounts ?? {}, now)
       : loadedLog;
     const weekServices = {
-      counts: weekCounts(svcLog, day),
-      loggedToday: new Set(SERVICES.filter(sv => loggedOn(svcLog, sv.key, day)).map(sv => sv.key)),
+      counts: periodCounts(svcLog, overlay.rule.serviceCounts ?? {}, day),
+      loggedToday: new Set(SERVICES.filter(sv => loggedOn(svcLog, sv.key, overlay.rule.serviceCounts?.[sv.key]?.freq ?? 'Weekly', day)).map(sv => sv.key)),
     };
     setWeekSvc(weekServices);
     setRuleCounts(overlay.rule.servicesMode === 'counts' ? (overlay.rule.serviceCounts ?? {}) : {});
     // A closed week's services are already scored, so those rows would be
     // inert — leave them off a day outside this week entirely.
     const structured = todayItems(overlay.rule, day, postponed, serviceDone, weekServices, adhoc)
-      .filter(it => sameWeek || !isWeeklyServiceKey(it.key));
+      .filter(it => {
+        if (!isWeeklyServiceKey(it.key)) return true;
+        const sk = serviceKeyOf(it.key);
+        return !sk || inCurrentPeriod(sk);
+      });
     // Score any week that has fully elapsed (see finalizeWeeklyServices).
     finalizeWeeklyServices(svcLog, now);
     // Priest-added free-text components appear as read-only canon rows — on
@@ -219,12 +233,11 @@ export default function CanonScreen() {
     const checks = await loadChecks(day);
     // A count-committed service is "done" when the WEEK's target is met — the
     // attendance log decides that, never the daily check store.
-    if (sameWeek) {
-      for (const sv of SERVICES) {
-        const id = `rule_${weeklyServiceKey(sv.key)}`;
-        const target = overlay.rule.serviceCounts?.[sv.key] ?? 0;
-        target > 0 && (weekServices.counts[sv.key] ?? 0) >= target ? checks.add(id) : checks.delete(id);
-      }
+    for (const sv of SERVICES) {
+      if (!inCurrentPeriod(sv.key)) continue;
+      const id = `rule_${weeklyServiceKey(sv.key)}`;
+      const target = overlay.rule.serviceCounts?.[sv.key]?.n ?? 0;
+      target > 0 && (weekServices.counts[sv.key] ?? 0) >= target ? checks.add(id) : checks.delete(id);
     }
     // An ad-hoc attendance is complete by definition — the row exists because
     // the member logged that it happened — so it is always checked.
@@ -310,7 +323,8 @@ export default function CanonScreen() {
       svcBusy.current = true;
       const serviceKey = item.key.slice('svcw_'.length);
       const logged = weekSvc.counts[serviceKey] ?? 0;
-      const target = ruleCounts[serviceKey] ?? 0;
+      const cfg = ruleCounts[serviceKey];
+      const target = cfg?.n ?? 0;
       const doneToday = weekSvc.loggedToday.has(serviceKey);
       const adding = !doneToday && logged < target;
       const next = Math.max(0, logged + (adding ? 1 : -1));
@@ -324,14 +338,15 @@ export default function CanonScreen() {
       });
       const svcName = SERVICES.find(s => s.key === serviceKey)?.name ?? serviceKey;
       setRuleItems(prev => (prev ?? []).map(it => it.key === item.key
-        ? { ...it, label: `Attend ${svcName} — ${next} of ${target} this week`, doneLabel: '✓ Complete for this week' }
+        ? { ...it, label: `${SERVICES.find(s => s.key === serviceKey)?.verb ?? 'Attend'} ${svcName} — ${next} of ${target} this ${periodNoun(cfg?.freq ?? 'Weekly')}`, doneLabel: `✓ Complete for this ${periodNoun(cfg?.freq ?? 'Weekly')}` }
         : it));
       setChecked(prev => {
         const set = new Set(prev);
         next >= target ? set.add(id) : set.delete(id);
         return set;
       });
-      (adding ? logAttendance(serviceKey, selectedDate) : unlogLatest(serviceKey, selectedDate))
+      const freq = cfg?.freq ?? 'Weekly';
+      (adding ? logAttendance(serviceKey, freq, selectedDate) : unlogLatest(serviceKey, freq, selectedDate))
         .finally(() => { svcBusy.current = false; });
       return;
     }
@@ -427,7 +442,7 @@ export default function CanonScreen() {
           {!viewingToday && (
             <Text style={styles.backfillNote}>
               Completing {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-              {weekEditable ? '' : ' · services counted by week are already settled for that week'}
+              {countsEditable ? '' : ' · counted services are already settled for that period'}
             </Text>
           )}
 
