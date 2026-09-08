@@ -78,7 +78,20 @@ export const PHASES: RoadmapPhase[] = [
           "Communion — not tracked at all, and not currently a vital. It appears only as neglect_communion in the sin catalogue and as \"Communion Readiness\" in the confession flow. Add it as a first-class canon item and vital so a member can log when they received.",
           "Liturgy — VITAL_CATEGORIES has a liturgy row matching svc_* and weekly service keys, but those keys only exist when a priest has assigned a services rule in counts mode. A member with no assigned rule has no way to log that they attended. Self-logging should not depend on a priest having set something up.",
           "Confession — the vital exists with match: () => false and permanently reads \"—\" (lib/canon/history.ts). Either wire it to the confession dates already recorded, or remove the row.",
-          "Usability pass on the tab itself alongside this: the 7-day backfill strip, how count-based weekly commitments read mid-week (\"1 of 2 this week\"), and making the difference between a priest-assigned canon item and a self-chosen one legible at a glance. --- A commit-by-commit plan. Each commit is meant to be independently reviewable, ship-ready on your phone (from commit 1 onwards), and focused on one theme. Effort estimates assume part-time work; double them if you have a busy week. Each commit answers one question: \"what can you demo at the end of it?\" ---"
+          "Usability pass on the tab itself alongside this: the 7-day backfill strip, how count-based weekly commitments read mid-week (\"1 of 2 this week\"), and making the difference between a priest-assigned canon item and a self-chosen one legible at a glance."
+        ]
+      },
+      {
+        "id": "queued-2026-09-07-5",
+        "label": "Sort churches by distance in the picker",
+        "note": "The picker searches by name and city (2026-09-07), and churches now carries structured address_line1 / city / state / zip / country instead of one free text blob — which is the prerequisite for ordering parishes by how far away they are, rather than alphabetically. What is still missing",
+        "detail": [
+          "Latitude and longitude on churches. Geocode on save in the admin form rather than at read time, so the picker stays a single cheap query.",
+          "A geocoding provider, and a decision about who pays for it. Nominatim is free with a usage policy that a low-volume admin form fits comfortably; Google and Mapbox are paid but better on partial or misspelled addresses.",
+          "Backfill for the churches already entered, including the rows still holding only legacy free text.",
+          "Location permission, and what the picker does without it. Distance should be an optional ordering on top of the existing alphabetical list, never a requirement — a member who declines the permission must still be able to find their parish, and refusing should cost them nothing.",
+          "Whether distance is shown as a number (\"4.2 mi\") or only used for ordering. A visible number invites the question of accuracy, which a geocoded street address cannot really answer.",
+          "--- A commit-by-commit plan. Each commit is meant to be independently reviewable, ship-ready on your phone (from commit 1 onwards), and focused on one theme. Effort estimates assume part-time work; double them if you have a busy week. Each commit answers one question: \"what can you demo at the end of it?\" ---"
         ]
       }
     ]
