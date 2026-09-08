@@ -115,6 +115,9 @@ export default function ProfileScreen() {
   const [city, setCity] = useState('');
   const [stateVal, setStateVal] = useState('');
   const [zip, setZip] = useState('');
+  // The column has existed since the baseline schema with a 'US' default, but
+  // nothing ever set it — so a member outside the US had no way to say so.
+  const [country, setCountry] = useState('');
   const [savingContact, setSavingContact] = useState(false);
   const [savedContact, setSavedContact] = useState(false);
   const [contactError, setContactError] = useState('');
@@ -152,6 +155,7 @@ export default function ProfileScreen() {
       setCity(c.city ?? '');
       setStateVal(c.state ?? '');
       setZip(c.zip ?? '');
+      setCountry(c.country ?? '');
     }
     if (lifeProfile) {
       setLifeStage((lifeProfile.life_stage as LifeStageType) ?? null);
@@ -186,6 +190,9 @@ export default function ProfileScreen() {
       city:          city.trim()          || null,
       state:         stateVal.trim()      || null,
       zip:           zip.trim()           || null,
+      // Keep the column's 'US' default rather than writing null, so an address
+      // saved without a country still resolves on a map.
+      country:       country.trim().toUpperCase() || 'US',
       updated_at:    new Date().toISOString(),
     });
     setSavingContact(false);
@@ -454,6 +461,15 @@ export default function ProfileScreen() {
                 maxLength={10}
               />
             </View>
+            <TextInput
+              style={[styles.input, { marginTop: 8 }]}
+              value={country}
+              onChangeText={setCountry}
+              placeholder="Country (US)"
+              placeholderTextColor={colors.faint}
+              autoCapitalize="characters"
+              maxLength={2}
+            />
           </View>
           {contactError ? <Text style={styles.fieldError}>{contactError}</Text> : null}
           <TouchableOpacity

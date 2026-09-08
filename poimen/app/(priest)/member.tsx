@@ -499,7 +499,8 @@ export default function MemberScreen() {
 
   function openMaps() {
     if (!contact?.address_line1) return;
-    const parts = [contact.address_line1, contact.address_line2, contact.city, contact.state, contact.zip].filter(Boolean);
+    // Country included so an address outside the US resolves to the right place.
+    const parts = [contact.address_line1, contact.address_line2, contact.city, contact.state, contact.zip, contact.country].filter(Boolean);
     const encoded = encodeURIComponent(parts.join(', '));
     const url = Platform.OS === 'ios' ? `maps:?q=${encoded}` : `geo:0,0?q=${encoded}`;
     Linking.openURL(url);
@@ -941,6 +942,9 @@ export default function MemberScreen() {
                   <Text style={styles.sheetRowValue}>
                     {[contact.city, contact.state, contact.zip].filter(Boolean).join(', ')}
                   </Text>
+                  {contact.country ? (
+                    <Text style={styles.sheetRowValue}>{contact.country}</Text>
+                  ) : null}
                 </View>
                 <Text style={styles.sheetRowAction}>MAP</Text>
               </TouchableOpacity>
