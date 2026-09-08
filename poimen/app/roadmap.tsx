@@ -4,91 +4,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { goBack } from '@/lib/nav';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { useSession } from '@/lib/auth';
+import { PHASES } from '@/lib/roadmap-data';
 
-const STORAGE_KEY = 'poimen:roadmap:checked';
-
-type Item = { id: string; label: string; note?: string };
-type Phase = { id: string; title: string; items: Item[] };
-
-const PHASES: Phase[] = [
-  {
-    id: 'p0',
-    title: 'Phase 0 — Accounts & Prerequisites',
-    items: [
-      { id: 'p0-1', label: 'Apple Developer account enrolled ($99/yr)' },
-      { id: 'p0-2', label: 'App Store Connect — create app record (com.coptic.poimen)' },
-      { id: 'p0-3', label: 'Expo account — expo login' },
-      { id: 'p0-4', label: 'Privacy Policy hosted at a real URL', note: '✓ poimen-app.vercel.app/privacy' },
-    ],
-  },
-  {
-    id: 'p1',
-    title: 'Phase 1 — Assets',
-    items: [
-      { id: 'p1-1', label: 'App icon — 1024×1024 PNG, no transparency', note: '✓ Sacred Medallion' },
-      { id: 'p1-2', label: 'App icon wired into app.json', note: '✓ Done' },
-      { id: 'p1-3', label: 'Android adaptive icon configured', note: '✓ Done' },
-      { id: 'p1-4', label: 'Splash screen designed (1284×2778 px safe zone)', note: '✓ Done' },
-      { id: 'p1-5', label: 'Splash screen wired into app.json', note: '✓ Done' },
-      { id: 'p1-6', label: 'Screenshots — iPhone 6.7" (1290×2796 px, min 3)' },
-      { id: 'p1-7', label: 'Screenshots — iPhone 5.5" (1242×2208 px)' },
-      { id: 'p1-8', label: 'Screenshots — iPad Pro 12.9" (2048×2732 px)' },
-    ],
-  },
-  {
-    id: 'p2',
-    title: 'Phase 2 — EAS Build Setup',
-    items: [
-      { id: 'p2-1', label: 'npm install -g eas-cli' },
-      { id: 'p2-2', label: 'eas login' },
-      { id: 'p2-3', label: 'eas build:configure — generates eas.json' },
-      { id: 'p2-4', label: 'Audit infoPlist privacy strings in app.json' },
-      { id: 'p2-5', label: 'Confirm version 1.0.0 and buildNumber 1 in app.json', note: '✓ Done' },
-    ],
-  },
-  {
-    id: 'p3',
-    title: 'Phase 3 — QC Pass',
-    items: [
-      { id: 'p3-1', label: 'Congregant — onboarding, dashboard, prayer, confession, canon' },
-      { id: 'p3-2', label: 'Priest — flock roster, member detail, log encounter, assign canon' },
-      { id: 'p3-3', label: 'Servant — student roster, assign canon, prayer tab' },
-    ],
-  },
-  {
-    id: 'p4',
-    title: 'Phase 4 — Build',
-    items: [
-      { id: 'p4-1', label: 'eas build --platform ios --profile production' },
-      { id: 'p4-2', label: 'Fix any build errors' },
-      { id: 'p4-3', label: 'Upload to TestFlight (eas submit or auto-submit flag)' },
-    ],
-  },
-  {
-    id: 'p5',
-    title: 'Phase 5 — App Store Metadata',
-    items: [
-      { id: 'p5-1', label: 'App name + subtitle (30 char max)' },
-      { id: 'p5-2', label: 'Description (4000 char max)' },
-      { id: 'p5-3', label: 'Keywords (100 char max, comma-separated)' },
-      { id: 'p5-4', label: 'Support URL + Marketing URL' },
-      { id: 'p5-5', label: 'Privacy Policy URL' },
-      { id: 'p5-6', label: 'Age rating questionnaire' },
-      { id: 'p5-7', label: 'Privacy nutrition labels — declare all data collected' },
-      { id: 'p5-8', label: 'Demo account credentials for App Review' },
-      { id: 'p5-9', label: 'Upload screenshots in App Store Connect' },
-    ],
-  },
-  {
-    id: 'p6',
-    title: 'Phase 6 — Submit for Review',
-    items: [
-      { id: 'p6-1', label: 'eas submit --platform ios' },
-      { id: 'p6-2', label: 'Apple review — allow 24–48 hours' },
-      { id: 'p6-3', label: 'Respond to any rejection feedback' },
-    ],
-  },
-];
+// The list itself lives in ROADMAP.md at the repo root and is compiled into
+// lib/roadmap-data.ts by scripts/gen-roadmap.mjs — edit the markdown, not this
+// screen. (ROADMAP.md also carries the Coptic Hub commit plan below the
+// "Next Up" block; that is a separate product's roadmap and is not shown here.)
+const STORAGE_KEY = 'poimen:roadmap:checked:v2';
 
 const ALL_ITEMS = PHASES.flatMap(p => p.items);
 const TOTAL = ALL_ITEMS.length;
@@ -144,8 +66,8 @@ export default function RoadmapScreen() {
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 
-        <Text style={styles.eyebrow}>APP STORE</Text>
-        <Text style={styles.title}>Launch Roadmap</Text>
+        <Text style={styles.eyebrow}>POST-LAUNCH</Text>
+        <Text style={styles.title}>Product Roadmap</Text>
 
         <View style={styles.progressWrap}>
           <View style={styles.progressTrack}>
@@ -185,8 +107,15 @@ export default function RoadmapScreen() {
                       <Text style={[styles.itemLabel, isChecked && styles.itemLabelDone]}>
                         {item.label}
                       </Text>
-                      {item.note ? (
+                      {item.note && !isChecked ? (
                         <Text style={styles.itemNote}>{item.note}</Text>
+                      ) : null}
+                      {item.detail?.length && !isChecked ? (
+                        <View style={styles.detailWrap}>
+                          {item.detail.map((d, i) => (
+                            <Text key={i} style={styles.detailText}>{'·  '}{d}</Text>
+                          ))}
+                        </View>
                       ) : null}
                     </View>
                   </TouchableOpacity>
@@ -197,8 +126,8 @@ export default function RoadmapScreen() {
         })}
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Poimen · App Store Launch Checklist</Text>
-          <Text style={styles.footerSub}>com.coptic.poimen · iOS 1.0</Text>
+          <Text style={styles.footerText}>Poimen · Post-Launch Roadmap</Text>
+          <Text style={styles.footerSub}>Source of truth: ROADMAP.md · “Next Up”</Text>
         </View>
 
       </ScrollView>
@@ -239,7 +168,9 @@ const styles = lazyThemed(() => StyleSheet.create({
   itemBody: { flex: 1 },
   itemLabel: { fontFamily: fonts.lato, fontSize: 14, color: colors.cream, lineHeight: 20 },
   itemLabelDone: { color: colors.muted, textDecorationLine: 'line-through' as any },
-  itemNote: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.gold, marginTop: 2 },
+  itemNote: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, marginTop: 4 },
+  detailWrap: { marginTop: 6, gap: 3 },
+  detailText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 17 },
 
   footer: { marginTop: 24, paddingTop: 20, borderTopWidth: 1, borderTopColor: colors.border, alignItems: 'center' },
   footerText: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, color: colors.muted, textTransform: 'uppercase' as any },

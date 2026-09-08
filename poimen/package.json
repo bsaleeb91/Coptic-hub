@@ -9,7 +9,11 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test \"lib/**/*.test.ts\"",
-    "build": "expo export --platform web"
+    "build": "expo export --platform web",
+    "gen:roadmap": "node scripts/gen-roadmap.mjs",
+    "prestart": "node scripts/gen-roadmap.mjs",
+    "prebuild": "node scripts/gen-roadmap.mjs",
+    "pretypecheck": "node scripts/gen-roadmap.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/cormorant-garamond": "^0.2.2",

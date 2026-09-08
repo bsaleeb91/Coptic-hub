@@ -171,7 +171,7 @@ export default function AdminScreen() {
         <Text style={styles.title}>Dashboard</Text>
 
         <TouchableOpacity style={styles.roadmapLink} onPress={() => router.push('/roadmap')}>
-          <Text style={styles.roadmapLinkText}>App Store Roadmap →</Text>
+          <Text style={styles.roadmapLinkText}>Product Roadmap →</Text>
         </TouchableOpacity>
 
         {/* ── Priest requests — rendered regardless of stats health so a
