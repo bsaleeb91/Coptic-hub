@@ -21,6 +21,9 @@ import {
   ReciteCard, ReciteGrade, loadRecite, reviewRecite, reciteState, portionsMature,
 } from '@/lib/psalms/store';
 import { Badge, computeBadges } from '@/lib/psalms/badges';
+import * as db from '@/lib/db';
+import * as H from '@/lib/haptics';
+import type { LeaderboardRow } from '@/lib/db/leaderboard';
 import {
   HOUR_LAYOUTS, itemsForPsalm, itemUnits, itemUnitCount, itemLeadUp, itemLabel,
   itemReaderText, itemHours, itemMeta, hourName, prayerItemId,
@@ -117,13 +120,15 @@ function Stat({ label, value, color }: { label: string; value: number; color: st
 }
 
 export default function PsalmsScreen() {
-  const { user } = useSession();
+  const { user, profile, refreshProfile } = useSession();
   const { demoMode } = useDemoMode();
   const canSync = !!user && !demoMode;
 
   const [selection, setSelection] = useState<string[]>([]);
   const [cards, setCards]         = useState<Record<string, PartCard>>({});
   const [streak, setStreak]       = useState<Streak>({ current: 0, longest: 0, last: null, lastFreezeUsed: null });
+  const [board, setBoard]         = useState<LeaderboardRow[]>([]);
+  const [boardBusy, setBoardBusy] = useState(false);
   const [freezeReady, setFreezeReady] = useState(false);
   const [newPerDay, setNewPerDay] = useState(5);
   const [loading, setLoading]     = useState(true);
@@ -178,6 +183,30 @@ export default function PsalmsScreen() {
 
   const stats = computeStats(selection, cards);
   const badges = computeBadges({ selection, cards, recite, streak });
+
+  // ── Class leaderboard ──
+  // Opt-in, default off, and separate from vitals consent: that one was about
+  // a priest, this is about classmates. Opting in is also what buys the view —
+  // a board you can watch without appearing on is a different, worse feature.
+  const optedIn = profile?.psalm_leaderboard_consent === true;
+  const isServant = profile?.role === 'servant';
+  const hasClass = isServant || !!profile?.servant_id;
+
+  useEffect(() => {
+    if (!hasClass || (!optedIn && !isServant)) { setBoard([]); return; }
+    let live = true;
+    db.getPsalmLeaderboard().then(rows => { if (live) setBoard(rows); });
+    return () => { live = false; };
+  }, [hasClass, optedIn, isServant, streak.current]);
+
+  async function toggleLeaderboard(next: boolean) {
+    if (!user) return;
+    H.tap();
+    setBoardBusy(true);
+    const { error } = await db.setLeaderboardConsent(user.id, next);
+    if (!error) await refreshProfile();
+    setBoardBusy(false);
+  }
 
   const startSession = useCallback((mode: 'review' | 'new') => {
     const q: ReviewUnit[] = mode === 'review'
@@ -590,6 +619,61 @@ export default function PsalmsScreen() {
                 </View>
               ))}
             </View>
+
+            {/* ── Class leaderboard ── */}
+            {hasClass && (
+              <>
+                <Text style={[styles.sectionLabel, { marginTop: SP.lg, marginBottom: SP.sm }]}>
+                  {isServant ? 'Your Class' : 'Class Leaderboard'}
+                </Text>
+
+                {!optedIn && !isServant ? (
+                  // The ask, stated plainly. It names exactly who would see what,
+                  // because "join the leaderboard" hides the only fact that matters.
+                  <View style={styles.lbOptIn}>
+                    <Text style={styles.lbOptInTitle}>Compare with your class?</Text>
+                    <Text style={styles.lbOptInBody}>
+                      Your streak and how many psalms you've memorized would be visible to the
+                      others in your class, and to your servant. Your psalm selection, your canon
+                      and everything else stay private. You can turn this off whenever you like.
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.lbJoinBtn, boardBusy && { opacity: 0.5 }]}
+                      disabled={boardBusy}
+                      onPress={() => toggleLeaderboard(true)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.lbJoinText}>{boardBusy ? 'Joining…' : 'Join the leaderboard'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : board.length === 0 ? (
+                  <Text style={styles.lbEmpty}>
+                    {isServant
+                      ? 'No one in your class has joined the leaderboard yet.'
+                      : "You're the first in your class to join — others will appear as they do."}
+                  </Text>
+                ) : (
+                  <View>
+                    {board.map((r, i) => (
+                      <View key={r.user_id} style={[styles.lbRow, r.is_self && styles.lbRowSelf]}>
+                        <Text style={[styles.lbRank, r.is_self && styles.lbSelfText]}>{i + 1}</Text>
+                        <Text style={[styles.lbName, r.is_self && styles.lbSelfText]} numberOfLines={1}>
+                          {r.is_self ? 'You' : r.display_name}
+                        </Text>
+                        <Text style={styles.lbStat}>{r.mastered} memorized</Text>
+                        <Text style={[styles.lbStreak, r.is_self && styles.lbSelfText]}>🔥 {r.streak}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {optedIn && !isServant && (
+                  <TouchableOpacity onPress={() => toggleLeaderboard(false)} disabled={boardBusy}>
+                    <Text style={styles.lbLeave}>Leave the leaderboard</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
           </>
         )}
       </ScrollView>
@@ -621,6 +705,20 @@ const styles = lazyThemed(() => StyleSheet.create({
   heroOf:       { fontSize: 13, color: colors.muted, fontFamily: fonts.latoLight },
   heroBarTrack: { height: 6, borderRadius: 3, backgroundColor: colors.creamDim, overflow: 'hidden', marginTop: 12 },
   heroBarFill:  { height: '100%', borderRadius: 3, backgroundColor: colors.gold },
+  lbOptIn:      { padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.goldDim },
+  lbOptInTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 6 },
+  lbOptInBody:  { fontFamily: fonts.latoLight, fontSize: 12.5, color: colors.muted, lineHeight: 19 },
+  lbJoinBtn:    { marginTop: 12, alignSelf: 'flex-start', paddingVertical: 9, paddingHorizontal: 14, borderRadius: 9, borderWidth: 1, borderColor: colors.gold },
+  lbJoinText:   { fontFamily: fonts.latoBold, fontSize: 12, color: colors.gold, letterSpacing: 0.3 },
+  lbEmpty:      { fontFamily: fonts.latoLight, fontSize: 12.5, color: colors.muted, lineHeight: 19, paddingVertical: 8 },
+  lbRow:        { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11, paddingHorizontal: 12, borderRadius: 9, marginBottom: 4 },
+  lbRowSelf:    { backgroundColor: 'rgba(201,168,76,0.10)' },
+  lbRank:       { fontFamily: fonts.latoBold, fontSize: 12, color: colors.muted, width: 20 },
+  lbName:       { fontFamily: fonts.lato, fontSize: 14, color: colors.cream, flex: 1, minWidth: 0 },
+  lbStat:       { fontFamily: fonts.latoLight, fontSize: 11.5, color: colors.faint },
+  lbStreak:     { fontFamily: fonts.latoBold, fontSize: 12, color: colors.goldLight, width: 44, textAlign: 'right' },
+  lbSelfText:   { color: colors.goldLight },
+  lbLeave:      { fontFamily: fonts.latoLight, fontSize: 11.5, color: colors.faint, marginTop: 10 },
   streakRow:    { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 10 },
   heroStreak:   { fontFamily: fonts.latoBold, color: colors.goldLight, fontSize: 13 },
   heroStreakBest: { fontFamily: fonts.latoLight, color: colors.muted, fontSize: 12 },

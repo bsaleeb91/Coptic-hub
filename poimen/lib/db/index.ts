@@ -19,3 +19,4 @@ export * from './photos';
 export * from './templates';
 export * from './feedback';
 export * from './survey';
+export * from './leaderboard';

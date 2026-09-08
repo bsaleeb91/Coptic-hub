@@ -14,6 +14,9 @@ export interface Profile {
   foc_consent_at: string | null;
   invite_code: string | null;
   vitals_consent: boolean | null;
+  // Separate from vitals_consent on purpose: that one is about a priest, this
+  // one is about classmates. See 20260907030000_psalm_leaderboard.sql.
+  psalm_leaderboard_consent: boolean | null;
   last_confession_at: string | null;
   last_seen_at: string | null;
 }
@@ -51,7 +54,7 @@ export function formatChurchAddress(c: Partial<Church> | null | undefined): stri
 export async function getProfile(userId: string): Promise<Profile | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, church_name, church_id, role, requested_role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, last_confession_at, last_seen_at')
+    .select('id, full_name, church_name, church_id, role, requested_role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, psalm_leaderboard_consent, last_confession_at, last_seen_at')
     .eq('id', userId)
     .single();
   return data ?? null;
@@ -236,7 +239,7 @@ export async function getKeyBackup(userId: string): Promise<string | null> {
 export async function getAllProfiles(): Promise<Profile[]> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, church_name, church_id, role, requested_role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, last_confession_at, last_seen_at')
+    .select('id, full_name, church_name, church_id, role, requested_role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, psalm_leaderboard_consent, last_confession_at, last_seen_at')
     .order('role')
     .order('full_name');
   return data ?? [];

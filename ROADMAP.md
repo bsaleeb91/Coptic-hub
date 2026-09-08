@@ -128,6 +128,27 @@ better, and item 8 will delete one section outright.
   - Export, or a decision not to. A CSV of survey free text is the obvious
     thing to want and the obvious thing to leak.
 
+**Connecting with friends (v2 or v3).**
+The psalm leaderboard is scoped to a servant's class, which is the right first
+circle — the members already know each other and a servant is accountable for
+it. Friends is a different shape: a self-chosen graph that crosses class and
+parish boundaries, and it cannot simply reuse the class query.
+  - A friendship is mutual and requested, so it needs invite, accept, decline,
+    remove and block — five states, not a boolean. Without block, this becomes
+    a way to follow someone who does not want to be followed.
+  - Children are the main users of the psalm agent. Adult-to-minor friend
+    requests need a rule decided before any code: servant or FOC approval,
+    restriction to same-class or same-parish, or no cross-age requests at all.
+  - Discovery is the hard half. Search by name across all parishes is a
+    directory of minors; invite codes or QR between two people already
+    together avoids that entirely and is probably the answer.
+  - Leaderboard consent is currently one flag meaning "my class". Friends adds
+    a second audience, and the two should not be silently merged — a member who
+    agreed to be seen by classmates has not agreed to be seen by someone from
+    another parish.
+  - Decide what a friend sees: the same streak and memorized count the class
+    board shows, or less.
+
 ---
 
 A commit-by-commit plan. Each commit is meant to be independently reviewable, ship-ready on your phone (from commit 1 onwards), and focused on one theme. Effort estimates assume part-time work; double them if you have a busy week.
