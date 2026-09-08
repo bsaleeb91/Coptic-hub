@@ -90,7 +90,21 @@ export const PHASES: RoadmapPhase[] = [
           "A geocoding provider, and a decision about who pays for it. Nominatim is free with a usage policy that a low-volume admin form fits comfortably; Google and Mapbox are paid but better on partial or misspelled addresses.",
           "Backfill for the churches already entered, including the rows still holding only legacy free text.",
           "Location permission, and what the picker does without it. Distance should be an optional ordering on top of the existing alphabetical list, never a requirement — a member who declines the permission must still be able to find their parish, and refusing should cost them nothing.",
-          "Whether distance is shown as a number (\"4.2 mi\") or only used for ordering. A visible number invites the question of accuracy, which a geocoded street address cannot really answer.",
+          "Whether distance is shown as a number (\"4.2 mi\") or only used for ordering. A visible number invites the question of accuracy, which a geocoded street address cannot really answer."
+        ]
+      },
+      {
+        "id": "queued-2026-09-07-6",
+        "label": "Rework the admin view",
+        "note": "app/admin.tsx has grown to seven sections on one scrolling page — priest requests, overview, health, a six-month activity chart, survey results, feedback, churches — with no navigation between them and no way to find anything specific. Two of today's additions made that worse rather than better, and item 8 will delete one section outright",
+        "detail": [
+          "Sections become tabs or an index rather than one 600-line scroll. Feedback and survey are read regularly; churches and health are consulted rarely.",
+          "Individual survey responses, not only distributions. A row already ties all five answers together with role, platform and date, and reading one whole response says more than five separate bars. Weigh against de-anonymising: role plus date plus a distinctive comment can identify someone in a small parish, and the survey's value rests on members believing it is anonymous. Decide whether role is worth keeping on the row at all.",
+          "A member view: search by name, church or email, see roles and FOC links, and fix a wrong link without going to the Supabase dashboard. Currently there is no way to look up one person from inside the app.",
+          "Remove the priest-request queue once item 8 lands, rather than leaving a section that never fills.",
+          "Feedback and survey both grow without bound and are read newest-first; neither paginates today. getAllFeedback caps at 100 and getSurveyResults at 500, which are silent ceilings, not paging.",
+          "Date range on the activity chart, which is fixed at six months.",
+          "Export, or a decision not to. A CSV of survey free text is the obvious thing to want and the obvious thing to leak.",
           "--- A commit-by-commit plan. Each commit is meant to be independently reviewable, ship-ready on your phone (from commit 1 onwards), and focused on one theme. Effort estimates assume part-time work; double them if you have a busy week. Each commit answers one question: \"what can you demo at the end of it?\" ---"
         ]
       }
