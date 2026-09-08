@@ -98,7 +98,7 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0214', email: 'mhanna@example.com', address_line1: '1190 Oak Hill Rd', address_line2: null, city: 'Columbus', state: 'OH', zip: '43235', country: 'US' },
     life: { life_stage: 'married', spouse_name: 'Nadia Hanna' },
     children: [{ id: 'dc1', name: 'Kyrillos', birth_year: 2024 }],
-    vitals: { prayer: 75, quiet: 55, scripture: 50, book: null, liturgy: 80, fasting: 60, service: 25, confession: null },
+    vitals: { prayer: 75, quiet: 55, scripture: 50, book: null, liturgy: 80, communion: 65, fasting: 60, service: 25, confession: null },
     confessions: [{ date: 'APR 20, 2026', type: 'Holy Confession', note: 'Discussed new-father anxieties. Encouraged daily Agpeya.' }, { date: 'FEB 5, 2026', type: 'Holy Confession', note: 'Pre-birth spiritual preparation.' }],
     prayer: [{ date: 'MAY 4, 2026', topic: 'Gratitude for new baby — prayers of thanksgiving' }, { date: 'MAR 10, 2026', topic: 'Wisdom as a new father' }],
     canons: [{ id: 'c1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Apr 21, 2026', completions: 5, totalDays: 7 }, { id: 'c2', component: 'Psalm reading (1 chapter)', frequency: 'Daily', startDate: 'Apr 21, 2026', completions: 4, totalDays: 7 }],
@@ -110,7 +110,7 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0339', email: 'sgirgis@example.com', address_line1: '408 Granville St', address_line2: null, city: 'Columbus', state: 'OH', zip: '43215', country: 'US' },
     life: { life_stage: 'single', spouse_name: '' },
     children: [],
-    vitals: { prayer: 90, quiet: 85, scripture: 85, book: 70, liturgy: 100, fasting: 88, service: 100, confession: null },
+    vitals: { prayer: 90, quiet: 85, scripture: 85, book: 70, liturgy: 100, communion: 85, fasting: 88, service: 100, confession: null },
     confessions: [{ date: 'MAY 21, 2026', type: 'Holy Confession', note: 'Discussed vocation discernment. Encouraged continued prayer and patience.' }, { date: 'MAR 3, 2026', type: 'Holy Confession', note: 'Lenten preparation.' }, { date: 'JAN 8, 2026', type: 'Holy Confession', note: 'Start-of-year spiritual plan.' }],
     prayer: [{ date: 'MAY 20, 2026', topic: 'Discernment of vocation — monastery vs. marriage' }],
     canons: [{ id: 'c1', component: 'Complete Agpeya (all 7 hours)', frequency: 'Daily', startDate: 'Jan 9, 2026', completions: 6, totalDays: 7 }, { id: 'c2', component: 'Bible reading (2 chapters)', frequency: 'Daily', startDate: 'Jan 9, 2026', completions: 6, totalDays: 7 }],
@@ -122,7 +122,7 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0182', email: 'pbotros@example.com', address_line1: '2847 Riverside Dr', address_line2: null, city: 'Columbus', state: 'OH', zip: '43221', country: 'US' },
     life: { life_stage: 'married', spouse_name: 'Maria Botros' },
     children: [{ id: 'dc1', name: 'Anthony', birth_year: 2018 }, { id: 'dc2', name: 'Mary', birth_year: 2021 }],
-    vitals: { prayer: 20, quiet: 10, scripture: 30, book: null, liturgy: 45, fasting: 20, service: 0, confession: null },
+    vitals: { prayer: 20, quiet: 10, scripture: 30, book: null, liturgy: 45, communion: 30, fasting: 20, service: 0, confession: null },
     confessions: [{ date: 'FEB 25, 2026', type: 'Holy Confession', note: 'Set spiritual goals.' }, { date: 'FEB 11, 2026', type: 'Introductory Meeting', note: 'Getting to know one another.' }],
     prayer: [{ date: 'MAY 28, 2026', topic: 'Job transition — feeling lost' }, { date: 'MAY 5, 2026', topic: 'Family reconciliation with brother' }],
     canons: [{ id: 'c1', component: 'Morning Agpeya', frequency: 'Daily', startDate: 'Mar 1, 2026', completions: 1, totalDays: 7 }, { id: 'c2', component: 'Gospel Reading (1 chapter)', frequency: 'Daily', startDate: 'Mar 1, 2026', completions: 2, totalDays: 7 }],
@@ -134,7 +134,7 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0471', email: 'mmkhail@example.com', address_line1: '93 Olentangy Blvd', address_line2: 'Apt 4B', city: 'Columbus', state: 'OH', zip: '43202', country: 'US' },
     life: { life_stage: 'married', spouse_name: 'Fady Mikhail' },
     children: [{ id: 'dc1', name: 'Bishoy', birth_year: 2020 }, { id: 'dc2', name: 'Irene', birth_year: 2023 }],
-    vitals: { prayer: 65, quiet: 50, scripture: 60, book: null, liturgy: 75, fasting: 58, service: 50, confession: null },
+    vitals: { prayer: 65, quiet: 50, scripture: 60, book: null, liturgy: 75, communion: 60, fasting: 58, service: 50, confession: null },
     confessions: [{ date: 'MAY 10, 2026', type: 'Holy Confession', note: 'Marriage enrichment focus. Prayed together with Fady.' }, { date: 'FEB 28, 2026', type: 'Holy Confession', note: 'Lenten preparation. Addressed anxiety about second child.' }],
     prayer: [{ date: 'APR 30, 2026', topic: 'Peace in marriage — communication difficulties' }, { date: 'MAR 15, 2026', topic: 'Healing for mother-in-law' }],
     canons: [{ id: 'c1', component: 'Evening Prayer (Compline)', frequency: 'Daily', startDate: 'Mar 1, 2026', completions: 5, totalDays: 7 }, { id: 'c2', component: 'Bible reading (1 chapter)', frequency: 'Daily', startDate: 'Mar 1, 2026', completions: 4, totalDays: 7 }],
@@ -146,7 +146,7 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0598', email: 'ageorge@example.com', address_line1: '5120 Kenny Rd', address_line2: null, city: 'Columbus', state: 'OH', zip: '43220', country: 'US' },
     life: { life_stage: 'single', spouse_name: '' },
     children: [],
-    vitals: { prayer: null, quiet: null, scripture: null, book: null, liturgy: 25, fasting: null, service: null, confession: null },
+    vitals: { prayer: null, quiet: null, scripture: null, book: null, liturgy: 25, communion: 10, fasting: null, service: null, confession: null },
     confessions: [],
     prayer: [{ date: 'MAY 1, 2026', topic: 'Searching for meaning — career feels empty' }],
     canons: [],
@@ -158,7 +158,7 @@ const DEMO_DB: Record<string, {
     contact: { phone: '(614) 555-0623', email: 'cnaguib@example.com', address_line1: '711 Worthington Ave', address_line2: null, city: 'Columbus', state: 'OH', zip: '43085', country: 'US' },
     life: { life_stage: 'married', spouse_name: 'Mina Naguib' },
     children: [{ id: 'dc1', name: 'Verena', birth_year: 2017 }, { id: 'dc2', name: 'Mark', birth_year: 2019 }, { id: 'dc3', name: 'Irini', birth_year: 2022 }],
-    vitals: { prayer: 95, quiet: 90, scripture: 90, book: 85, liturgy: 100, fasting: 92, service: 100, confession: null },
+    vitals: { prayer: 95, quiet: 90, scripture: 90, book: 85, liturgy: 100, communion: 85, fasting: 92, service: 100, confession: null },
     confessions: [{ date: 'MAY 5, 2026', type: 'Holy Confession', note: 'Strong spiritually. Discussed leading the women\'s Bible study.' }, { date: 'FEB 20, 2026', type: 'Holy Confession', note: 'Lenten reflection — themes of gratitude and service.' }, { date: 'NOV 10, 2025', type: 'Holy Confession', note: 'Pre-Advent preparation.' }],
     prayer: [{ date: 'APR 25, 2026', topic: 'Guidance for Verena\'s school transition' }],
     canons: [{ id: 'c1', component: 'Midnight Praise (Tasbeha)', frequency: 'Weekly', startDate: 'Jan 1, 2026', completions: 6, totalDays: 7 }, { id: 'c2', component: 'Bible reading (3 chapters)', frequency: 'Daily', startDate: 'Jan 1, 2026', completions: 6, totalDays: 7 }],
@@ -171,7 +171,7 @@ function getDemoData(id: string) {
   return DEMO_DB[id] ?? DEMO_DB['demo-pb'];
 }
 
-// Render the member's eight vital categories from a stored payload (the same
+// Render the member's vital categories from a stored payload (the same
 // map the member mirrors to agent_progress['vitals']). A key that's absent is
 // "not shared"; a key present but null had nothing ever due, so it reads "—".
 function vitalsFromPayload(payload: Record<string, number | null> | null | undefined) {

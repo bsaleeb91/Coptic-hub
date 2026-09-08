@@ -3,13 +3,18 @@
 // RuleConfig for that weekday plus the automatic Coptic fasting rules. Shared
 // by the rule editor screen and the Canon tab's "My Spiritual Canon" list.
 
-import { RuleConfig, ReadMode, AGPEYA_HOURS, SERVICES } from './rule-store';
+import { RuleConfig, ReadMode, AGPEYA_HOURS, SERVICES, serviceVerb } from './rule-store';
 import { isAbstinenceDay, prostrationsAllowed } from './fasting';
 import { localDateStr } from './postpone';
+import { weeklyServiceKey } from './keys';
 
 // `freq` is set only on Heart of Service items — it drives which postpone
 // options (if any) the Canon tab offers.
-export interface RuleItem { key: string; label: string; icon: string; freq?: string; doneLabel?: string; }
+// `adhoc` marks an attendance the member logged on a day their rule didn't
+// ask for it (see attendance.ts). Such a row is always complete by definition —
+// it exists because it happened — so the Canon tab renders it checked and
+// tapping it removes the log rather than unchecking it.
+export interface RuleItem { key: string; label: string; icon: string; freq?: string; doneLabel?: string; adhoc?: boolean; }
 
 // Item icons are semantic keys; the Canon tab maps them to the gold line
 // icons in components/ui/TabIcons.tsx (book, candle, praying hands, church,
@@ -75,8 +80,7 @@ export function customDueToday(
 
 // Item key for a service committed to by count-per-week (vs `svc_` for a
 // service pinned to a specific weekday).
-export const weeklyServiceKey = (serviceKey: string) => `svcw_${serviceKey}`;
-export const isWeeklyServiceKey = (k: string) => k.startsWith('svcw_');
+export { weeklyServiceKey, isWeeklyServiceKey, serviceKeyOf } from './keys';
 
 // This week's attendance for count-committed services: how many times each was
 // logged, and which were logged on `date` itself.
@@ -88,6 +92,7 @@ export function todayItems(
   postponed?: Record<string, string>,
   serviceDone?: Record<string, string>,
   weekServices?: WeekServices,
+  adhoc?: string[],
 ): RuleItem[] {
   const d = rule.days[date.getDay()];
   const items: RuleItem[] = [];
@@ -104,13 +109,13 @@ export function todayItems(
       // logged by mistake earlier in the week.
       items.push({
         key: weeklyServiceKey(sv.key),
-        label: `Attend ${sv.name} — ${logged} of ${target} this week`,
+        label: `${sv.verb ?? 'Attend'} ${sv.name} — ${logged} of ${target} this week`,
         icon: ICON_CHURCH,
         doneLabel: '✓ Complete for this week',
       });
     }
   } else {
-    for (const sv of d.services) items.push({ key: `svc_${sv}`, label: `Attend ${serviceName(sv)}`, icon: ICON_CHURCH });
+    for (const sv of d.services) items.push({ key: `svc_${sv}`, label: `${serviceVerb(sv)} ${serviceName(sv)}`, icon: ICON_CHURCH });
   }
   d.serving.forEach((sv, i) => {
     if (!sv.text.trim()) return;
@@ -133,5 +138,18 @@ export function todayItems(
   if (rule.quietMinutes > 0) items.push({ key: 'quiet', label: `${rule.quietMinutes} min of quiet time`, icon: ICON_QUIET });
   if (rule.bible.amount > 0) items.push({ key: 'bible', label: `Bible reading — ${readLabel(rule.bible.mode, rule.bible.amount)}`, icon: ICON_READING });
   if (rule.book && rule.book.amount > 0) items.push({ key: 'book', label: `${rule.book.title || 'Spiritual book'} — ${readLabel(rule.book.mode, rule.book.amount)}`, icon: ICON_READING });
+  // Attendances logged outside the rule. Skipped where the rule already put the
+  // same service on this day — that row covers it, and two would double-count
+  // in the vitals.
+  for (const sv of adhoc ?? []) {
+    const key = `svc_${sv}`;
+    if (items.some(it => it.key === key || it.key === weeklyServiceKey(sv))) continue;
+    items.push({
+      key, label: `${serviceVerb(sv)} ${serviceName(sv)}`, icon: ICON_CHURCH, adhoc: true,
+      // Says why the row is already ticked, and that tapping removes it rather
+      // than unchecking it — otherwise the tap reads as destructive-by-surprise.
+      doneLabel: '✓ Logged — not part of your canon · tap to remove',
+    });
+  }
   return items;
 }

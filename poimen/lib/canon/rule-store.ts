@@ -24,12 +24,17 @@ export const AGPEYA_HOURS: { key: string; name: string }[] = [
   { key: 'midnight', name: 'Midnight (Three Watches)' },
 ];
 
-export const SERVICES: { key: string; name: string }[] = [
+// `verb` is how the item reads on the Canon tab: you *attend* a service, but
+// you *receive* the Eucharist. Defaults to "Attend" where omitted.
+export const SERVICES: { key: string; name: string; verb?: string }[] = [
   { key: 'church_vespers', name: 'Vespers (Raising of Incense)' },
   { key: 'matins',         name: 'Matins' },
   { key: 'liturgy',        name: 'Divine Liturgy' },
+  { key: 'communion',      name: 'Holy Communion', verb: 'Receive' },
   { key: 'midnight_praise',name: 'Midnight Praise (Tasbeha)' },
 ];
+
+export const serviceVerb = (key: string) => SERVICES.find(s => s.key === key)?.verb ?? 'Attend';
 
 export const CONFESSION_OPTIONS = [
   'Weekly', 'Every 2 weeks', 'Monthly', 'Every 2 months', 'Quarterly', 'Twice a year',

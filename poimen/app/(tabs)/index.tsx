@@ -22,6 +22,7 @@ import { loadTodayChecks } from '@/lib/canon/checks';
 import { loadPostponements, loadServiceDone } from '@/lib/canon/postpone';
 import { loadServiceLog, ensureWeek, weekCounts, loggedOn } from '@/lib/canon/service-log';
 import { recordCanonDay, finalizeWeeklyServices, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
+import { loadAttendance } from '@/lib/canon/attendance';
 import { lastConfessionDate, loadConfessionDates, hydrateConfessionDatesFromCloud, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
 import { VISIT_TYPE_KEYWORD } from '@/lib/scheduling/slots';
 import { currentFast } from '@/lib/canon/fasting';
@@ -271,11 +272,14 @@ export default function DashboardScreen() {
         const target = overlay.rule.serviceCounts?.[sv.key] ?? 0;
         target > 0 && (weekServices.counts[sv.key] ?? 0) >= target ? checks.add(id) : checks.delete(id);
       }
-      const structured = todayItems(overlay.rule, nowDate, postponed, serviceDone, weekServices);
+      // Ad-hoc attendances count here too, or the Home tile's "canon today"
+      // tally would disagree with the Canon tab's.
+      const structured = todayItems(overlay.rule, nowDate, postponed, serviceDone, weekServices, await loadAttendance(nowDate));
       const customItems: RuleItem[] = overlay.customComponents
         .filter(c => customDueToday(c.frequency, c.days, new Date(), serviceDone, `assigned_${c.id}`, postponed))
         .map(c => ({ key: `assigned_${c.id}`, icon: 'quiet', label: c.text }));
       const items = [...structured, ...customItems];
+      for (const it of items) if (it.adhoc) checks.add(`rule_${it.key}`);
       const done = items.filter(it => checks.has(`rule_${it.key}`)).length;
       setCanonToday({ done, total: items.length });
       setConfFreqDays(confessionFrequencyDays(overlay.rule.confession));
@@ -288,7 +292,13 @@ export default function DashboardScreen() {
       await finalizeWeeklyServices(svcLog, nowDate);
       const epoch = await loadVitalsEpoch();
       setVitalsEpoch(epoch);
-      const stats = computeVitals(await loadCanonHistory(), epoch);
+      // Confession has no canon check-off behind it — it is scored from the
+      // recorded dates against the rule's cadence, so the row shows a real
+      // number instead of a permanent "—".
+      const stats = computeVitals(await loadCanonHistory(), epoch, {
+        dates: await loadConfessionDates(),
+        freqDays: confessionFrequencyDays(overlay.rule.confession),
+      });
       setVitalStats(stats);
       if (user && !demoMode) {
         db.upsertAgentProgress({
