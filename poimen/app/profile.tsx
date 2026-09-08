@@ -4,6 +4,7 @@ import {
   TextInput, ActivityIndicator, Alert, Platform, Modal, FlatList,
 } from 'react-native';
 import type { Church } from '@/lib/db';
+import { formatChurchAddress } from '@/lib/db/profiles';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { goBack } from '@/lib/nav';
@@ -103,6 +104,13 @@ export default function ProfileScreen() {
   const [churchId, setChurchId] = useState<string | null>(profile?.church_id ?? null);
   const [churches, setChurches] = useState<Church[]>([]);
   const [showChurchPicker, setShowChurchPicker] = useState(false);
+  const [churchQuery, setChurchQuery] = useState('');
+  const matchingChurches = React.useMemo(() => {
+    const q = churchQuery.trim().toLowerCase();
+    if (!q) return churches;
+    return churches.filter(c =>
+      `${c.name} ${formatChurchAddress(c)}`.toLowerCase().includes(q));
+  }, [churches, churchQuery]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [accountError, setAccountError] = useState('');
@@ -726,12 +734,24 @@ export default function ProfileScreen() {
       </ScrollView>
 
       {/* ── Church picker modal ── */}
+      {/* Matches on name and on the address exactly as shown beneath it, so
+          searching for what you can see always works — including a city, which
+          is how most people know their parish apart from a similarly named one. */}
       <Modal visible={showChurchPicker} transparent animationType="slide">
         <View style={styles.pickerOverlay}>
           <View style={styles.pickerCard}>
             <Text style={styles.pickerTitle}>Select Your Church</Text>
+            <TextInput
+              style={styles.pickerSearch}
+              value={churchQuery}
+              onChangeText={setChurchQuery}
+              placeholder="Search by name or city…"
+              placeholderTextColor={colors.faint}
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
             <FlatList
-              data={churches}
+              data={matchingChurches}
               keyExtractor={c => c.id}
               renderItem={({ item }) => (
                 <TouchableOpacity
@@ -739,6 +759,7 @@ export default function ProfileScreen() {
                   onPress={() => {
                     setChurchId(item.id);
                     setChurchName(item.name);
+                    setChurchQuery('');
                     setShowChurchPicker(false);
                   }}
                 >
@@ -746,14 +767,23 @@ export default function ProfileScreen() {
                     <Text style={[styles.pickerRowName, churchId === item.id && styles.pickerRowNameActive]}>
                       {item.name}
                     </Text>
-                    {item.address && <Text style={styles.pickerRowAddress}>{item.address}</Text>}
+                    {formatChurchAddress(item) ? (
+                      <Text style={styles.pickerRowAddress}>{formatChurchAddress(item)}</Text>
+                    ) : null}
                   </View>
                   {churchId === item.id && <Text style={styles.pickerCheck}>✓</Text>}
                 </TouchableOpacity>
               )}
               ItemSeparatorComponent={() => <View style={styles.pickerDivider} />}
+              ListEmptyComponent={
+                <Text style={styles.pickerEmpty}>
+                  {churches.length === 0
+                    ? 'No churches have been added yet.'
+                    : `No church matches “${churchQuery.trim()}”.`}
+                </Text>
+              }
             />
-            <TouchableOpacity style={styles.pickerCancel} onPress={() => setShowChurchPicker(false)}>
+            <TouchableOpacity style={styles.pickerCancel} onPress={() => { setChurchQuery(''); setShowChurchPicker(false); }}>
               <Text style={styles.pickerCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -894,6 +924,8 @@ const styles = lazyThemed(() => StyleSheet.create({
   pickerRowActive: { opacity: 1 },
   pickerRowName: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream },
   pickerRowNameActive: { color: colors.goldLight },
+  pickerSearch: { fontFamily: fonts.lato, fontSize: 14, color: colors.cream, borderWidth: 1, borderColor: colors.border, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10 },
+  pickerEmpty: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textAlign: 'center', paddingVertical: 24 },
   pickerRowAddress: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 2 },
   pickerCheck: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.gold },
   pickerDivider: { height: 1, backgroundColor: colors.border },

@@ -72,7 +72,13 @@ export default function AdminScreen() {
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState<ChartMetric>('signups');
   const [newChurchName, setNewChurchName] = useState('');
-  const [newChurchAddress, setNewChurchAddress] = useState('');
+  // Structured, matching a member's address — so the picker can search on city
+  // and street, not just raw text.
+  const [newChurchLine1, setNewChurchLine1] = useState('');
+  const [newChurchLine2, setNewChurchLine2] = useState('');
+  const [newChurchCity, setNewChurchCity] = useState('');
+  const [newChurchState, setNewChurchState] = useState('');
+  const [newChurchZip, setNewChurchZip] = useState('');
   const [addingChurch, setAddingChurch] = useState(false);
   const [addChurchError, setAddChurchError] = useState('');
 
@@ -112,14 +118,21 @@ export default function AdminScreen() {
     }
     setAddingChurch(true);
     setAddChurchError('');
-    const church = await db.createChurch(newChurchName, newChurchAddress);
+    const church = await db.createChurch(newChurchName, {
+      address_line1: newChurchLine1,
+      address_line2: newChurchLine2,
+      city: newChurchCity,
+      state: newChurchState,
+      zip: newChurchZip,
+    });
     if (church) {
       setChurches((prev) => [
         ...prev,
         { church_id: church.id, church_name: church.name, priests: 0, servants: 0, congregants: 0, foc_linked: 0 },
       ].sort((a, b) => a.church_name.localeCompare(b.church_name)));
       setNewChurchName('');
-      setNewChurchAddress('');
+      setNewChurchLine1(''); setNewChurchLine2('');
+      setNewChurchCity(''); setNewChurchState(''); setNewChurchZip('');
     } else {
       setAddChurchError('Could not add that church — make sure your role is set to admin in Supabase.');
     }
@@ -299,11 +312,45 @@ export default function AdminScreen() {
               />
               <TextInput
                 style={[styles.addChurchInput, { marginTop: 8 }]}
-                value={newChurchAddress}
-                onChangeText={setNewChurchAddress}
-                placeholder="Address (optional)"
+                value={newChurchLine1}
+                onChangeText={setNewChurchLine1}
+                placeholder="Street address (optional)"
                 placeholderTextColor={colors.faint}
               />
+              <TextInput
+                style={[styles.addChurchInput, { marginTop: 8 }]}
+                value={newChurchLine2}
+                onChangeText={setNewChurchLine2}
+                placeholder="Suite, building, etc. (optional)"
+                placeholderTextColor={colors.faint}
+              />
+              <View style={styles.churchAddrRow}>
+                <TextInput
+                  style={[styles.addChurchInput, { flex: 2 }]}
+                  value={newChurchCity}
+                  onChangeText={setNewChurchCity}
+                  placeholder="City"
+                  placeholderTextColor={colors.faint}
+                />
+                <TextInput
+                  style={[styles.addChurchInput, { flex: 1 }]}
+                  value={newChurchState}
+                  onChangeText={setNewChurchState}
+                  placeholder="ST"
+                  placeholderTextColor={colors.faint}
+                  autoCapitalize="characters"
+                  maxLength={2}
+                />
+                <TextInput
+                  style={[styles.addChurchInput, { flex: 1 }]}
+                  value={newChurchZip}
+                  onChangeText={setNewChurchZip}
+                  placeholder="ZIP"
+                  placeholderTextColor={colors.faint}
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
+              </View>
               {addChurchError ? <Text style={styles.requestErrorText}>{addChurchError}</Text> : null}
               <TouchableOpacity
                 style={[styles.addChurchBtn, addingChurch && { opacity: 0.5 }]}
@@ -357,6 +404,7 @@ const styles = lazyThemed(() => StyleSheet.create({
 
   backBtn: { marginBottom: 20 },
   backText: { fontFamily: fonts.lato, fontSize: 13, color: colors.gold },
+  churchAddrRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   roadmapLink: { marginBottom: 24, alignSelf: 'flex-start' as any, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.goldDim },
   roadmapLinkText: { fontFamily: fonts.latoBold, fontSize: 12, letterSpacing: 0.5, color: colors.gold },
   eyebrow: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 2.5, color: colors.gold, marginBottom: 6 },

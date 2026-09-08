@@ -21,8 +21,31 @@ export interface Profile {
 export interface Church {
   id: string;
   name: string;
+  // Legacy free-text address, kept for rows entered before the structured
+  // fields existed. Readers fall back to it — see formatChurchAddress.
   address: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  country: string | null;
   created_at: string;
+}
+
+const CHURCH_COLS =
+  'id, name, address, address_line1, address_line2, city, state, zip, country, created_at';
+
+// One line per address, whichever shape the row is in. Structured fields win;
+// a row that predates them falls back to its free text. Used for display and
+// for the picker's search, so what you see is what you can search on.
+export function formatChurchAddress(c: Partial<Church> | null | undefined): string {
+  if (!c) return '';
+  const street = [c.address_line1, c.address_line2].filter(Boolean).join(', ');
+  const locality = [c.city, c.state, c.zip].filter(Boolean).join(', ');
+  const structured = [street, locality, c.country && c.country !== 'US' ? c.country : null]
+    .filter(Boolean).join(' · ');
+  return structured || (c.address ?? '');
 }
 
 export async function getProfile(userId: string): Promise<Profile | null> {
@@ -44,18 +67,30 @@ export async function touchLastSeen(userId: string): Promise<void> {
 export async function getChurches(): Promise<Church[]> {
   const { data } = await supabase
     .from('churches')
-    .select('id, name, address, created_at')
+    .select(CHURCH_COLS)
     .order('name');
   return data ?? [];
 }
 
 // RLS restricts inserts to admins (is_admin()); a non-admin caller gets
 // back an error here rather than a row.
-export async function createChurch(name: string, address: string): Promise<Church | null> {
+export async function createChurch(
+  name: string,
+  parts: Partial<Pick<Church, 'address_line1' | 'address_line2' | 'city' | 'state' | 'zip' | 'country'>> = {},
+): Promise<Church | null> {
+  const trim = (v: string | null | undefined) => (v ?? '').trim() || null;
   const { data, error } = await supabase
     .from('churches')
-    .insert({ name: name.trim(), address: address.trim() || null })
-    .select('id, name, address, created_at')
+    .insert({
+      name: name.trim(),
+      address_line1: trim(parts.address_line1),
+      address_line2: trim(parts.address_line2),
+      city:          trim(parts.city),
+      state:         trim(parts.state)?.toUpperCase() ?? null,
+      zip:           trim(parts.zip),
+      country:       trim(parts.country)?.toUpperCase() ?? 'US',
+    })
+    .select(CHURCH_COLS)
     .single();
   if (error) return null;
   return data;
