@@ -6,6 +6,7 @@ import { goBack } from '@/lib/nav';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
+import type { Feedback, FeedbackStatus } from '@/lib/db/feedback';
 import * as db from '@/lib/db';
 import type { AdminSummary, MonthlyActivity, ChurchBreakdown, PriestRequest } from '@/lib/db';
 
@@ -69,6 +70,8 @@ export default function AdminScreen() {
   const [requests, setRequests] = useState<PriestRequest[] | null>([]);
   const [requestError, setRequestError] = useState('');
   const [actingId, setActingId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Feedback[]>([]);
+  const [feedbackFilter, setFeedbackFilter] = useState<'open' | 'all'>('open');
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState<ChartMetric>('signups');
   const [newChurchName, setNewChurchName] = useState('');
@@ -89,14 +92,24 @@ export default function AdminScreen() {
       db.getMonthlyActivity(),
       db.getChurchBreakdown(),
       db.getPriestRequests(),
-    ]).then(([s, m, c, r]) => {
+      db.getAllFeedback(),
+    ]).then(([s, m, c, r, f]) => {
       setSummary(s);
       setMonthly(m);
       setChurches(c);
       setRequests(r);
+      setFeedback(f);
       setLoading(false);
     });
   }, [profile]);
+
+  // Move a report along: new → read → resolved. Optimistic, since the only
+  // failure mode is a lost RLS check and the list reloads on next open.
+  async function advanceFeedback(f: Feedback) {
+    const next: FeedbackStatus = f.status === 'new' ? 'read' : f.status === 'read' ? 'resolved' : 'new';
+    setFeedback(prev => prev.map(x => (x.id === f.id ? { ...x, status: next } : x)));
+    await db.setFeedbackStatus(f.id, next);
+  }
 
   async function handleRequest(id: string, approve: boolean) {
     setActingId(id);
@@ -300,6 +313,55 @@ export default function AdminScreen() {
               )}
             </Card>
 
+            {/* ── Feedback ── */}
+            {(() => {
+              const shown = feedbackFilter === 'open'
+                ? feedback.filter(f => f.status !== 'resolved')
+                : feedback;
+              const openCount = feedback.filter(f => f.status !== 'resolved').length;
+              return (
+                <>
+                  <View style={styles.feedbackHead}>
+                    <Text style={styles.sectionLabel}>FEEDBACK{openCount > 0 ? ` · ${openCount} OPEN` : ''}</Text>
+                    <TouchableOpacity onPress={() => setFeedbackFilter(p => (p === 'open' ? 'all' : 'open'))}>
+                      <Text style={styles.feedbackToggle}>
+                        {feedbackFilter === 'open' ? 'Show resolved' : 'Hide resolved'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {shown.length === 0 ? (
+                    <Text style={styles.emptyText}>
+                      {feedback.length === 0 ? 'No feedback yet.' : 'Nothing open — all resolved.'}
+                    </Text>
+                  ) : shown.map(f => (
+                    <Card key={f.id} title="" titleIcon="">
+                      <View style={styles.fbHead}>
+                        <Text style={styles.fbCat}>{f.category.toUpperCase()}</Text>
+                        {/* Tap cycles new → read → resolved. */}
+                        <TouchableOpacity onPress={() => advanceFeedback(f)} activeOpacity={0.7}>
+                          <Text style={[
+                            styles.fbStatus,
+                            f.status === 'new' && { color: colors.gold },
+                            f.status === 'resolved' && { color: colors.green },
+                          ]}>{f.status.toUpperCase()} ▸</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={styles.fbMsg}>{f.message}</Text>
+                      <Text style={styles.fbMeta}>
+                        {[
+                          f.role ?? 'unknown role',
+                          f.platform,
+                          f.app_version ? `v${f.app_version}` : null,
+                          new Date(f.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                          f.user_id ? null : 'account deleted',
+                        ].filter(Boolean).join(' · ')}
+                      </Text>
+                    </Card>
+                  ))}
+                </>
+              );
+            })()}
+
             {/* ── Churches ── */}
             <Text style={[styles.sectionLabel, { marginTop: 24 }]}>CHURCHES</Text>
             <Card title="" titleIcon="">
@@ -404,6 +466,13 @@ const styles = lazyThemed(() => StyleSheet.create({
 
   backBtn: { marginBottom: 20 },
   backText: { fontFamily: fonts.lato, fontSize: 13, color: colors.gold },
+  feedbackHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 24 },
+  feedbackToggle: { fontFamily: fonts.lato, fontSize: 11, color: colors.gold },
+  fbHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  fbCat: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.2, color: colors.muted },
+  fbStatus: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1, color: colors.muted },
+  fbMsg: { fontFamily: fonts.lato, fontSize: 13, color: colors.cream, lineHeight: 20 },
+  fbMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.faint, marginTop: 8 },
   churchAddrRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   roadmapLink: { marginBottom: 24, alignSelf: 'flex-start' as any, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.goldDim },
   roadmapLinkText: { fontFamily: fonts.latoBold, fontSize: 12, letterSpacing: 0.5, color: colors.gold },

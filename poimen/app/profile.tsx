@@ -7,6 +7,7 @@ import type { Church } from '@/lib/db';
 import { formatChurchAddress } from '@/lib/db/profiles';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import * as H from '@/lib/haptics';
 import { goBack } from '@/lib/nav';
 import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
@@ -619,6 +620,17 @@ export default function ProfileScreen() {
           </Text>
         </Card>
 
+        {/* ── Feedback ── */}
+        <Card title="Feedback" titleIcon="✎">
+          <Text style={styles.privacyText}>
+            Something broken, or an idea for the app? Tell us directly — it goes to the people who
+            build Poimen, not to your Father of Confession or your church.
+          </Text>
+          <TouchableOpacity style={styles.feedbackBtn} onPress={() => { H.tap(); router.push('/feedback'); }} activeOpacity={0.85}>
+            <Text style={styles.feedbackBtnText}>Send feedback</Text>
+          </TouchableOpacity>
+        </Card>
+
         {/* Invite code — shown to priests and servants */}
         {(profile?.role === 'priest' || profile?.role === 'servant' || profile?.role === 'admin') && profile?.invite_code && (
           <Card title="Your Invite Code" titleIcon="◈">
@@ -869,6 +881,8 @@ const styles = lazyThemed(() => StyleSheet.create({
   saveBtnDisabled: { opacity: 0.5 },
   saveBtnText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.navy, letterSpacing: 1 },
 
+  feedbackBtn: { marginTop: 12, alignSelf: 'flex-start' as any, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 9, borderWidth: 1, borderColor: colors.gold },
+  feedbackBtnText: { fontFamily: fonts.latoBold, fontSize: 12, letterSpacing: 0.4, color: colors.gold },
   privacyText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 20 },
 
   tutorialBtn: {
