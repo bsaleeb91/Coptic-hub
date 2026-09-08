@@ -126,7 +126,7 @@ export default function RoadmapScreen() {
         })}
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Poimen · Post-Launch Roadmap</Text>
+          <Text style={styles.footerText}>Nepsis · Post-Launch Roadmap</Text>
           <Text style={styles.footerSub}>Source of truth: ROADMAP.md · “Next Up”</Text>
         </View>
 

@@ -2,9 +2,9 @@ import React from 'react';
 import { ScrollView, View, Text, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
+import { APP_NAME, APP_NAME_UPPER } from '@/lib/brand';
 
 const LAST_UPDATED = 'July 1, 2026';
-const APP_NAME = 'Poimen';
 const CONTACT_EMAIL = 'bsaleeb@gmail.com';
 const BUNDLE_ID = 'com.coptic.poimen';
 
@@ -13,7 +13,7 @@ export default function PrivacyScreen() {
     <SafeAreaView style={styles.safe}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
 
-        <Text style={styles.eyebrow}>POIMEN · {BUNDLE_ID}</Text>
+        <Text style={styles.eyebrow}>{APP_NAME_UPPER} · {BUNDLE_ID}</Text>
         <Text style={styles.title}>Privacy Policy</Text>
         <Text style={styles.meta}>Last updated: {LAST_UPDATED}</Text>
 
@@ -108,7 +108,7 @@ export default function PrivacyScreen() {
         </Section>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Poimen · Coptic Hub</Text>
+          <Text style={styles.footerText}>{APP_NAME} · Coptic Hub</Text>
           <Text style={styles.footerSub}>{BUNDLE_ID}</Text>
         </View>
 

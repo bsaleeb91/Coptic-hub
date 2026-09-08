@@ -24,7 +24,7 @@ export interface SinItem {
 export type JournalCategory = SinCategory | 'other';
 
 // Incidents may also be filed under the relational examination's categories
-// (Poimen's original style — see relationalExamination.ts).
+// (Nepsis's original style — see relationalExamination.ts).
 import type { RelationalCategory } from './relationalExamination';
 export type IncidentCategory = JournalCategory | RelationalCategory;
 

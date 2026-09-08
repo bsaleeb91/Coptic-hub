@@ -147,7 +147,7 @@ export default function ScheduleScreen() {
   // warning instead of a green "writing to…" over a calendar getting nothing.
   const noteSync = (r: ReconcileResult | null) => {
     if (!r) return;
-    if (r.permissionLost) setSyncWarn('Calendar access was turned off in Settings — bookings are NOT being written, so Calendly may double-book. Allow calendar access for Poimen to fix this.');
+    if (r.permissionLost) setSyncWarn('Calendar access was turned off in Settings — bookings are NOT being written, so Calendly may double-book. Allow calendar access for Nepsis to fix this.');
     else if (r.failed > 0) setSyncWarn(`Couldn't write ${r.failed} booking${r.failed === 1 ? '' : 's'} to the calendar — check that it still exists and try again.`);
     else setSyncWarn('');
   };
@@ -926,7 +926,7 @@ export default function ScheduleScreen() {
         {mode === 'app' && (
         <Card title="Add Bookings to Your Calendar" titleIcon="⇄">
           <Text style={styles.empty}>
-            When you confirm an appointment here, Poimen adds it to a calendar
+            When you confirm an appointment here, Nepsis adds it to a calendar
             you choose on this phone — so it shows up where the rest of your
             week lives, with reminders. Anything that reads that calendar (a
             Calendly you keep for other work, a shared parish calendar) sees
@@ -949,7 +949,7 @@ export default function ScheduleScreen() {
               {syncWarn ? <Text style={styles.errText}>⚠ {syncWarn}</Text> : null}
               {calChoices === 'denied' ? (
                 <Text style={styles.errText}>
-                  Calendar access was declined — allow it in Settings → Poimen to use this.
+                  Calendar access was declined — allow it in Settings → Nepsis to use this.
                 </Text>
               ) : calChoices === 'error' ? (
                 <Text style={styles.errText}>Couldn't read this device's calendars — try again.</Text>

@@ -2,7 +2,7 @@
 // On-device store for the confession journal (incidents) and examination of
 // conscience, ported from Nepsis. Per the storage decision, this data is
 // ENCRYPTED ON-DEVICE ONLY: the whole payload is serialized and encrypted with
-// Poimen's tweetnacl secretbox (device-only key in SecureStore) before it
+// Nepsis's tweetnacl secretbox (device-only key in SecureStore) before it
 // touches AsyncStorage, and never syncs to Supabase. Everything is wiped when
 // the user permanently deletes their notes after confession.
 
@@ -130,7 +130,7 @@ export async function clearGuidance(): Promise<void> {
 
 // ─── Examination style ─────────────────────────────────────────────────────────
 // Which organization of the examination the user prefers: the Nepsis
-// senses-based sin catalogue, or Poimen's original relational questions
+// senses-based sin catalogue, or Nepsis's original relational questions
 // (Toward God / Others / Self / Omissions). A plain UI preference — not
 // encrypted. Checks from both styles share the exam store above.
 

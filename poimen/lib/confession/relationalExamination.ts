@@ -1,5 +1,5 @@
 // lib/confession/relationalExamination.ts
-// Poimen's ORIGINAL examination of conscience (Bishoy's content, preserved
+// Nepsis's ORIGINAL examination of conscience (Bishoy's content, preserved
 // verbatim from the upstream app): introspective questions organized by
 // relationship — Toward God, Toward Others, Toward Self, Omissions. Offered
 // alongside the Nepsis senses-based sin catalogue; the user picks their

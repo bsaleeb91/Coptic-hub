@@ -1,11 +1,11 @@
 // lib/scheduling/calendar-sync.ts
 // Keeps Calendly (and anything else that reads the priest's calendar) in step
-// with Poimen bookings.
+// with Nepsis bookings.
 //
-// Calendly's API cannot block time — busy times are read-only — so Poimen
+// Calendly's API cannot block time — busy times are read-only — so Nepsis
 // never talks to Calendly. What Calendly DOES do, on every plan, is hide any
 // slot that collides with an event on the calendar it is connected to. So the
-// bridge is the priest's own calendar: confirmed Poimen appointments are
+// bridge is the priest's own calendar: confirmed Nepsis appointments are
 // written into a device calendar he picks — the same Google/iCloud/Outlook
 // calendar his Calendly checks for conflicts — and Calendly closes those times
 // by itself. No Calendly credentials, no backend, works on the free plan.
@@ -194,7 +194,7 @@ async function doReconcile(
     if (a.status !== 'confirmed') continue;
     const start = new Date(a.starts_at);
     // Future times only — a past booking can't affect Calendly, and turning
-    // sync on after a year of Poimen use must not dump that whole year of
+    // sync on after a year of Nepsis use must not dump that whole year of
     // history onto the priest's calendar.
     if (isNaN(start.getTime()) || start.getTime() <= now) continue;
     const tracked = state.events[a.id];

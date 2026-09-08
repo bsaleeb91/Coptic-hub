@@ -1,6 +1,6 @@
 // components/ui/ScrollPicker.tsx
 // A horizontal, snap-scrolling picker over a list of string options (ported from
-// Nepsis, re-skinned to Poimen's theme). The option centered in the highlighted
+// Nepsis, re-skinned to Nepsis's theme). The option centered in the highlighted
 // box is the selected one.
 
 import React, { useRef, useState, useEffect } from 'react';

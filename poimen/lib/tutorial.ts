@@ -9,8 +9,8 @@ export const TUTORIAL_STEPS: Record<'congregant' | 'priest' | 'servant', Tutoria
   congregant: [
     {
       id: 'cong-welcome',
-      title: 'Welcome to Poimen',
-      body: 'Poimen is your private spiritual care companion. Your Father of Confession can see your journey here, but only what you choose to share.',
+      title: 'Welcome to Nepsis',
+      body: 'Nepsis is your private spiritual care companion. Your Father of Confession can see your journey here, but only what you choose to share.',
       position: 'center',
     },
     {

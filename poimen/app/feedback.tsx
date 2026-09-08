@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import { goBack } from '@/lib/nav';
 import { colors, fonts, lazyThemed } from '@/lib/theme';
+import { APP_NAME, APP_NAME_UPPER } from '@/lib/brand';
 import { useSession } from '@/lib/auth';
 import { Card } from '@/components/ui/Card';
 import * as db from '@/lib/db';
@@ -93,7 +94,7 @@ export default function FeedbackScreen() {
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
 
-          <Text style={styles.eyebrow}>POIMEN</Text>
+          <Text style={styles.eyebrow}>{APP_NAME_UPPER}</Text>
           <Text style={styles.title}>Send Feedback</Text>
 
           {sent ? (
@@ -144,7 +145,7 @@ export default function FeedbackScreen() {
               along with it. */}
           <Card title="What gets sent" titleIcon="🔒">
             <Text style={styles.body}>
-              Your message goes to the people who build Poimen. It is
+              Your message goes to the people who build {APP_NAME}. It is
               <Text style={styles.strong}> not visible to your Father of Confession</Text>, your
               servant, or anyone at your church.
             </Text>

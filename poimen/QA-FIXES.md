@@ -1,4 +1,4 @@
-# Poimen QA Fix List
+# Nepsis QA Fix List
 Generated from full QA audit — June 18, 2026.
 Work through in order: security fixes first, then features, then polish.
 

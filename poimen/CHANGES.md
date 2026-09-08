@@ -1,4 +1,4 @@
-# Poimen — Change Log
+# Nepsis — Change Log
 Session: 2026-06-18
 
 ---
@@ -24,7 +24,7 @@ Single migration that covers all schema and security fixes. Safe to re-run (all 
 - Password reset for test accounts:
   ```sql
   UPDATE auth.users
-  SET encrypted_password = crypt('Poimen@Test123!', gen_salt('bf'))
+  SET encrypted_password = crypt('Nepsis@Test123!', gen_salt('bf'))
   WHERE email IN ('test-congregant@poimen.test', 'test-priest@poimen.test', 'test-servant@poimen.test');
   ```
 
@@ -68,9 +68,9 @@ Single migration that covers all schema and security fixes. Safe to re-run (all 
 
 | Email | Role | Password |
 |-------|------|----------|
-| test-congregant@poimen.test | congregant | Poimen@Test123! |
-| test-priest@poimen.test | priest | Poimen@Test123! |
-| test-servant@poimen.test | servant | Poimen@Test123! |
+| test-congregant@poimen.test | congregant | Nepsis@Test123! |
+| test-priest@poimen.test | priest | Nepsis@Test123! |
+| test-servant@poimen.test | servant | Nepsis@Test123! |
 
 Congregant's `foc_id` is set to the priest's UUID. All accounts were manually confirmed (email confirmation bypassed).
 

@@ -1,6 +1,6 @@
 // app/(tabs)/psalms.tsx
 // Memorize the Psalms as prayed in the Coptic Agpeya. Ported from Nepsis and
-// re-skinned to Poimen's navy/gold theme. The unit of memorization is an "item":
+// re-skinned to Nepsis's navy/gold theme. The unit of memorization is an "item":
 // a whole psalm, or a single section of Psalm 118. Spaced repetition with
 // cloze-deletion and lead-up context. Local (AsyncStorage) is authoritative;
 // state is mirrored to Supabase agent_progress when signed in.

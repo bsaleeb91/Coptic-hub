@@ -1,6 +1,6 @@
 // lib/theme.ts
 // Two palettes, one set of token names:
-//  · dark  — Poimen's original midnight navy + gold.
+//  · dark  — Nepsis's original midnight navy + gold.
 //  · light — the Nepsis "bright Byzantine" scheme: parchment canvas, sepia
 //    ink, warm-white cards, liturgical crimson as the primary accent.
 // `colors` is a MUTABLE object: applyTheme() swaps every token in place. The

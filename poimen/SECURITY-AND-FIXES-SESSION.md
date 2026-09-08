@@ -1,4 +1,4 @@
-# Poimen Downstream Issues — Session Notes (June 11, 2026)
+# Nepsis Downstream Issues — Session Notes (June 11, 2026)
 
 ## What this document covers
 A full record of the issues identified, fixes implemented, schema changes made,

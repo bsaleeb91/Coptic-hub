@@ -624,7 +624,7 @@ export default function ProfileScreen() {
         <Card title="Feedback" titleIcon="✎">
           <Text style={styles.privacyText}>
             Something broken, or an idea for the app? Tell us directly — it goes to the people who
-            build Poimen, not to your Father of Confession or your church.
+            build Nepsis, not to your Father of Confession or your church.
           </Text>
           <TouchableOpacity style={styles.feedbackBtn} onPress={() => { H.tap(); router.push('/feedback'); }} activeOpacity={0.85}>
             <Text style={styles.feedbackBtnText}>Send feedback</Text>

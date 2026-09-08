@@ -1,8 +1,8 @@
 // app/(tabs)/confession.tsx
-// Confession — Poimen's tab, rebuilt on Nepsis's *persistent* model (per the port
+// Confession — Nepsis's tab, rebuilt on Nepsis's *persistent* model (per the port
 // decision). The examination of conscience and journal are now saved between
 // confessions, encrypted on-device (lib/confession/store.ts → tweetnacl), instead
-// of the previous session-only flow. Poimen's confession-date logging + history +
+// of the previous session-only flow. Nepsis's confession-date logging + history +
 // scheduling are retained because the priest/servant dashboards depend on them.
 //
 // Sub-screens: hub → journal · examination · in-session notes → complete.
@@ -46,7 +46,7 @@ import { JournalEntry as FlaggedJournalEntry, getFlaggedForConfession, clearConf
 const FREQ_LABEL: Record<SinFrequency, string> = { once: 'Once', few: 'A few times', often: 'Often' };
 
 // Dark-theme-friendly palette per examination domain (the Nepsis light-mode
-// colorLight values don't read on navy, so we map to Poimen's accents).
+// colorLight values don't read on navy, so we map to Nepsis's accents).
 // Each domain keeps its own accent color; the line icons (TabIcons.tsx) are
 // tinted with it at render time.
 type DomainMeta = {
@@ -68,7 +68,7 @@ const DOMAIN_META: Record<JournalCategory, DomainMeta> = lazyThemed(() => ({
 const CATEGORIES: SinCategory[] = ['tongue', 'thoughts', 'hearing', 'eyes', 'actions', 'neglected_practices'];
 const DOMAINS: JournalCategory[] = [...CATEGORIES, 'other'];
 
-// Section metadata for the relational (original Poimen) examination style.
+// Section metadata for the relational (original Nepsis) examination style.
 const RELATIONAL_META: Record<RelationalCategory, DomainMeta> = lazyThemed(() => ({
   toward_god:    { label: 'Toward God',    icon: CrossIcon,     color: colors.goldLight, bg: colors.goldDim },
   toward_others: { label: 'Toward Others', icon: HeartIcon,     color: '#e07a86',        bg: 'rgba(224,112,112,0.12)' },
@@ -666,7 +666,7 @@ function GuidanceView({ onBack }: { onBack: () => void }) {
 function ExaminationView({ onBack }: { onBack: () => void }) {
   const [checked, setChecked] = useState<Map<string, SinFrequency>>(new Map());
   const [catIndex, setCatIndex] = useState(0);
-  // Two examination styles: the Nepsis senses-based catalogue, or Poimen's
+  // Two examination styles: the Nepsis senses-based catalogue, or Nepsis's
   // original relational questions. The choice persists; checks from both
   // styles share the store and merge in the confession notes.
   const [examStyle, setExamStyle] = useState<ExamStyle>('senses');
@@ -717,7 +717,7 @@ function ExaminationView({ onBack }: { onBack: () => void }) {
       <SubHeader title="Examination" onBack={onBack}
         right={<Text style={styles.headerCount}>{notedCount} noted</Text>} />
 
-      {/* Style toggle — senses (Nepsis) vs relational (original Poimen) */}
+      {/* Style toggle — senses (Nepsis) vs relational (original Nepsis) */}
       <View style={styles.styleToggleRow}>
         {([
           { value: 'senses' as ExamStyle, label: 'By the Senses' },
