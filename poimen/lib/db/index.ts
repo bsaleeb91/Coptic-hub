@@ -18,3 +18,4 @@ export * from './scheduling';
 export * from './photos';
 export * from './templates';
 export * from './feedback';
+export * from './survey';

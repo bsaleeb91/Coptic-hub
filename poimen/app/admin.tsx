@@ -7,6 +7,7 @@ import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import type { Feedback, FeedbackStatus } from '@/lib/db/feedback';
+import type { SurveyRow } from '@/lib/db/survey';
 import * as db from '@/lib/db';
 import type { AdminSummary, MonthlyActivity, ChurchBreakdown, PriestRequest } from '@/lib/db';
 
@@ -72,6 +73,7 @@ export default function AdminScreen() {
   const [actingId, setActingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback[]>([]);
   const [feedbackFilter, setFeedbackFilter] = useState<'open' | 'all'>('open');
+  const [survey, setSurvey] = useState<SurveyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState<ChartMetric>('signups');
   const [newChurchName, setNewChurchName] = useState('');
@@ -93,12 +95,14 @@ export default function AdminScreen() {
       db.getChurchBreakdown(),
       db.getPriestRequests(),
       db.getAllFeedback(),
-    ]).then(([s, m, c, r, f]) => {
+      db.getSurveyResults(),
+    ]).then(([s, m, c, r, f, sv]) => {
       setSummary(s);
       setMonthly(m);
       setChurches(c);
       setRequests(r);
       setFeedback(f);
+      setSurvey(sv);
       setLoading(false);
     });
   }, [profile]);
@@ -313,6 +317,73 @@ export default function AdminScreen() {
               )}
             </Card>
 
+            {/* ── Survey ── */}
+            {survey.length > 0 && (() => {
+              // Anonymous rows are only meaningful in aggregate, so this shows
+              // distributions rather than a list of individual submissions.
+              // Percentages are of those who ANSWERED that question, not of all
+              // responses — every question is skippable, and dividing by the
+              // wrong denominator would quietly understate every bar.
+              const dist = (key: keyof SurveyRow, opts: { v: string; label: string }[]) => {
+                const answered = survey.filter(r => r[key] != null);
+                return { answered: answered.length, rows: opts.map(o => ({
+                  label: o.label,
+                  n: answered.filter(r => r[key] === o.v).length,
+                  pct: answered.length ? Math.round(answered.filter(r => r[key] === o.v).length / answered.length * 100) : 0,
+                })) };
+              };
+              const blocks = [
+                { q: 'How often do you use Nepsis?', ...dist('frequency', [
+                  { v: 'daily', label: 'Daily' }, { v: 'weekly_several', label: 'Several times a week' },
+                  { v: 'weekly', label: 'About once a week' }, { v: 'rarely', label: 'Rarely' }]) },
+                { q: 'Canon kept more consistently?', ...dist('consistency', [
+                  { v: 'yes_clearly', label: 'Yes, noticeably' }, { v: 'a_little', label: 'A little' },
+                  { v: 'no_change', label: 'No change' }, { v: 'no_canon', label: "Doesn't use the canon" }]) },
+                { q: 'Would miss most', ...dist('most_missed', [
+                  { v: 'canon', label: 'Canon' }, { v: 'confession', label: 'Confession' },
+                  { v: 'psalms', label: 'Psalms' }, { v: 'prayer', label: 'Prayer' },
+                  { v: 'journal', label: 'Journal' }, { v: 'appointments', label: 'Appointments' }]) },
+              ];
+              const withholders = survey.filter(r => r.withholding === true);
+              const withholdAnswered = survey.filter(r => r.withholding != null).length;
+              const changes = survey.filter(r => (r.one_change ?? '').trim());
+              return (
+                <>
+                  <Text style={[styles.sectionLabel, { marginTop: 24 }]}>SURVEY · {survey.length} RESPONSES</Text>
+                  {blocks.map(b => (
+                    <Card key={b.q} title={b.q} titleIcon="◈">
+                      {b.rows.map(r => (
+                        <View key={r.label} style={styles.svRow}>
+                          <Text style={styles.svLabel}>{r.label}</Text>
+                          <View style={styles.svTrack}><View style={[styles.svFill, { width: `${r.pct}%` as any }]} /></View>
+                          <Text style={styles.svVal}>{r.pct}%</Text>
+                        </View>
+                      ))}
+                      <Text style={styles.svMeta}>{b.answered} answered</Text>
+                    </Card>
+                  ))}
+                  <Card title="Holding things back?" titleIcon="🔒">
+                    <Text style={styles.svBig}>
+                      {withholdAnswered ? Math.round(withholders.length / withholdAnswered * 100) : 0}%
+                    </Text>
+                    <Text style={styles.svMeta}>
+                      {withholders.length} of {withholdAnswered} say they avoid putting something in the app
+                    </Text>
+                    {withholders.filter(r => (r.withholding_detail ?? '').trim()).map(r => (
+                      <Text key={r.id} style={styles.svQuote}>“{r.withholding_detail}”</Text>
+                    ))}
+                  </Card>
+                  {changes.length > 0 && (
+                    <Card title={`One thing to change (${changes.length})`} flat>
+                      {changes.map(r => (
+                        <Text key={r.id} style={styles.svQuote}>“{r.one_change}”</Text>
+                      ))}
+                    </Card>
+                  )}
+                </>
+              );
+            })()}
+
             {/* ── Feedback ── */}
             {(() => {
               const shown = feedbackFilter === 'open'
@@ -466,6 +537,14 @@ const styles = lazyThemed(() => StyleSheet.create({
 
   backBtn: { marginBottom: 20 },
   backText: { fontFamily: fonts.lato, fontSize: 13, color: colors.gold },
+  svRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  svLabel: { fontFamily: fonts.lato, fontSize: 12, color: colors.textSecond, width: 130 },
+  svTrack: { flex: 1, height: 4, backgroundColor: 'rgba(201,168,76,0.15)', borderRadius: 2, overflow: 'hidden' },
+  svFill: { height: '100%' as any, backgroundColor: colors.gold, borderRadius: 2 },
+  svVal: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.muted, width: 34, textAlign: 'right' },
+  svMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.faint, marginTop: 6 },
+  svBig: { fontFamily: fonts.cormorantMedium, fontSize: 34, color: colors.gold },
+  svQuote: { fontFamily: fonts.lato, fontSize: 13, color: colors.cream, lineHeight: 20, marginTop: 10, fontStyle: 'italic' as any },
   feedbackHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 24 },
   feedbackToggle: { fontFamily: fonts.lato, fontSize: 11, color: colors.gold },
   fbHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },

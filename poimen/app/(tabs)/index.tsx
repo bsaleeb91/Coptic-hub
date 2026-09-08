@@ -23,6 +23,8 @@ import { loadPostponements, loadServiceDone } from '@/lib/canon/postpone';
 import { loadServiceLog, ensurePeriods, periodCounts, loggedOn } from '@/lib/canon/service-log';
 import { recordCanonDay, finalizeWeeklyServices, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
 import { loadAttendance } from '@/lib/canon/attendance';
+import { shouldPromptSurvey } from '@/lib/survey/schedule';
+import { ensureFirstSeen, markPrompted } from '@/lib/survey/store';
 import { lastConfessionDate, loadConfessionDates, hydrateConfessionDatesFromCloud, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
 import { VISIT_TYPE_KEYWORD } from '@/lib/scheduling/slots';
 import { currentFast } from '@/lib/canon/fasting';
@@ -204,7 +206,31 @@ export default function DashboardScreen() {
   const [sections, setSections] = useState<SectionId[]>(DEFAULT_SECTIONS);
   const [customizing, setCustomizing] = useState(false);
   const [showVitalsConsent, setShowVitalsConsent] = useState(false);
+  const [showSurveyPrompt, setShowSurveyPrompt] = useState(false);
   const [settingConsent, setSettingConsent] = useState(false);
+
+  // The 5-day survey prompt. Held back while the vitals-consent modal is up:
+  // two asks stacked on a single open is one ask too many, and consent is the
+  // one that blocks real functionality.
+  useEffect(() => {
+    if (demoMode || showVitalsConsent) { setShowSurveyPrompt(false); return; }
+    let live = true;
+    (async () => {
+      // Seeded from today rather than the account's creation date: everyone,
+      // including members who have had the app since launch, gets 5 days with
+      // this build before being asked — an upgrade should not open onto a
+      // survey about a version they have not used yet.
+      const state = await ensureFirstSeen();
+      if (live) setShowSurveyPrompt(shouldPromptSurvey(state));
+    })();
+    return () => { live = false; };
+  }, [demoMode, showVitalsConsent]);
+
+  async function dismissSurveyPrompt() {
+    H.tap();
+    setShowSurveyPrompt(false);
+    await markPrompted();          // dismissing buys the same 5 days as answering
+  }
 
   // Auto-show vitals consent modal when congregant has an FOC but hasn't decided yet
   useEffect(() => {
@@ -593,6 +619,28 @@ export default function DashboardScreen() {
           <Text style={{ fontSize: 18, color: colors.gold }}>›</Text>
         </TouchableOpacity>
 
+        {/* Survey prompt — a dismissible strip, never a modal. It asks for a
+            favour, so it must not block the screen a member actually opened
+            the app for. Dismissing is one tap and buys 5 days of quiet. */}
+        {showSurveyPrompt && (
+          <View style={styles.surveyPrompt}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.surveyPromptTitle}>Five quick questions?</Text>
+              <Text style={styles.surveyPromptBody}>
+                Anonymous, about a minute — it decides what we build next.
+              </Text>
+            </View>
+            <View style={styles.surveyPromptBtns}>
+              <TouchableOpacity onPress={() => { H.tap(); setShowSurveyPrompt(false); router.push('/survey'); }} activeOpacity={0.85}>
+                <Text style={styles.surveyPromptGo}>Answer</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={dismissSurveyPrompt} hitSlop={8}>
+                <Text style={styles.surveyPromptSkip}>Not now</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Confession CTA banner — only if due or overdue */}
         {(confessionStatus === 'due' || confessionStatus === 'overdue') && (
           <TouchableOpacity
@@ -829,6 +877,12 @@ const styles = lazyThemed(() => StyleSheet.create({
   tileStatusText: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 0.5 },
 
   // Confession CTA banner
+  surveyPrompt: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.goldDim, marginBottom: 16 },
+  surveyPromptTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 3 },
+  surveyPromptBody: { fontFamily: fonts.latoLight, fontSize: 11.5, color: colors.muted, lineHeight: 16 },
+  surveyPromptBtns: { alignItems: 'flex-end', gap: 8 },
+  surveyPromptGo: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.gold, letterSpacing: 0.3 },
+  surveyPromptSkip: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.faint },
   banner: {
     backgroundColor: 'rgba(201,168,76,0.07)', borderWidth: 1,
     borderColor: 'rgba(201,168,76,0.25)', borderRadius: 14, padding: 18,
