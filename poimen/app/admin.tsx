@@ -9,7 +9,7 @@ import { useSession } from '@/lib/auth';
 import type { Feedback, FeedbackStatus } from '@/lib/db/feedback';
 import type { SurveyRow } from '@/lib/db/survey';
 import * as db from '@/lib/db';
-import type { AdminSummary, MonthlyActivity, ChurchBreakdown, PriestRequest } from '@/lib/db';
+import type { AdminSummary, MonthlyActivity, ChurchBreakdown } from '@/lib/db';
 
 type ChartMetric = 'signups' | 'prayers' | 'confessions' | 'canon_completions' | 'journal_active';
 
@@ -68,9 +68,6 @@ export default function AdminScreen() {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [monthly, setMonthly] = useState<MonthlyActivity[]>([]);
   const [churches, setChurches] = useState<ChurchBreakdown[]>([]);
-  const [requests, setRequests] = useState<PriestRequest[] | null>([]);
-  const [requestError, setRequestError] = useState('');
-  const [actingId, setActingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback[]>([]);
   const [feedbackFilter, setFeedbackFilter] = useState<'open' | 'all'>('open');
   const [survey, setSurvey] = useState<SurveyRow[]>([]);
@@ -93,14 +90,12 @@ export default function AdminScreen() {
       db.getAdminSummary(),
       db.getMonthlyActivity(),
       db.getChurchBreakdown(),
-      db.getPriestRequests(),
       db.getAllFeedback(),
       db.getSurveyResults(),
-    ]).then(([s, m, c, r, f, sv]) => {
+    ]).then(([s, m, c, f, sv]) => {
       setSummary(s);
       setMonthly(m);
       setChurches(c);
-      setRequests(r);
       setFeedback(f);
       setSurvey(sv);
       setLoading(false);
@@ -115,18 +110,6 @@ export default function AdminScreen() {
     await db.setFeedbackStatus(f.id, next);
   }
 
-  async function handleRequest(id: string, approve: boolean) {
-    setActingId(id);
-    setRequestError('');
-    const ok = approve ? await db.approvePriestRequest(id) : await db.denyPriestRequest(id);
-    if (ok) {
-      setRequests((prev) => (prev ?? []).filter((r) => r.id !== id));
-    } else {
-      setRequestError('That request could not be updated — it may have been handled in another session. The list has been refreshed.');
-      setRequests(await db.getPriestRequests());
-    }
-    setActingId(null);
-  }
 
   async function handleAddChurch() {
     if (!newChurchName.trim()) {
@@ -203,47 +186,6 @@ export default function AdminScreen() {
         <TouchableOpacity style={styles.roadmapLink} onPress={() => router.push('/roadmap')}>
           <Text style={styles.roadmapLinkText}>Product Roadmap →</Text>
         </TouchableOpacity>
-
-        {/* ── Priest requests — rendered regardless of stats health so a
-              broken summary RPC can never hide pending approvals ── */}
-        {!loading && (
-          <>
-            <Text style={[styles.sectionLabel, { marginTop: 8 }]}>PRIEST REQUESTS</Text>
-            {requestError ? <Text style={styles.requestErrorText}>{requestError}</Text> : null}
-            {requests === null ? (
-              <Text style={styles.emptyText}>Could not load priest requests.</Text>
-            ) : requests.length === 0 ? (
-              <Text style={styles.emptyText}>No pending requests.</Text>
-            ) : (
-              <Card title="" titleIcon="">
-                {requests.map((r) => (
-                  <View key={r.id} style={styles.requestRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.requestName}>{r.full_name ?? 'Unnamed'}</Text>
-                      <Text style={styles.requestMeta}>
-                        {r.email ?? '—'}{r.church_name ? ` · ${r.church_name}` : ''}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={[styles.reqBtn, styles.approveBtn, actingId !== null && { opacity: 0.5 }]}
-                      disabled={actingId !== null}
-                      onPress={() => handleRequest(r.id, true)}
-                    >
-                      <Text style={styles.approveText}>Approve</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.reqBtn, styles.denyBtn, actingId !== null && { opacity: 0.5 }]}
-                      disabled={actingId !== null}
-                      onPress={() => handleRequest(r.id, false)}
-                    >
-                      <Text style={styles.denyText}>Deny</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </Card>
-            )}
-          </>
-        )}
 
         {loading ? (
           <ActivityIndicator color={colors.gold} style={{ marginTop: 60 }} />
@@ -561,15 +503,7 @@ const styles = lazyThemed(() => StyleSheet.create({
   errorText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.red, marginTop: 20, lineHeight: 20 },
   emptyText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, marginTop: 8 },
 
-  requestRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
   requestErrorText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.red, marginBottom: 8, lineHeight: 17 },
-  requestName: { fontFamily: fonts.cormorantMedium, fontSize: 16, color: colors.cream },
-  requestMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 2 },
-  reqBtn: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
-  approveBtn: { borderColor: colors.green },
-  denyBtn: { borderColor: colors.border },
-  approveText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.green },
-  denyText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.red },
 
   gateTitle: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 8 },
   gateSub: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textAlign: 'center' },

@@ -45,9 +45,10 @@ export async function signUp(email: string, password: string, fullName: string, 
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    // The handle_new_user trigger applies requested_role server-side:
-    // congregant/servant are granted directly, priest stays congregant
-    // until an admin approves the request.
+    // The handle_new_user trigger applies the choice server-side, so the
+    // client can never grant itself a role. All three are granted directly;
+    // a priest sees nothing until a member links to them (see
+    // 20260913010000_remove_priest_approval.sql).
     options: { data: { full_name: fullName, requested_role: requestedRole }, emailRedirectTo: redirectTo },
   });
   return { error: error?.message ?? null };

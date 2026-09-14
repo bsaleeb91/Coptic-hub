@@ -50,9 +50,7 @@ export default function SignInScreen() {
     } else if (mode === 'signup') {
       const { error } = await signUpWithEmail(email.trim(), password, fullName.trim(), signupRole);
       if (error) setError(error);
-      else setInfo(signupRole === 'priest'
-        ? 'Check your email to confirm your account, then sign in. Priest access unlocks once the church administration verifies your request.'
-        : 'Check your email to confirm your account, then sign in.');
+      else setInfo('Check your email to confirm your account, then sign in.');
     } else if (mode === 'magic') {
       const { error } = await signInWithMagicLink(email.trim());
       if (error) setError(error);
@@ -108,7 +106,9 @@ export default function SignInScreen() {
                 </View>
                 {signupRole === 'priest' && (
                   <Text style={styles.roleNote}>
-                    Priest accounts are verified by the church administration. Until your request is approved, the account has congregant access.
+                    You will not see anyone's spiritual life until they choose you. A member
+                    enters your invite code and confirms the link before you can see their
+                    canon, confession dates, or notes — and they can unlink at any time.
                   </Text>
                 )}
               </>
