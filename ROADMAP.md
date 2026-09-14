@@ -62,26 +62,6 @@ the day they install it.
   - Church-issued invite code at sign-up, no admin round-trip
   - Keep approval only for the admin role, drop it for priest
 
-**Make the Canon page more usable, and let every Spiritual Vital be tracked there.**
-The governing rule: *anything shown in Spiritual Vitals must be loggable in the
-Canon.* Right now that doesn't hold —
-  - **Communion** — not tracked at all, and not currently a vital. It appears
-    only as `neglect_communion` in the sin catalogue and as "Communion
-    Readiness" in the confession flow. Add it as a first-class canon item and
-    vital so a member can log when they received.
-  - **Liturgy** — `VITAL_CATEGORIES` has a `liturgy` row matching `svc_*` and
-    weekly service keys, but those keys only exist when a priest has assigned a
-    services rule in `counts` mode. A member with no assigned rule has no way to
-    log that they attended. Self-logging should not depend on a priest having
-    set something up.
-  - **Confession** — the vital exists with `match: () => false` and permanently
-    reads "—" (`lib/canon/history.ts`). Either wire it to the confession dates
-    already recorded, or remove the row.
-  Usability pass on the tab itself alongside this: the 7-day backfill strip,
-  how count-based weekly commitments read mid-week ("1 of 2 this week"), and
-  making the difference between a priest-assigned canon item and a self-chosen
-  one legible at a glance.
-
 **Sort churches by distance in the picker.**
 The picker searches by name and city (2026-09-07), and `churches` now carries
 structured `address_line1 / city / state / zip / country` instead of one free
@@ -148,6 +128,30 @@ parish boundaries, and it cannot simply reuse the class query.
     another parish.
   - Decide what a friend sees: the same streak and memorized count the class
     board shows, or less.
+
+## Shipped
+
+Kept here so a finished item is not queued again. Outside the "Next Up" block
+on purpose: scripts/gen-roadmap.mjs stops at the next top-level heading, so
+none of this reaches the in-app roadmap.
+
+### Shipped 2026-09-07
+
+**Make the Canon page more usable, and let every Spiritual Vital be tracked there.**
+Done in ba01c0a and e073f8f. The governing rule now holds: anything shown in
+Spiritual Vitals can be logged in the Canon.
+  - Communion is a first-class service and its own vital, no longer absorbed
+    into liturgy — categories match on serviceKeyOf, not a `svc_` prefix.
+  - Liturgy is self-loggable with no priest-assigned rule, via the ad-hoc log
+    in `lib/canon/attendance.ts`, reachable from the Canon tab's empty state.
+  - Confession is scored from the recorded dates against the rule's cadence
+    (`confessionVital`), with no interval due until one has fully elapsed. The
+    `match: () => false` entry stays — it is how that row opts out of canon-key
+    matching, not a stub.
+  - The usability pass landed with it: the 7-day backfill strip, "1 of 2 this
+    week" labels for counted commitments, and a badge distinguishing a
+    priest-assigned item from a self-chosen one.
+
 
 ---
 

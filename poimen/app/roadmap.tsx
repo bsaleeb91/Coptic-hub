@@ -10,7 +10,11 @@ import { PHASES } from '@/lib/roadmap-data';
 // lib/roadmap-data.ts by scripts/gen-roadmap.mjs — edit the markdown, not this
 // screen. (ROADMAP.md also carries the Coptic Hub commit plan below the
 // "Next Up" block; that is a separate product's roadmap and is not shown here.)
-const STORAGE_KEY = 'poimen:roadmap:checked:v2';
+// Bump this whenever an item is added or removed mid-list: item ids are
+// positional, so stored ticks would otherwise re-attach to whichever item slid
+// into that slot. v3 = the shipped Canon item moved out of "Next Up", shifting
+// everything below it up by one.
+const STORAGE_KEY = 'poimen:roadmap:checked:v3';
 
 const ALL_ITEMS = PHASES.flatMap(p => p.items);
 const TOTAL = ALL_ITEMS.length;

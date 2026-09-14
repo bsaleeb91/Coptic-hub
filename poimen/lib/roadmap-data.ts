@@ -72,17 +72,6 @@ export const PHASES: RoadmapPhase[] = [
       },
       {
         "id": "queued-2026-09-07-4",
-        "label": "Make the Canon page more usable, and let every Spiritual Vital be tracked there",
-        "note": "The governing rule: *anything shown in Spiritual Vitals must be loggable in the Canon.* Right now that doesn't hold —",
-        "detail": [
-          "Communion — not tracked at all, and not currently a vital. It appears only as neglect_communion in the sin catalogue and as \"Communion Readiness\" in the confession flow. Add it as a first-class canon item and vital so a member can log when they received.",
-          "Liturgy — VITAL_CATEGORIES has a liturgy row matching svc_* and weekly service keys, but those keys only exist when a priest has assigned a services rule in counts mode. A member with no assigned rule has no way to log that they attended. Self-logging should not depend on a priest having set something up.",
-          "Confession — the vital exists with match: () => false and permanently reads \"—\" (lib/canon/history.ts). Either wire it to the confession dates already recorded, or remove the row.",
-          "Usability pass on the tab itself alongside this: the 7-day backfill strip, how count-based weekly commitments read mid-week (\"1 of 2 this week\"), and making the difference between a priest-assigned canon item and a self-chosen one legible at a glance."
-        ]
-      },
-      {
-        "id": "queued-2026-09-07-5",
         "label": "Sort churches by distance in the picker",
         "note": "The picker searches by name and city (2026-09-07), and churches now carries structured address_line1 / city / state / zip / country instead of one free text blob — which is the prerequisite for ordering parishes by how far away they are, rather than alphabetically. What is still missing",
         "detail": [
@@ -94,7 +83,7 @@ export const PHASES: RoadmapPhase[] = [
         ]
       },
       {
-        "id": "queued-2026-09-07-6",
+        "id": "queued-2026-09-07-5",
         "label": "Rework the admin view",
         "note": "app/admin.tsx has grown to seven sections on one scrolling page — priest requests, overview, health, a six-month activity chart, survey results, feedback, churches — with no navigation between them and no way to find anything specific. Two of today's additions made that worse rather than better, and item 8 will delete one section outright",
         "detail": [
@@ -108,7 +97,7 @@ export const PHASES: RoadmapPhase[] = [
         ]
       },
       {
-        "id": "queued-2026-09-07-7",
+        "id": "queued-2026-09-07-6",
         "label": "Connecting with friends (v2 or v3)",
         "note": "The psalm leaderboard is scoped to a servant's class, which is the right first circle — the members already know each other and a servant is accountable for it. Friends is a different shape: a self-chosen graph that crosses class and parish boundaries, and it cannot simply reuse the class query",
         "detail": [
@@ -116,8 +105,7 @@ export const PHASES: RoadmapPhase[] = [
           "Children are the main users of the psalm agent. Adult-to-minor friend requests need a rule decided before any code: servant or FOC approval, restriction to same-class or same-parish, or no cross-age requests at all.",
           "Discovery is the hard half. Search by name across all parishes is a directory of minors; invite codes or QR between two people already together avoids that entirely and is probably the answer.",
           "Leaderboard consent is currently one flag meaning \"my class\". Friends adds a second audience, and the two should not be silently merged — a member who agreed to be seen by classmates has not agreed to be seen by someone from another parish.",
-          "Decide what a friend sees: the same streak and memorized count the class board shows, or less.",
-          "--- A commit-by-commit plan. Each commit is meant to be independently reviewable, ship-ready on your phone (from commit 1 onwards), and focused on one theme. Effort estimates assume part-time work; double them if you have a busy week. Each commit answers one question: \"what can you demo at the end of it?\" ---"
+          "Decide what a friend sees: the same streak and memorized count the class board shows, or less."
         ]
       }
     ]
