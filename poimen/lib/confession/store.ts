@@ -9,12 +9,16 @@
 // Per-user-scoped storage (see lib/storage.ts) — keeps one account's spiritual
 // data from bleeding into another's on a shared device.
 import { userStorage as AsyncStorage } from '@/lib/storage';
-import { encryptNote, decryptNote } from '@/lib/crypto';
+import { encryptNote, decryptNote, rewrapLegacyNote, needsRewrap } from '@/lib/crypto';
 import type { JournalIncident, IncidentCategory, ExamChecks, GuidanceNote } from './types';
 
 const K_INCIDENTS = 'poimen.confession.incidents';
 const K_EXAM      = 'poimen.confession.exam';
 const K_GUIDANCE  = 'poimen.confession.guidance';
+
+// Every key holding a blob sealed under the notes key. Used by the migration
+// below; keep in step with the three constants above.
+const ENCRYPTED_KEYS = [K_INCIDENTS, K_EXAM, K_GUIDANCE];
 
 // A collision-resistant id that doesn't rely on crypto (Hermes-safe).
 function makeId(): string {
@@ -44,6 +48,29 @@ async function writeEncrypted(key: string, value: unknown): Promise<void> {
     // means entries vanish on next load (see the "no PRNG" incident).
     console.warn(`[confession] failed to persist ${key}:`, e);
   }
+}
+
+// ─── Legacy re-wrap ────────────────────────────────────────────────────────────
+// These blobs never leave the device, so the old device-local key losing them
+// was never a sync problem — but it did mean a restored install could not read
+// its own journal back. Re-wrapping under the recoverable keypair fixes that
+// and leaves exactly one key to look after.
+//
+// Only rewrites a key we successfully decrypted; anything unreadable is left
+// untouched rather than replaced with an empty blob.
+export async function migrateLegacyConfessionStore(): Promise<number> {
+  let rewrapped = 0;
+  for (const key of ENCRYPTED_KEYS) {
+    try {
+      const raw = await AsyncStorage.getItem(key);
+      if (!raw || !needsRewrap(raw)) continue;
+      const next = await rewrapLegacyNote(raw);
+      if (next === null) continue;
+      await AsyncStorage.setItem(key, next);
+      rewrapped++;
+    } catch {}
+  }
+  return rewrapped;
 }
 
 // ─── Journal incidents ─────────────────────────────────────────────────────────

@@ -23,6 +23,7 @@ import {
   saveBoxKeypair, encryptKeypairWithPIN, decryptKeypairWithPIN,
   createAndSaveFreshKeypair,
 } from './crypto';
+import { runLegacyNotesMigration } from './crypto-migration';
 import { encodeBase64 } from 'tweetnacl-util';
 
 type PINAction = 'setup' | 'recover' | null;
@@ -107,9 +108,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       const backup = await db.getKeyBackup(userId);
       if (!backup) setPinAction('setup');
+      settleLegacyNotes(userId);
     } else {
       const backup = await db.getKeyBackup(userId);
       if (backup) {
+        // A backup exists but the keypair is not here yet. Do NOT migrate now —
+        // recovery is about to install a different keypair, and anything
+        // re-wrapped against the interim key would be unreadable after it.
         setPendingBackup(backup);
         setPinAction('recover');
       } else {
@@ -117,8 +122,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const kp = await getOrCreateBoxKeypair();
         await db.upsertPublicKey(userId, encodeBase64(kp.publicKey));
         setPinAction('setup');
+        settleLegacyNotes(userId);
       }
     }
+  }
+
+  // Re-wrap anything still sealed under the old device-local notes key. Only
+  // ever called once the keypair on this device is the one we intend to keep.
+  // Deliberately not awaited: it touches only already-encrypted data, and the
+  // UI must not wait on it.
+  function settleLegacyNotes(userId: string) {
+    void runLegacyNotesMigration(userId);
   }
 
   async function completePINSetup(pin: string) {
@@ -137,7 +151,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!kp) return false;
     await saveBoxKeypair(kp);
     const userId = session?.user?.id;
-    if (userId) await db.upsertPublicKey(userId, encodeBase64(kp.publicKey));
+    if (userId) {
+      await db.upsertPublicKey(userId, encodeBase64(kp.publicKey));
+      settleLegacyNotes(userId);   // keypair is now settled — safe to re-wrap
+    }
     setPinAction(null);
     setPendingBackup(null);
     return true;
@@ -146,7 +163,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function startFreshKeypair() {
     const kp = await createAndSaveFreshKeypair();
     const userId = session?.user?.id;
-    if (userId) await db.upsertPublicKey(userId, encodeBase64(kp.publicKey));
+    if (userId) {
+      await db.upsertPublicKey(userId, encodeBase64(kp.publicKey));
+      settleLegacyNotes(userId);
+    }
     setPendingBackup(null);
     setPinAction('setup');
   }

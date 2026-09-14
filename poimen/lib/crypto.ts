@@ -1,12 +1,24 @@
 // End-to-end encryption for pastoral notes, encounter notes, and prayer request bodies.
-// Symmetric key (secretbox) for notes — lives only on device, never sent to Supabase.
-// Asymmetric keypair (box) for prayer bodies — public key stored in profiles,
+// Asymmetric keypair (box) for everything — public key stored in profiles,
 // private key stays on device. Only the intended recipient's device can decrypt.
+// The keypair is recoverable: encryptKeypairWithPIN backs it up to
+// profiles.key_backup, so a new device restores the SAME key and can still read
+// what the old one wrote (see checkKeyState / completePINRecovery in auth.tsx).
+//
+// Notes used to have their own symmetric secretbox key (poimen_notes_key_v1)
+// that was never backed up or synced. Pastoral notes live in Supabase and
+// outlive the device that wrote them, so a priest changing phones was left with
+// rows nothing could ever decrypt. Notes now go through the recoverable keypair
+// like everything else; the legacy key is kept read-only to migrate what it
+// wrote (see migrateLegacyNotes callers) and is never created again.
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64, encodeUTF8, decodeUTF8 } from 'tweetnacl-util';
 import * as SecureStore from 'expo-secure-store';
 import * as ExpoCrypto from 'expo-crypto';
 import { Platform } from 'react-native';
+import { classifyCiphertext, BOX_PREFIX, LEGACY_NOTE_PREFIX } from './crypto-format';
+
+export { classifyCiphertext, needsRewrap } from './crypto-format';
 
 // Hermes (native) has no Web Crypto API, so tweetnacl finds no PRNG at import
 // time and every nacl.randomBytes call throws "no PRNG" — encryption silently
@@ -18,27 +30,49 @@ if (typeof (globalThis as any).crypto?.getRandomValues !== 'function') {
   });
 }
 
-const KEY_ID = 'poimen_notes_key_v1';
+const LEGACY_KEY_ID = 'poimen_notes_key_v1';
 const KEYPAIR_ID = 'poimen_box_keypair_v1';
-const ENC_PREFIX = 'enc1:';
-const BOX_PREFIX = 'box1:';
 
-async function loadKey(): Promise<string | null> {
-  if (Platform.OS === 'web') return localStorage.getItem(KEY_ID);
-  return SecureStore.getItemAsync(KEY_ID);
+// Legacy device-local notes key: LOAD ONLY. Deliberately has no save/create
+// counterpart — minting a new one would produce fresh unrecoverable ciphertext,
+// which is the bug this replaced. It exists solely so migrateLegacyNotes can
+// read what earlier installs wrote.
+async function loadLegacyKey(): Promise<Uint8Array | null> {
+  const stored = Platform.OS === 'web'
+    ? localStorage.getItem(LEGACY_KEY_ID)
+    : await SecureStore.getItemAsync(LEGACY_KEY_ID);
+  return stored ? decodeBase64(stored) : null;
 }
 
-async function saveKey(key: string): Promise<void> {
-  if (Platform.OS === 'web') { localStorage.setItem(KEY_ID, key); return; }
-  await SecureStore.setItemAsync(KEY_ID, key);
+// True when this device still holds the legacy key, i.e. it is one of the
+// devices that can still rescue enc1: rows.
+export async function hasLegacyNotesKey(): Promise<boolean> {
+  return (await loadLegacyKey()) !== null;
 }
 
-async function getOrCreateKey(): Promise<Uint8Array> {
-  const stored = await loadKey();
-  if (stored) return decodeBase64(stored);
-  const key = nacl.randomBytes(nacl.secretbox.keyLength);
-  await saveKey(encodeBase64(key));
-  return key;
+// Decrypt an enc1: value with the legacy device key. null when the value isn't
+// legacy ciphertext, the key is gone, or the box doesn't open.
+export async function decryptLegacyNote(value: string): Promise<string | null> {
+  if (classifyCiphertext(value) !== 'legacy') return null;
+  const key = await loadLegacyKey();
+  if (!key) return null;
+  try {
+    const combined = decodeBase64(value.slice(LEGACY_NOTE_PREFIX.length));
+    const nonce = combined.slice(0, nacl.secretbox.nonceLength);
+    const box = combined.slice(nacl.secretbox.nonceLength);
+    const plaintext = nacl.secretbox.open(box, nonce, key);
+    return plaintext ? encodeUTF8(plaintext) : null;
+  } catch { return null; }
+}
+
+// Drop the legacy key once everything it wrote has been re-wrapped. Only safe
+// to call after a migration reports nothing left behind — the key is the sole
+// way to read any enc1: row that was missed.
+export async function clearLegacyNotesKey(): Promise<void> {
+  try {
+    if (Platform.OS === 'web') { localStorage.removeItem(LEGACY_KEY_ID); return; }
+    await SecureStore.deleteItemAsync(LEGACY_KEY_ID);
+  } catch {}
 }
 
 // ── Asymmetric box (prayer bodies) ───────────────────────────
@@ -145,17 +179,27 @@ export async function encryptForSelf(plaintext: string): Promise<string> {
   return encryptForRecipient(plaintext, encodeBase64(kp.publicKey));
 }
 
+// Open a box1: value, or null if it won't open. Callers choose their own
+// failure text, so a note that can't be read says so in the note's own words
+// rather than borrowing the prayer wording.
+async function openFromSender(value: string, senderPublicKeyB64: string): Promise<string | null> {
+  if (classifyCiphertext(value) !== 'box') return null;
+  try {
+    const kp = await getOrCreateBoxKeypair();
+    const senderPK = decodeBase64(senderPublicKeyB64);
+    const combined = decodeBase64(value.slice(BOX_PREFIX.length));
+    const nonce = combined.slice(0, nacl.box.nonceLength);
+    const ciphertext = combined.slice(nacl.box.nonceLength);
+    const plaintext = nacl.box.open(ciphertext, nonce, senderPK, kp.secretKey);
+    return plaintext ? encodeUTF8(plaintext) : null;
+  } catch { return null; }
+}
+
 // Decrypt a box1: value sent by senderPublicKey, using our private key.
+// Non-box values pass through unchanged (pre-encryption rows, demo fixtures).
 export async function decryptFromSender(value: string, senderPublicKeyB64: string): Promise<string> {
-  if (!value.startsWith(BOX_PREFIX)) return value;
-  const kp = await getOrCreateBoxKeypair();
-  const senderPK = decodeBase64(senderPublicKeyB64);
-  const combined = decodeBase64(value.slice(BOX_PREFIX.length));
-  const nonce = combined.slice(0, nacl.box.nonceLength);
-  const ciphertext = combined.slice(nacl.box.nonceLength);
-  const plaintext = nacl.box.open(ciphertext, nonce, senderPK, kp.secretKey);
-  if (!plaintext) return '[could not decrypt]';
-  return encodeUTF8(plaintext);
+  if (classifyCiphertext(value) !== 'box') return value;
+  return (await openFromSender(value, senderPublicKeyB64)) ?? '[could not decrypt]';
 }
 
 // Decrypt self-encrypted body (sender = self).
@@ -164,27 +208,41 @@ export async function decryptSelf(value: string): Promise<string> {
   return decryptFromSender(value, encodeBase64(kp.publicKey));
 }
 
-// ── Symmetric secretbox (pastoral / encounter notes) ─────────
+// ── Notes (pastoral, encounter, confession journal) ──────────
+// Sealed to our own keypair, so a restored device reads them back.
 
 export async function encryptNote(plaintext: string): Promise<string> {
-  const key = await getOrCreateKey();
-  const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
-  const box = nacl.secretbox(decodeUTF8(plaintext), nonce, key);
-  const combined = new Uint8Array(nonce.length + box.length);
-  combined.set(nonce);
-  combined.set(box, nonce.length);
-  return ENC_PREFIX + encodeBase64(combined);
+  return encryptForSelf(plaintext);
 }
 
-// Decrypts an encrypted note. Passes plaintext through unchanged so existing
-// unencrypted rows (e.g. demo data, pre-encryption records) render correctly.
+// Decrypts a note written under either scheme. Plaintext passes through
+// unchanged so pre-encryption rows and demo fixtures render correctly.
+//
+// The legacy branch is what a priest who has not yet migrated hits: their
+// device still holds poimen_notes_key_v1 and the row still opens. Once
+// migrateLegacyNotes has run, nothing reaches it — but a row the migration
+// never saw (written on a device that has since been wiped) must not read as
+// though it were corrupt, so the failure names the real cause.
 export async function decryptNote(value: string): Promise<string> {
-  if (!value.startsWith(ENC_PREFIX)) return value;
-  const key = await getOrCreateKey();
-  const combined = decodeBase64(value.slice(ENC_PREFIX.length));
-  const nonce = combined.slice(0, nacl.secretbox.nonceLength);
-  const box = combined.slice(nacl.secretbox.nonceLength);
-  const plaintext = nacl.secretbox.open(box, nonce, key);
-  if (!plaintext) return '[note could not be decrypted]';
-  return encodeUTF8(plaintext);
+  switch (classifyCiphertext(value)) {
+    case 'box': {
+      const kp = await getOrCreateBoxKeypair();
+      return (await openFromSender(value, encodeBase64(kp.publicKey)))
+        ?? '[note could not be decrypted]';
+    }
+    case 'legacy':
+      return (await decryptLegacyNote(value))
+        ?? '[note is locked to the device it was written on]';
+    default:
+      return value;
+  }
+}
+
+// Re-wrap one legacy value under the keypair. Returns the new ciphertext, or
+// null when the value isn't legacy or can't be read here — callers treat null
+// as "leave this row exactly as it is", never as "write something else".
+export async function rewrapLegacyNote(value: string): Promise<string | null> {
+  const plaintext = await decryptLegacyNote(value);
+  if (plaintext === null) return null;
+  return encryptNote(plaintext);
 }
