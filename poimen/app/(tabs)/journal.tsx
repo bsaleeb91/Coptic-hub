@@ -12,6 +12,8 @@ import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
 import { DrawerMenuButton } from '@/components/ui/DrawerMenuButton';
 import { JournalEntry, getJournalEntries, saveJournalEntries } from '@/lib/journal';
+import { PrivacyNote } from '@/components/ui/PrivacyNote';
+import { PRIVACY_COPY } from '@/lib/privacy-copy';
 
 // Spiritual practices/disciplines were removed from this tab — daily practices
 // live on the Canon tab (assigned canon + personal rule). This tab is now
@@ -252,6 +254,7 @@ export default function JournalScreen() {
           >
             {savingEntry ? <ActivityIndicator color={colors.navy} /> : <Text style={styles.btnGoldFullText}>SAVE ENTRY</Text>}
           </TouchableOpacity>
+          <PrivacyNote text={PRIVACY_COPY.journal} />
         </Card>
 
         {/* Past Entries */}

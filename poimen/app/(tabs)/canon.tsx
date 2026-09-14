@@ -31,6 +31,7 @@ import { recordCanonDay, finalizeWeeklyServices } from '@/lib/canon/history';
 import { lastConfessionDate, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
 import { loadAssignedForMember, applyOverlay, categoryForItemKey } from '@/lib/canon/assigned';
 import { BookIcon, CandleIcon, PrayingHandsIcon, ChurchIcon, CrossIcon, HeartIcon } from '@/components/ui/TabIcons';
+import { PRIVACY_COPY } from '@/lib/privacy-copy';
 
 // Canon item icons (always gold), keyed by the semantic names lib/canon/today
 // emits for each rule item.
@@ -535,7 +536,7 @@ export default function CanonScreen() {
                   </TouchableOpacity>
                 );
               })()}
-              <PrivacyNote text="Your spiritual canon stays private to you — it is never shared with anyone." />
+              <PrivacyNote text={PRIVACY_COPY.canon} />
             </>
           )}
         </Card>

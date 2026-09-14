@@ -22,6 +22,8 @@ import * as Updates from 'expo-updates';
 import { Avatar } from '@/components/ui/Avatar';
 import { confirmDestructive } from '@/lib/confirm';
 import { pickPhoto, uploadAvatarImage, removeAvatarImage, selfAvatarPath, cameraAvailable, PhotoSource } from '@/lib/avatar';
+import { PrivacyNote } from '@/components/ui/PrivacyNote';
+import { PRIVACY_COPY } from '@/lib/privacy-copy';
 import { seal, openContactSelf, openChildrenSelf, needsSealing } from '@/lib/pastoral-secure';
 import type { ContactData, ChildData, OpenedChild } from '@/lib/pastoral-secure';
 
@@ -682,11 +684,12 @@ export default function ProfileScreen() {
           </Text>
         </Card>
 
-        {/* ── Privacy ── */}
-        <Card title="Privacy" titleIcon="✦">
-          <Text style={styles.privacyText}>
-            Your confession notes never leave your device. Journal entries are private unless you choose to share. Prayer requests are visible only as you configure them. Spiritual vitals and contact info are shared with your Father of Confession only.
-          </Text>
+        {/* ── Your data & privacy ── */}
+        <Card title={PRIVACY_COPY.settingsTitle} titleIcon="✦">
+          <Text style={styles.privacyText}>{PRIVACY_COPY.settingsSummary}</Text>
+          <TouchableOpacity onPress={() => router.push('/privacy')}>
+            <Text style={styles.privacyLink}>Read the full privacy policy →</Text>
+          </TouchableOpacity>
         </Card>
 
         {/* ── Feedback ── */}
@@ -742,6 +745,7 @@ export default function ProfileScreen() {
                     thumbColor={profile?.vitals_consent === true ? colors.gold : colors.faint}
                   />
                 </View>
+                <PrivacyNote text={PRIVACY_COPY.vitals} />
               </>
             ) : (
               <TouchableOpacity
@@ -947,6 +951,7 @@ const styles = lazyThemed(() => StyleSheet.create({
 
   feedbackBtn: { marginTop: 12, alignSelf: 'flex-start' as any, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 9, borderWidth: 1, borderColor: colors.gold },
   feedbackBtnText: { fontFamily: fonts.latoBold, fontSize: 12, letterSpacing: 0.4, color: colors.gold },
+  privacyLink: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.gold, marginTop: 12 },
   privacyText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 20 },
 
   tutorialBtn: {

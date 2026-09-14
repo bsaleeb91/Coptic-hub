@@ -9,6 +9,7 @@ import { useSession } from '@/lib/auth';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import type { SignupRole } from '@/lib/db';
 import { EyeIcon, EyeOffIcon } from '@/components/ui/TabIcons';
+import { PRIVACY_COPY } from '@/lib/privacy-copy';
 
 type Mode = 'signin' | 'signup' | 'magic' | 'reset';
 
@@ -112,6 +113,9 @@ export default function SignInScreen() {
                   </Text>
                 )}
               </>
+            )}
+            {mode === 'signup' && (
+              <Text style={styles.roleNote}>{PRIVACY_COPY.signup}</Text>
             )}
             {mode === 'signup' && (
               <TextInput

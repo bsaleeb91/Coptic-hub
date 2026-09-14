@@ -12,6 +12,8 @@ import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 import { encryptForSelf, encryptForRecipient, decryptSelf } from '@/lib/crypto';
 import { DrawerMenuButton } from '@/components/ui/DrawerMenuButton';
+import { PrivacyNote } from '@/components/ui/PrivacyNote';
+import { PRIVACY_COPY } from '@/lib/privacy-copy';
 
 type Visibility = 'private' | 'foc_only' | 'foc_and_servant' | 'servant_only';
 type Category = 'health' | 'family' | 'relationships' | 'work' | 'faith' | 'gratitude' | 'other';
@@ -300,6 +302,7 @@ export default function PrayerScreen() {
               : <Text style={styles.btnGoldText}>SUBMIT REQUEST</Text>
             }
           </TouchableOpacity>
+          <PrivacyNote text={PRIVACY_COPY.prayer} />
         </Card>
 
         {/* Answered Prayers */}

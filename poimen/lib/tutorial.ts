@@ -1,3 +1,5 @@
+import { PRIVACY_COPY } from '@/lib/privacy-copy';
+
 export type TutorialStep = {
   id: string;
   title: string;
@@ -22,7 +24,7 @@ export const TUTORIAL_STEPS: Record<'congregant' | 'priest' | 'servant', Tutoria
     {
       id: 'cong-confession',
       title: 'Confession Preparation',
-      body: 'Use the Confession tab to work through an examination of conscience before meeting your Father of Confession. Nothing you write here is ever saved or sent.',
+      body: 'Use the Confession tab to work through an examination of conscience before meeting your Father of Confession. What you write is encrypted on this device and never sent to our servers.',
       position: 'bottom',
     },
     {
@@ -42,6 +44,12 @@ export const TUTORIAL_STEPS: Record<'congregant' | 'priest' | 'servant', Tutoria
       title: 'Your Canon',
       body: 'Your assigned spiritual practices appear here. Mark them complete each day and track your progress over time.',
       position: 'bottom',
+    },
+    {
+      id: 'cong-privacy',
+      title: PRIVACY_COPY.onboardingTitle,
+      body: PRIVACY_COPY.onboarding,
+      position: 'center',
     },
   ],
 

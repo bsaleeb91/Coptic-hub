@@ -170,8 +170,8 @@ function PINModal() {
           <Text style={pinStyles.title}>{isSetup ? 'Set a Recovery PIN' : 'Enter Your Recovery PIN'}</Text>
           <Text style={pinStyles.body}>
             {isSetup
-              ? 'If you switch devices, this PIN will restore access to your encrypted prayer data. Keep it somewhere safe.'
-              : 'Your prayer encryption key is not on this device. Enter your PIN to restore it.'}
+              ? 'If you switch devices, this PIN restores the key that opens your prayer requests, pastoral notes, and confession journal. There is no other way back in — keep it somewhere safe.'
+              : 'Your encryption key is not on this device. Enter your PIN to restore it — without it, this device cannot open your prayer requests, notes, or confession journal.'}
           </Text>
           <TextInput
             style={pinStyles.input}
@@ -209,7 +209,7 @@ function PINModal() {
           )}
           {!isSetup && (
             <TouchableOpacity onPress={handleForgotPIN} style={pinStyles.skip} disabled={working}>
-              <Text style={pinStyles.skipText}>I forgot my PIN — start fresh (old prayer details will be unreadable)</Text>
+              <Text style={pinStyles.skipText}>I forgot my PIN — start fresh (prayer requests, pastoral notes, and your confession journal from before will be unreadable)</Text>
             </TouchableOpacity>
           )}
         </View>

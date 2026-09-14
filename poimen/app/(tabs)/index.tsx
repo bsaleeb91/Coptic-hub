@@ -34,6 +34,7 @@ import { upcomingCommemorations, gregorianToCoptic, commemorationOn } from '@/li
 import { firstGivenName, clergyDisplayName } from '@/lib/names';
 import Harp from '@/components/ui/Harp';
 import { CrossIcon, CandleIcon } from '@/components/ui/TabIcons';
+import { PRIVACY_COPY } from '@/lib/privacy-copy';
 
 const { width: SW } = Dimensions.get('window');
 const TILE_W = (SW - 48) / 2;
@@ -688,7 +689,7 @@ export default function DashboardScreen() {
                 last={i === rows.length - 1}
               />
             ))}
-            <PrivacyNote text="Computed from your canon check-offs. Visible only to you and your Father of Confession." />
+            <PrivacyNote text={PRIVACY_COPY.vitals} />
           </View>
         )}
 
