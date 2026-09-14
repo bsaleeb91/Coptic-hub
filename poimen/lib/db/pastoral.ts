@@ -33,12 +33,14 @@ export async function upsertLifeProfile(row: Record<string, any>): Promise<{ err
   return { error: error?.message ?? null };
 }
 
+// Rows are returned unopened and UNSORTED: birth_year now lives inside the
+// sealed payload, so the database cannot order on it. openChildrenSelf /
+// openChildrenForFoc sort by birth year once the rows are decrypted.
 export async function getChildren(parentId: string): Promise<any[]> {
   const { data } = await supabase
     .from('pastoral_children')
     .select('*')
-    .eq('parent_id', parentId)
-    .order('birth_year', { ascending: true });
+    .eq('parent_id', parentId);
   return data ?? [];
 }
 
@@ -48,6 +50,17 @@ export async function deleteChildren(parentId: string): Promise<void> {
 
 export async function insertChildren(rows: Record<string, any>[]): Promise<{ error: string | null }> {
   const { error } = await supabase.from('pastoral_children').insert(rows);
+  return { error: error?.message ?? null };
+}
+
+// Seal an existing child row in place, keeping its id.
+//
+// The backfill uses this rather than the delete-then-insert the edit flow uses:
+// there the member is looking at the list and can retype it, but a backfill
+// that deleted the rows and then failed to insert would destroy children the
+// member never touched. An in-place update cannot lose anything.
+export async function updateChildRow(id: string, fields: Record<string, any>): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('pastoral_children').update(fields).eq('id', id);
   return { error: error?.message ?? null };
 }
 

@@ -22,6 +22,7 @@ import { RuleConfig, WEEKDAYS, AGPEYA_HOURS, SERVICES } from '@/lib/canon/rule-s
 import { periodNoun } from '@/lib/canon/periods';
 import { loadMemberRule } from '@/lib/canon/rule-sync';
 import { AssignedCategory, applyOverlay, loadAssignedForPriest } from '@/lib/canon/assigned';
+import { openContactForFoc, openChildrenForFoc } from '@/lib/pastoral-secure';
 
 // Local YYYY-MM-DD of a timestamp — the lock model compares calendar days.
 function localDayOf(iso: string): string {
@@ -206,8 +207,15 @@ function formatLifeStageLine(ls: any, kids: any[]): string | null {
   const yr = new Date().getFullYear();
   const parts: string[] = [stage];
   if (kids.length > 0) {
-    const ages = kids.map((k: any) => `~${yr - k.birth_year}`).join(', ');
-    parts.push(`${kids.length} ${kids.length === 1 ? 'child' : 'children'} (${ages})`);
+    // birth_year can be absent now that it lives inside the sealed payload —
+    // an unopened row would otherwise read as "~2026" rather than admitting
+    // the age is unknown.
+    const ages = kids
+      .map((k: any) => (typeof k.birth_year === 'number' ? `~${yr - k.birth_year}` : null))
+      .filter(Boolean)
+      .join(', ');
+    const count = `${kids.length} ${kids.length === 1 ? 'child' : 'children'}`;
+    parts.push(ages ? `${count} (${ages})` : count);
   }
   return parts.join(' · ');
 }
@@ -443,9 +451,15 @@ export default function MemberScreen() {
 
     setNotes(notesData);
 
-    if (contactData) setContact(contactData);
+    // Contact and family details are sealed to this priest's keypair by the
+    // member's device. Opening them needs the MEMBER's public key, since they
+    // are the sender. Without it (a member who has not finished key setup)
+    // only rows still in plaintext can be read, which is what the fallback in
+    // openContactForFoc handles.
+    const memberPublicKey = await db.getPublicKey(memberId);
+    setContact(await openContactForFoc(contactData, memberPublicKey));
     if (lifeData) setLifeStageData(lifeData);
-    if (kidsData) setMemberChildren(kidsData);
+    setMemberChildren(await openChildrenForFoc(kidsData ?? [], memberPublicKey));
 
     setLoading(false);
   }

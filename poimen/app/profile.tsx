@@ -22,6 +22,8 @@ import * as Updates from 'expo-updates';
 import { Avatar } from '@/components/ui/Avatar';
 import { confirmDestructive } from '@/lib/confirm';
 import { pickPhoto, uploadAvatarImage, removeAvatarImage, selfAvatarPath, cameraAvailable, PhotoSource } from '@/lib/avatar';
+import { seal, openContactSelf, openChildrenSelf, needsSealing } from '@/lib/pastoral-secure';
+import type { ContactData, ChildData, OpenedChild } from '@/lib/pastoral-secure';
 
 const LIFE_STAGES = ['single', 'engaged', 'married', 'widowed', 'divorced'] as const;
 type LifeStageType = typeof LIFE_STAGES[number];
@@ -145,9 +147,13 @@ export default function ProfileScreen() {
     db.getChurches().then(setChurches);
   }, []);
 
+  // Re-runs when the Father of Confession changes, not only on sign-in: the
+  // link flow returns to this screen with the component already mounted, and
+  // the new priest cannot read contact details until resealPastoralData has
+  // sealed them to his key.
   useEffect(() => {
     if (user) loadMyInfo();
-  }, [user]);
+  }, [user, profile?.foc_id]);
 
   async function loadMyInfo() {
     const [contact, lifeProfile, childrenData] = await Promise.all([
@@ -155,8 +161,9 @@ export default function ProfileScreen() {
       db.getLifeProfile(user!.id),
       db.getChildren(user!.id),
     ]);
-    if (contact) {
-      const c = contact;
+    const openedContact = await openContactSelf(contact);
+    if (openedContact) {
+      const c = openedContact;
       setPhone(c.phone ?? '');
       setContactEmail(c.email ?? '');
       setAddressLine1(c.address_line1 ?? '');
@@ -170,9 +177,13 @@ export default function ProfileScreen() {
       setLifeStage((lifeProfile.life_stage as LifeStageType) ?? null);
       setSpouseName(lifeProfile.spouse_name ?? '');
     }
-    if (childrenData) {
-      setChildren(childrenData.map(c => ({ id: c.id, name: c.name, birth_year: c.birth_year })));
-    }
+    const openedChildren = await openChildrenSelf(childrenData ?? []);
+    setChildren(openedChildren.map(c => ({ id: c.id, name: c.name ?? '', birth_year: c.birth_year ?? 0 })));
+
+    // Backfill: seal anything still in plaintext, and re-seal for a new Father
+    // of Confession. Runs after the screen has its values, so a failure here
+    // never stops the member seeing their own details.
+    void resealPastoralData(openedContact, openedChildren, contact, childrenData ?? []);
   }
 
   async function handleSave() {
@@ -186,12 +197,68 @@ export default function ProfileScreen() {
     setTimeout(() => setSaved(false), 2000);
   }
 
+  // Who the FOC copy is sealed for. Null when there is no FOC, or when the
+  // priest has no public key yet — the row is still sealed to the member, and
+  // resealPastoralData picks it up once the key appears.
+  async function focSealTarget(): Promise<{ id: string; publicKey: string | null } | null> {
+    const focId = profile?.foc_id;
+    if (!focId) return null;
+    return { id: focId, publicKey: await db.getPublicKey(focId) };
+  }
+
+  // Seal rows left in plaintext by the pre-encryption app, and re-seal rows
+  // sealed to a previous Father of Confession. Only ever writes data we could
+  // already read, so a row we cannot open is left untouched rather than
+  // overwritten with blanks.
+  async function resealPastoralData(
+    openedContact: ContactData | null,
+    openedChildren: OpenedChild[],
+    contactRow: Record<string, unknown> | null,
+    childRows: Record<string, unknown>[],
+  ) {
+    if (!user) return;
+    try {
+      const focId = profile?.foc_id ?? null;
+      const target = await focSealTarget();
+
+      // Phase 1: adds the sealed copy and re-writes the plaintext unchanged.
+      // upsert replaces the whole row, so the plaintext has to be restated or
+      // it would be dropped — which is the build 17 breakage this avoids.
+      if (openedContact && needsSealing(contactRow, focId)) {
+        await db.upsertContact({
+          user_id: user.id,
+          ...openedContact,
+          ...(await seal<ContactData>(openedContact, target)),
+          updated_at: new Date().toISOString(),
+        });
+      }
+
+      // In place, row by row: a delete-then-insert that failed halfway would
+      // lose children the member never touched.
+      for (const c of openedChildren) {
+        const row = childRows.find(r => String(r.id) === c.id);
+        if (!row || !needsSealing(row, focId)) continue;
+        // An UPDATE touching only the sealed columns — name and birth_year
+        // are left exactly as they are for build 17.
+        await db.updateChildRow(c.id, {
+          ...(await seal<ChildData>({ name: c.name, birth_year: c.birth_year }, target)),
+          updated_at: new Date().toISOString(),
+        });
+      }
+    } catch {}
+  }
+
   async function handleSaveContact() {
     if (!user) return;
     setSavingContact(true);
     setContactError('');
-    const { error } = await db.upsertContact({
-      user_id: user.id,
+    // PHASE 1 of the encryption rollout — DUAL WRITE.
+    // Sealed payloads AND the original plaintext columns are both written,
+    // because build 17 is still in the field and reads only the plaintext.
+    // Nulling those columns now would blank a member's contact details for
+    // anyone who has not updated. Phase 2 (see the migration header) stops
+    // writing plaintext and clears it, once build 17 is gone.
+    const contactData: ContactData = {
       phone:         phone.trim()         || null,
       email:         contactEmail.trim()  || null,
       address_line1: addressLine1.trim()  || null,
@@ -202,7 +269,12 @@ export default function ProfileScreen() {
       // Keep the column's 'US' default rather than writing null, so an address
       // saved without a country still resolves on a map.
       country:       country.trim().toUpperCase() || 'US',
-      updated_at:    new Date().toISOString(),
+    };
+    const { error } = await db.upsertContact({
+      user_id: user.id,
+      ...contactData,                                     // phase 1: plaintext
+      ...(await seal<ContactData>(contactData, await focSealTarget())),
+      updated_at: new Date().toISOString(),
     });
     setSavingContact(false);
     if (error) { setContactError('Failed to save — please try again.'); return; }
@@ -225,13 +297,15 @@ export default function ProfileScreen() {
     // Replace children: delete all then re-insert current list
     await db.deleteChildren(user.id);
     if (children.length > 0) {
+      const focTarget = await focSealTarget();
       const { error: kidsErr } = await db.insertChildren(
-        children.map(c => ({
+        await Promise.all(children.map(async (c) => ({
           parent_id:  user!.id,
-          name:       c.name,
+          name:       c.name,              // phase 1: plaintext, for build 17
           birth_year: c.birth_year,
+          ...(await seal<ChildData>({ name: c.name, birth_year: c.birth_year }, focTarget)),
           updated_at: new Date().toISOString(),
-        }))
+        })))
       );
       if (kidsErr) { setSavingFamily(false); setFamilyError('Failed to save children — please try again.'); return; }
     }
