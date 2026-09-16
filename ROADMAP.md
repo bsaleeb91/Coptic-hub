@@ -4,19 +4,13 @@
 
 Not scheduled yet — captured here so they aren't lost between sessions.
 
-### Queued 2026-09-02
-
-- Add full address to the database (congregant profile/contact)
-- In-app feedback mechanism built into the app
-- Community feature: streaks and leaderboards for Psalm memorization
-
 ### Queued 2026-09-07
 
 **Encrypt all personally identifiable information.**
 The `tweetnacl` box-keypair infrastructure already exists in `lib/crypto.ts` and
 is used for confession entries (`lib/confession/store.ts`) and prayer requests.
 This extends the same treatment to the rest of the PII surface — profile fields
-(full name, the address fields queued above, phone, date of birth), priest
+(full name, the address fields on `pastoral_contacts`, phone, date of birth), priest
 pastoral notes and private encounter notes, and journal entries — so that what
 sits in Supabase is ciphertext rather than plaintext the server can read.
 Open questions to settle first:
@@ -174,6 +168,52 @@ tab works" link on the hub.
     date) is named alongside the things that do not.
 
 ### Shipped 2026-09-07
+
+**In-app feedback mechanism built into the app.**
+`app/feedback.tsx`, backed by `20260907010000_app_feedback.sql` and reachable
+from the profile screen. Three categories — something is broken, an idea,
+something else. Until this, the only way to report anything was an email address
+at the foot of the privacy policy, which the people most likely to hit a problem
+are the least likely to find.
+  - RLS routes reports to admins only, never to a priest or servant, so a member
+    can say that something is broken — or that they dislike part of an assigned
+    canon — without it surfacing in the pastoral relationship. The screen says
+    so plainly, and shows exactly what rides along: app version, platform, role,
+    and nothing else.
+  - A separate periodic survey shipped alongside it (`app/survey.tsx`,
+    `lib/survey/schedule.ts`, `20260907020000_feedback_survey.sql`), prompted
+    from the dashboard on its own cadence. Both land in `app/admin.tsx`.
+
+**Community feature: streaks and leaderboards for Psalm memorization.**
+Done in `20260907030000_psalm_leaderboard.sql` plus `lib/db/leaderboard.ts` and
+the UI in `app/(tabs)/psalms.tsx`. Streaks themselves predate this — the state
+machine and its once-a-week freeze have been in `lib/psalms/store.ts` all along;
+what is new is members seeing each other.
+  - Scoped to one servant's class: the smallest circle, and one where the
+    members already know each other from Sunday school.
+  - Its own consent flag, defaulting to off, never borrowing `vitals_consent` —
+    that flag was agreed for one priest, and reading it as agreement to be
+    ranked in front of classmates would be a bait-and-switch.
+  - Opting in is what buys the view. A member who has not opted in sees no
+    board rather than a read-only one; a leaderboard you can lurk on is a
+    different, worse feature. A servant sees their class without opting in,
+    because they are the teacher and are never ranked in it.
+  - Reads go through a `SECURITY DEFINER` RPC that returns a finished board and
+    nothing queryable behind it, so the feature grants no new rights over
+    another member's profile or progress. Names are cut to "Mina G." — this is
+    children's data, and a first name identifies plenty among classmates.
+
+**Add full address to the database (congregant profile/contact).**
+Already true when it was queued: `pastoral_contacts` has carried
+street / city / state / zip / country since the baseline schema, and
+`app/profile.tsx` has collected all of it. What actually shipped on this date
+was the *churches* table catching up — `20260907_church_structured_address.sql`
+gave parishes the same structured fields instead of one free-text blob, which is
+the prerequisite for the distance-sorted picker still queued above. The legacy
+free-text column is kept rather than parsed; a hand-entered address does not
+split reliably, and a bad guess would silently corrupt a real parish address.
+  - Since 2026-09-13 these fields are also dual-written as sealed payloads
+    (`20260913020000_encrypt_pastoral_contacts.sql`, phase 1 of 2).
 
 **Make the Canon page more usable, and let every Spiritual Vital be tracked there.**
 Done in ba01c0a and e073f8f. The governing rule now holds: anything shown in

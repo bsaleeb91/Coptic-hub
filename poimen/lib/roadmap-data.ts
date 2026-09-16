@@ -9,31 +9,13 @@ export type RoadmapPhase = { id: string; title: string; items: RoadmapItem[] };
 
 export const PHASES: RoadmapPhase[] = [
   {
-    "id": "queued-2026-09-02",
-    "title": "Queued 2026-09-02",
-    "items": [
-      {
-        "id": "queued-2026-09-02-1",
-        "label": "Add full address to the database (congregant profile/contact)"
-      },
-      {
-        "id": "queued-2026-09-02-2",
-        "label": "In-app feedback mechanism built into the app"
-      },
-      {
-        "id": "queued-2026-09-02-3",
-        "label": "Community feature: streaks and leaderboards for Psalm memorization"
-      }
-    ]
-  },
-  {
     "id": "queued-2026-09-07",
     "title": "Queued 2026-09-07",
     "items": [
       {
         "id": "queued-2026-09-07-1",
         "label": "Encrypt all personally identifiable information",
-        "note": "The tweetnacl box-keypair infrastructure already exists in lib/crypto.ts and is used for confession entries (lib/confession/store.ts) and prayer requests. This extends the same treatment to the rest of the PII surface — profile fields (full name, the address fields queued above, phone, date of birth), priest pastoral notes and private encounter notes, and journal entries — so that what sits in Supabase is ciphertext rather than plaintext the server can read. Open questions to settle first",
+        "note": "The tweetnacl box-keypair infrastructure already exists in lib/crypto.ts and is used for confession entries (lib/confession/store.ts) and prayer requests. This extends the same treatment to the rest of the PII surface — profile fields (full name, the address fields on pastoral_contacts, phone, date of birth), priest pastoral notes and private encounter notes, and journal entries — so that what sits in Supabase is ciphertext rather than plaintext the server can read. Open questions to settle first",
         "detail": [
           "Key custody and recovery. Confession already has a PIN-wrapped keypair backup (encryptKeypairWithPIN); a lost key currently means lost data. Encrypting profile identity fields raises the stakes on that considerably.",
           "What must stay queryable server-side. Encrypted columns can't be searched, sorted, or joined — this affects the priest roster, member lookup, and any admin dashboard listing. Decide per field whether it's encrypted, hashed for lookup, or deliberately left in the clear.",
