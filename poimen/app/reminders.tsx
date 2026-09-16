@@ -28,8 +28,28 @@ import {
   remindersSupported, getPermissionState, requestPermission,
   syncReminders, pendingCount, PermissionState,
 } from '@/lib/reminders/schedule';
+import { registerForPush, unregisterPush } from '@/lib/push/register';
+import * as db from '@/lib/db';
+import type { PushCategory, PushPrefs } from '@/lib/db/push';
+import { DEFAULT_PUSH_PREFS } from '@/lib/db/push';
 
 const STEP_MINUTES = 30;
+
+// The server-sent half. Split from the reminders above because the difference
+// is not cosmetic: those are written by this phone from data it already holds,
+// these arrive from Nepsis's servers about things the phone cannot know.
+// Appointments and assignments default on — being told the thing you asked for
+// was confirmed is the service you requested. The other two default off.
+const PUSH_COPY: { key: PushCategory; title: string; hint: string }[] = [
+  { key: 'appointments', title: 'Appointments',
+    hint: 'When your father confirms, declines or cancels a time you asked for. Without this you find out by opening the app and noticing.' },
+  { key: 'assignments',  title: 'Something assigned to you',
+    hint: 'When your Father of Confession assigns part of your canon, or your servant assigns psalms.' },
+  { key: 'canon_nudge',  title: 'A nudge about your canon',
+    hint: 'Only when this phone has already told the server the day is unfinished. If you have been away, nothing is sent — the server would be guessing.' },
+  { key: 'reengagement', title: 'If you have been away a while',
+    hint: 'One message after a long absence. Never more than one.' },
+];
 
 const COPY: Record<ReminderKind, { title: string; icon: string; on: string; off: string }> = {
   canon: {
@@ -55,11 +75,25 @@ export default function RemindersScreen() {
   const [pending, setPending] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Push prefs live on the server (they have to — the server schedules in the
+  // member's local time). Null until loaded; the defaults stand in so the
+  // switches never flash the wrong way on first open.
+  const [push, setPush] = useState<PushPrefs | null>(null);
+  const [pushBusy, setPushBusy] = useState<PushCategory | null>(null);
+  const [pushRegistered, setPushRegistered] = useState(false);
+
   const ctx = { userId: user?.id ?? null, demoMode, focId: profile?.foc_id ?? null };
 
   useEffect(() => {
     loadReminderSettings().then(setSettings);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    db.getPushPrefs(user.id).then(p => setPush(p ?? DEFAULT_PUSH_PREFS));
+    db.listMyPushTokens(user.id).then(rows =>
+      setPushRegistered(rows.some(r => r.disabled_at === null)));
+  }, [user?.id]);
 
   // Re-read on focus: permission is commonly granted or revoked in system
   // Settings, which means the answer can change while this screen is mounted
@@ -94,6 +128,40 @@ export default function RemindersScreen() {
     }
 
     await apply({ ...settings, [kind]: { ...settings[kind], enabled: value } });
+  }
+
+  // Turning any push category on is what asks for the OS permission and
+  // registers this device — there is no separate "enable push" switch, because
+  // a switch that only unlocks other switches is a step with nothing behind it.
+  async function togglePush(key: PushCategory, value: boolean) {
+    if (!push || !user) return;
+    H.tap();
+    setPushBusy(key);
+
+    if (value && !pushRegistered) {
+      const { reason } = await registerForPush(user.id, { interactive: true });
+      if (reason !== 'ok') {
+        // Left off rather than switched on into silence, same as the local
+        // reminders above: a switch reading ON while nothing can arrive hides
+        // where the problem is.
+        setPermission(await getPermissionState());
+        setPushBusy(null);
+        return;
+      }
+      setPushRegistered(true);
+    }
+
+    const next = { ...push, [key]: value };
+    setPush(next);
+    await db.savePushPrefs(user.id, { [key]: value });
+
+    // Nothing left switched on means nothing to send to. Dropping the token
+    // keeps the server from queueing messages that can only be discarded.
+    if (!PUSH_COPY.some(c => next[c.key])) {
+      await unregisterPush();
+      setPushRegistered(false);
+    }
+    setPushBusy(null);
   }
 
   async function nudge(kind: ReminderKind, delta: number) {
@@ -198,17 +266,54 @@ export default function RemindersScreen() {
           );
         })}
 
+        {/* Sent by Nepsis rather than written by this phone. Kept visually
+            separate from the two cards above because the distinction is the
+            whole point of the section. */}
+        <Text style={styles.groupLabel}>SENT TO YOU</Text>
+        <Card title="From Nepsis" titleIcon="✉">
+          <Text style={styles.hint}>
+            These come from {APP_NAME} rather than from this phone, because they are about things
+            your phone has no way of knowing — a time your father confirmed while the app was
+            closed. Turning the first one on asks for permission and registers this device.
+          </Text>
+          {push === null ? (
+            <ActivityIndicator color={colors.gold} style={{ marginTop: 16 }} />
+          ) : (
+            PUSH_COPY.map(c => (
+              <View key={c.key} style={styles.pushRow}>
+                <View style={{ flex: 1, paddingRight: 14 }}>
+                  <Text style={styles.toggleLabel}>{c.title}</Text>
+                  <Text style={styles.pushHint}>{c.hint}</Text>
+                </View>
+                <Switch
+                  value={push[c.key]}
+                  onValueChange={v => togglePush(c.key, v)}
+                  disabled={pushBusy !== null || blocked}
+                  trackColor={{ false: colors.creamDim, true: 'rgba(201,168,76,0.4)' }}
+                  thumbColor={push[c.key] ? colors.gold : colors.faint}
+                />
+              </View>
+            ))
+          )}
+        </Card>
+
         {/* The honest description of the mechanism, in the place someone would
             think to ask. */}
         <Card title="What a reminder knows" titleIcon="🔒">
           <Text style={styles.body}>
-            Reminders are written by this phone, not sent to it. {APP_NAME} has no notification
-            server, and your rule, your review queue and your streak are read from this device to
-            write them.
+            The two reminders above are written by this phone, not sent to it. Your rule, your
+            review queue and your streak are read from this device to write them, and none of
+            that leaves it.
           </Text>
           <Text style={styles.bodySmall}>
-            That also means your Father of Confession, your servant and your church cannot see
-            whether reminders are on, what they say, or whether you acted on one.
+            What {APP_NAME} is sent, so that the messages under “From Nepsis” can reach you: a code
+            identifying this device, your time zone and the hour you chose, and — only if you turn
+            on the canon nudge — how many things your rule asked of you each day and how many you
+            marked done. Counts only, never which ones.
+          </Text>
+          <Text style={styles.bodySmall}>
+            Your Father of Confession, your servant and your church see none of it, and cannot see
+            whether reminders are on or whether you acted on one.
           </Text>
           {anyOn && pending !== null && (
             <View style={styles.statusBox}>
@@ -278,6 +383,16 @@ const styles = lazyThemed(() => StyleSheet.create({
   },
 
   hint: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 19, marginTop: 14 },
+
+  groupLabel: {
+    fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.6,
+    textTransform: 'uppercase', color: colors.textSecond, marginBottom: 10, marginTop: 4,
+  },
+  pushRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  pushHint: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 17, marginTop: 3 },
 
   body: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.textSecond, lineHeight: 21 },
   bodySmall: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 19, marginTop: 10 },

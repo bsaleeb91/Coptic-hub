@@ -13,12 +13,21 @@
 //
 //   2. Route a tap. A reminder that opens the app to wherever it happened to
 //      be left is a reminder that made someone do the navigating themselves.
+//      One listener handles both halves — the phone does not care whether a
+//      notification was scheduled here or sent by the server, and neither
+//      should this code.
+//
+//   3. Reconcile the push registration. Permission is revoked in system
+//      Settings, not in the app, so the only way to notice is to look on
+//      foreground. A token the server keeps sending to after that is queue
+//      that can never be delivered.
 
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { remindersSupported, syncReminders } from '@/lib/reminders/schedule';
+import { reconcilePushRegistration } from '@/lib/push/register';
 
 interface Props {
   enabled: boolean;          // signed in (or exploring a demo)
@@ -38,10 +47,16 @@ export default function ReminderSync({ enabled, userId, demoMode, focId }: Props
   useEffect(() => {
     if (!remindersSupported || !enabled) return;
 
-    syncReminders(ctx.current).catch(() => {});
+    const run = () => {
+      syncReminders(ctx.current).catch(() => {});
+      const id = ctx.current.userId;
+      // Demo sessions have no real account to register a device against.
+      if (id && !ctx.current.demoMode) reconcilePushRegistration(id).catch(() => {});
+    };
+    run();
 
     const sub = AppState.addEventListener('change', state => {
-      if (state === 'active') syncReminders(ctx.current).catch(() => {});
+      if (state === 'active') run();
     });
     return () => sub.remove();
   }, [enabled, userId, demoMode]);
@@ -51,9 +66,13 @@ export default function ReminderSync({ enabled, userId, demoMode, focId }: Props
     let sub: ReturnType<typeof Notifications.addNotificationResponseReceivedListener> | undefined;
     try {
       sub = Notifications.addNotificationResponseReceivedListener(response => {
-        const kind = response.notification.request.content.data?.kind;
-        if (kind === 'canon') router.push('/(tabs)/canon');
-        else if (kind === 'psalms') router.push('/(tabs)/psalms');
+        const data = response.notification.request.content.data ?? {};
+        // Server-sent notifications name their destination outright; locally
+        // scheduled ones carry the kind they were built from.
+        const route = typeof data.route === 'string' ? data.route : null;
+        if (route) { router.push(route as never); return; }
+        if (data.kind === 'canon') router.push('/(tabs)/canon');
+        else if (data.kind === 'psalms') router.push('/(tabs)/psalms');
       });
     } catch {
       // No native module (Expo Go without the dev client, say) — the app runs
