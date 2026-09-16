@@ -250,7 +250,21 @@ export default function CanonScreen() {
     // member actually marks something on it — merely looking back at a day they
     // were away must not create a record, which would turn a day that simply
     // didn't count into a day of misses.
-    if (isToday) recordCanonDay(items, checks, day);
+    if (isToday) {
+      recordCanonDay(items, checks, day);
+      // Counts only, to the server, so a scheduled canon nudge has something
+      // true to read. Never which items — see 20260915010000 for why the
+      // finer-grained version is not on offer. Fire-and-forget: a missed sync
+      // means the server declines to nudge, which is the safe direction.
+      if (user && !demoMode) {
+        db.syncCanonDayState({
+          userId: user.id,
+          day: localDateStr(day),
+          dueCount: items.length,
+          doneCount: items.filter(it => checks.has(`rule_${it.key}`)).length,
+        });
+      }
+    }
 
     // Communion readiness measured against the effective confession frequency
     // (a priest-assigned frequency takes precedence while it's locked).

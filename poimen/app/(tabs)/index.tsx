@@ -19,7 +19,7 @@ import { loadRule, SERVICES } from '@/lib/canon/rule-store';
 import { todayItems, customDueToday, RuleItem, weeklyServiceKey } from '@/lib/canon/today';
 import { loadAssignedForMember, applyOverlay } from '@/lib/canon/assigned';
 import { loadTodayChecks } from '@/lib/canon/checks';
-import { loadPostponements, loadServiceDone } from '@/lib/canon/postpone';
+import { loadPostponements, loadServiceDone, localDateStr } from '@/lib/canon/postpone';
 import { loadServiceLog, ensurePeriods, periodCounts, loggedOn } from '@/lib/canon/service-log';
 import { recordCanonDay, finalizeWeeklyServices, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
 import { loadAttendance } from '@/lib/canon/attendance';
@@ -309,6 +309,16 @@ export default function DashboardScreen() {
       for (const it of items) if (it.adhoc) checks.add(`rule_${it.key}`);
       const done = items.filter(it => checks.has(`rule_${it.key}`)).length;
       setCanonToday({ done, total: items.length });
+      // Mirrored here as well as on the Canon tab: this screen is opened far
+      // more often, and a nudge is only as honest as the last report it has.
+      if (user && !demoMode) {
+        db.syncCanonDayState({
+          userId: user.id,
+          day: localDateStr(new Date()),
+          dueCount: items.length,
+          doneCount: done,
+        });
+      }
       setConfFreqDays(confessionFrequencyDays(overlay.rule.confession));
       setLastConf(last);
       setFeasts(nextFeastRows()); // stays current across midnights

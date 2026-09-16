@@ -8,6 +8,11 @@
       ]
     }
   },
+  // supabase/functions is Deno, not React Native: different globals (Deno.serve,
+  // Deno.env), different type roots, and it is typechecked by the Edge Runtime
+  // at deploy rather than here. Including it makes `npm run typecheck` fail on
+  // code that is correct for the runtime it actually runs on.
+  "exclude": ["supabase/functions"],
   "include": [
     "**/*.ts",
     "**/*.tsx",
