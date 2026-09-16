@@ -15,7 +15,7 @@ import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
 import {
-  PartCard, Grade, Streak, loadCards, loadSelection, saveSelection, review,
+  PartCard, Grade, Streak, loadCards, loadSelection, saveSelection, review, scheduleAfter,
   computeStats, newQueue, reviewQueue, ReviewUnit, cardId, loadStreak, recordReviewDay,
   hasFreezeAvailable, loadNewPerDay, saveNewPerDay, learningItem,
   ReciteCard, ReciteGrade, loadRecite, reviewRecite, reciteState, portionsMature,
@@ -102,13 +102,18 @@ function NumberPicker({ value, onScrub, onCommit, min, max }: {
   );
 }
 
-function GradeBtn({ label, color, onPress }: { label: string; color: string; onPress: () => void }) {
+function GradeBtn({ label, sub, color, onPress }: { label: string; sub?: string; color: string; onPress: () => void }) {
   return (
     <TouchableOpacity style={[styles.gradeBtn, { backgroundColor: color }]} onPress={onPress}>
       <Text style={styles.gradeText}>{label}</Text>
+      {sub ? <Text style={styles.gradeSub}>{sub}</Text> : null}
     </TouchableOpacity>
   );
 }
+
+// When a portion comes back after a grade — "again today" for Wrong (it is
+// re-queued into this same session), otherwise the exact interval.
+const whenNext = (days: number) => (days === 1 ? '1 day' : `${days} days`);
 
 function Stat({ label, value, color }: { label: string; value: number; color: string }) {
   return (
@@ -375,6 +380,9 @@ export default function PsalmsScreen() {
     const lead = itemLeadUp(item, part);
     const multi = itemUnitCount(item) > 1;
     const isNew = !cards[cardId(item, part)];
+    // Each grade's real consequence for THIS portion, from the scheduler
+    // itself — including the cap from the portion before it.
+    const after = (g: Grade) => scheduleAfter(item, part, cards[cardId(item, part)], g, cards).intervalDays;
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.sessionTop}>
@@ -407,10 +415,10 @@ export default function PsalmsScreen() {
             </TouchableOpacity>
           ) : (
             <View style={[styles.gradeRow, busy && { opacity: 0.5 }]} pointerEvents={busy ? 'none' : 'auto'}>
-              <GradeBtn label="Wrong" color={colors.red}   onPress={() => gradePortion('again')} />
-              <GradeBtn label="Hard"  color="#C4821A"      onPress={() => gradePortion('hard')} />
-              <GradeBtn label="Good"  color={colors.green} onPress={() => gradePortion('good')} />
-              <GradeBtn label="Easy"  color={colors.blue}  onPress={() => gradePortion('easy')} />
+              <GradeBtn label="Wrong" sub="again today"             color={colors.red}   onPress={() => gradePortion('again')} />
+              <GradeBtn label="Hard"  sub={whenNext(after('hard'))} color="#C4821A"      onPress={() => gradePortion('hard')} />
+              <GradeBtn label="Good"  sub={whenNext(after('good'))} color={colors.green} onPress={() => gradePortion('good')} />
+              <GradeBtn label="Easy"  sub={whenNext(after('easy'))} color={colors.blue}  onPress={() => gradePortion('easy')} />
             </View>
           )}
         </View>
@@ -796,4 +804,5 @@ const styles = lazyThemed(() => StyleSheet.create({
   gradeRow:       { flexDirection: 'row', gap: 6 },
   gradeBtn:       { flex: 1, paddingVertical: 13, borderRadius: R.md, alignItems: 'center' },
   gradeText:      { fontFamily: fonts.latoBold, color: colors.navy, fontSize: 14 },
+  gradeSub:       { fontFamily: fonts.latoLight, color: colors.navy, fontSize: 10, marginTop: 2, opacity: 0.8 },
 }));

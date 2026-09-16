@@ -139,7 +139,18 @@ export async function loadCards(): Promise<Record<string, PartCard>> {
   return { ...(await cards()) };
 }
 
-export async function review(item: string, part: number, existing: PartCard | undefined, grade: Grade): Promise<PartCard> {
+// What a grade would do to this portion's schedule — PURE, no writes. review()
+// applies it; the session's grade buttons display it ("3 days", "again today")
+// so the member picking Hard vs Good sees exactly what each means for THIS
+// portion. One code path for both, so the label can never disagree with what
+// actually happens — including the monotone-maturity cap, which is why the
+// same grade can mean 16 days on one portion and 1 day on the next.
+export interface NextSchedule { reps: number; intervalDays: number; ease: number }
+
+export function scheduleAfter(
+  item: string, part: number, existing: PartCard | undefined, grade: Grade,
+  map: Record<string, PartCard>,
+): NextSchedule {
   let reps = existing?.reps ?? 0;
   let prev = existing?.intervalDays ?? 0;
   let ease = existing?.ease ?? 2.5;
@@ -175,10 +186,15 @@ export async function review(item: string, part: number, existing: PartCard | un
       break;
   }
 
-  const map = await cards();
   // Monotone maturity: never let this portion's interval outgrow the portion
   // before it (see enforceMonotoneMaturity above).
   intervalDays = Math.min(intervalDays, maturityCap(item, part, map));
+  return { reps, intervalDays, ease };
+}
+
+export async function review(item: string, part: number, existing: PartCard | undefined, grade: Grade): Promise<PartCard> {
+  const map = await cards();
+  const { reps, intervalDays, ease } = scheduleAfter(item, part, existing, grade, map);
   const card: PartCard = { item, part, reps, intervalDays, ease, due: addDaysStr(intervalDays) };
   map[cardId(item, part)] = card;
   // A lapse ("Wrong") on this portion demotes everything after it too.
