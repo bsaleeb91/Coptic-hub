@@ -53,11 +53,11 @@
           "calendarPermission": "Poimen adds confirmed appointments to your calendar so times booked here are blocked on Calendly and anywhere else that reads it."
         }
       ],
-      "./plugins/withoutPushEntitlement",
       [
         "expo-notifications",
         {
-          "color": "#c9a84c"
+          "color": "#c9a84c",
+          "mode": "production"
         }
       ]
     ],
