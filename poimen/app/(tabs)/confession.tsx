@@ -31,11 +31,13 @@ import {
   CandleIcon, CalendarIcon,
 } from '@/components/ui/TabIcons';
 import { DrawerMenuButton } from '@/components/ui/DrawerMenuButton';
-import type { SinCategory, SinFrequency, JournalCategory, IncidentCategory, JournalIncident, ExamChecks, GuidanceNote } from '@/lib/confession/types';
+import { analyzeHistory, recordItems, PatternItem } from '@/lib/confession/patterns';
+import type { SinCategory, SinFrequency, JournalCategory, IncidentCategory, JournalIncident, ExamChecks, GuidanceNote, ConfessionRecord } from '@/lib/confession/types';
 import {
   loadIncidents, addIncident, deleteIncident, clearIncidents,
   loadExam, saveExam, clearExam,
   loadGuidance, addGuidance, deleteGuidance, clearGuidance,
+  loadHistory, archiveConfession, deleteHistoryRecord,
   ExamStyle, loadExamStyle, saveExamStyle,
 } from '@/lib/confession/store';
 import {
@@ -102,7 +104,7 @@ function relTime(ms: number): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ` · ${time}`;
 }
 
-type SubScreen = 'hub' | 'journal' | 'examination' | 'guidance' | 'session' | 'complete';
+type SubScreen = 'hub' | 'journal' | 'examination' | 'session' | 'complete' | 'history';
 
 function SubHeader({ title, onBack, right }: { title: string; onBack: () => void; right?: React.ReactNode }) {
   return (
@@ -252,20 +254,22 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
         {/* Prepare */}
         <Text style={styles.sectionLabel}>PREPARE</Text>
         <ModuleCard icon={<NotepadIcon size={22} color={colors.gold} />} title="Confession journal"
-          sub="Log incidents as they happen — waiting for you in your notes"
+          sub="Log incidents and questions for your father — waiting in your notes"
           onPress={() => onNav('journal')} />
         <ModuleCard icon={<ClipboardIcon size={22} color={colors.gold} />} title="Examination of conscience"
           sub="Review each day and before confession — carries into your notes"
           onPress={() => onNav('examination')} />
-        <ModuleCard icon={<CandleIcon size={22} color={colors.gold} />} title="Ask for guidance"
-          sub="No sin in mind? Bring a question or a topic instead"
-          onPress={() => onNav('guidance')} />
-
         {/* During confession */}
         <Text style={styles.sectionLabel}>DURING CONFESSION</Text>
         <ModuleCard icon={<PrayingHandsIcon size={22} color={colors.gold} />} title="My confession notes"
           sub={"Tap each item as you speak it —\nnothing is sent anywhere"}
           onPress={() => onNav('session')} accent />
+
+        {/* Look back */}
+        <Text style={styles.sectionLabel}>LOOK BACK</Text>
+        <ModuleCard icon={<CalendarIcon size={22} color={colors.gold} />} title="Confession history"
+          sub={"What you've confessed over time — what keeps returning,\nwhat has fallen away. This phone only."}
+          onPress={() => onNav('history')} />
 
         {/* Self-report — hidden in demo mode */}
         {!demoMode && (
@@ -375,12 +379,28 @@ function JournalView({ onBack }: { onBack: () => void }) {
   const [incidents, setIncidents] = useState<JournalIncident[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [adding, setAdding] = useState(false);
+  // Questions for the Father of Confession — kept beside the incidents, not
+  // under a domain, and carried into the confession notes with them.
+  const [guidance, setGuidance] = useState<GuidanceNote[]>([]);
+  const [question, setQuestion] = useState('');
 
-  useEffect(() => { loadIncidents().then(list => { setIncidents(list); setLoaded(true); }); }, []);
+  useEffect(() => {
+    loadIncidents().then(list => { setIncidents(list); setLoaded(true); });
+    loadGuidance().then(setGuidance);
+  }, []);
 
   const remove = (id: string) => {
     confirmDestructive('Remove entry', 'Delete this journal entry?', 'Delete',
       async () => setIncidents(await deleteIncident(id)));
+  };
+  const addQuestion = async () => {
+    if (!question.trim()) return;
+    setGuidance(await addGuidance(question));
+    setQuestion('');
+  };
+  const removeQuestion = (id: string) => {
+    confirmDestructive('Remove question', 'Delete this question?', 'Delete',
+      async () => setGuidance(await deleteGuidance(id)));
   };
 
   if (adding) {
@@ -396,7 +416,7 @@ function JournalView({ onBack }: { onBack: () => void }) {
     <SafeAreaView style={styles.safe}>
       <SubHeader title="Journal" onBack={onBack}
         right={<TouchableOpacity onPress={() => setAdding(true)} hitSlop={12}><Text style={styles.addPlus}>＋</Text></TouchableOpacity>} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         {loaded && incidents.length === 0 && (
           <View style={styles.emptyCard}>
             <View style={{ marginBottom: 10, opacity: 0.6 }}><NotepadIcon size={32} color={colors.gold} /></View>
@@ -439,6 +459,37 @@ function JournalView({ onBack }: { onBack: () => void }) {
             </View>
           );
         })}
+
+        {/* Spiritual guidance — questions to bring to the Father of Confession.
+            Not sins, so no domain; they simply ride into the confession notes
+            so the moment doesn't crowd them out. */}
+        <Text style={[styles.sectionLabel, { marginTop: 18 }]}>SPIRITUAL GUIDANCE</Text>
+        <Text style={styles.guidanceHint}>
+          Questions you want to ask your father of confession. They will be waiting in your
+          confession notes, so nothing is forgotten in the moment.
+        </Text>
+        {guidance.map(g => (
+          <View key={g.id} style={styles.journalCard}>
+            <View style={styles.journalCardHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.guidanceText}>{g.text}</Text>
+                <Text style={styles.journalCardDate}>{relTime(g.createdAt)}</Text>
+              </View>
+              <TouchableOpacity onPress={() => removeQuestion(g.id)} hitSlop={10}><Text style={{ fontSize: 16, color: colors.muted }}>✕</Text></TouchableOpacity>
+            </View>
+          </View>
+        ))}
+        <TextInput
+          style={styles.guidanceInput}
+          placeholder="e.g. How do I keep my prayer rule when I travel for work?"
+          placeholderTextColor={colors.faint}
+          multiline
+          value={question}
+          onChangeText={setQuestion}
+        />
+        <TouchableOpacity style={[styles.emptyBtn, !question.trim() && { opacity: 0.4 }]} onPress={addQuestion} disabled={!question.trim()}>
+          <Text style={styles.emptyBtnText}>＋  Add question</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -582,100 +633,6 @@ function IncidentComposer({ onCancel, onSave }: {
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
-}
-
-// ─── Guidance ────────────────────────────────────────────────────────────────────
-// A free-text space for when there's no specific sin to log — a question or
-// topic to bring to the Father of Confession for direction instead.
-
-function GuidanceView({ onBack }: { onBack: () => void }) {
-  const [notes, setNotes] = useState<GuidanceNote[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState('');
-
-  useEffect(() => { loadGuidance().then(list => { setNotes(list); setLoaded(true); }); }, []);
-
-  const remove = (id: string) => {
-    confirmDestructive('Remove entry', 'Delete this note?', 'Delete',
-      async () => setNotes(await deleteGuidance(id)));
-  };
-
-  const save = async () => {
-    if (!draft.trim()) return;
-    setNotes(await addGuidance(draft));
-    setDraft('');
-    setAdding(false);
-  };
-
-  if (adding) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.subHeader}>
-          <TouchableOpacity onPress={() => { setAdding(false); setDraft(''); }} hitSlop={10}><Text style={styles.linkGold}>Cancel</Text></TouchableOpacity>
-          <Text style={styles.subHeaderTitle}>New question</Text>
-          <TouchableOpacity onPress={save} disabled={!draft.trim()} hitSlop={10}>
-            <Text style={[styles.linkGold, { color: draft.trim() ? colors.gold : colors.muted }]}>Save</Text>
-          </TouchableOpacity>
-        </View>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-            <Text style={styles.sectionLabel}>WHAT'S ON YOUR HEART?</Text>
-            <TextInput
-              style={[styles.noteInput, { minHeight: 140 }]}
-              placeholder="A topic you want direction on, a question for your Father of Confession, a struggle without a clear sin attached…"
-              placeholderTextColor={colors.faint}
-              multiline
-              value={draft}
-              onChangeText={setDraft}
-              textAlignVertical="top"
-              autoFocus
-            />
-            <Text style={styles.composerHint}>
-              🔒  Encrypted on your device and shown in your confession notes. It clears when you delete
-              your notes after confession.
-            </Text>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={styles.safe}>
-      <SubHeader title="Guidance" onBack={onBack}
-        right={<TouchableOpacity onPress={() => setAdding(true)} hitSlop={12}><Text style={styles.addPlus}>＋</Text></TouchableOpacity>} />
-      <ScrollView contentContainerStyle={styles.content}>
-        {loaded && notes.length === 0 && (
-          <View style={styles.emptyCard}>
-            <View style={{ marginBottom: 10, opacity: 0.6 }}><CandleIcon size={32} color={colors.gold} /></View>
-            <Text style={styles.emptyCardTitle}>Nothing here yet</Text>
-            <Text style={styles.emptyCardBody}>
-              Not every visit is about a specific sin. When you just want your Father of Confession's
-              direction on something — a decision, a struggle, a season of life — jot it here and it
-              will be waiting in your confession notes.
-            </Text>
-            <TouchableOpacity style={styles.emptyBtn} onPress={() => setAdding(true)}>
-              <Text style={styles.emptyBtnText}>＋  Add a question</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {notes.length > 0 && <Text style={styles.sectionLabel}>FOR YOUR NEXT CONFESSION</Text>}
-        {notes.map(n => (
-          <View key={n.id} style={styles.journalCard}>
-            <View style={styles.journalCardHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.journalCardDate}>{relTime(n.createdAt)}</Text>
-              </View>
-              <TouchableOpacity onPress={() => remove(n.id)} hitSlop={10}><Text style={{ fontSize: 16, color: colors.muted }}>✕</Text></TouchableOpacity>
-            </View>
-            <Text style={styles.journalCardBody}>{n.note}</Text>
-          </View>
-        ))}
-      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -859,7 +816,7 @@ function SessionView({ onBack, onComplete }: { onBack: () => void; onComplete: (
     .filter((x): x is NoteItem => x !== null);
   const journalItems: NoteItem[] = incidents.map(inc => ({ id: inc.id, category: inc.category, title: inc.title, detail: inc.note || undefined }));
   const sinItems = [...examItems, ...journalItems];
-  const guidanceItems: NoteItem[] = guidance.map(g => ({ id: `guide:${g.id}`, title: g.note }));
+  const guidanceItems: NoteItem[] = guidance.map(g => ({ id: `guide:${g.id}`, title: g.text }));
   const blessingItems: NoteItem[] = blessings.map(b => ({ id: `bless:${b.id}`, title: b.title, detail: b.reflection }));
   const totalCount = sinItems.length + guidanceItems.length + blessingItems.length;
   const remaining = totalCount - spoken.size;
@@ -927,21 +884,172 @@ function SessionView({ onBack, onComplete }: { onBack: () => void; onComplete: (
   );
 }
 
+// ─── History ─────────────────────────────────────────────────────────────────────
+// The archive of confession notes, on this device only. Patterns first — what
+// keeps returning, what appeared for the first time, what has fallen away —
+// then each recorded confession, expandable to what was noted that day.
+
+const fmtDay = (ymd: string) =>
+  new Date(`${ymd}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+function PatternGroup({ title, hint, items, color }: { title: string; hint: string; items: PatternItem[]; color: string }) {
+  return (
+    <View style={styles.patternGroup}>
+      <Text style={[styles.patternGroupTitle, { color }]}>{title}</Text>
+      {items.length === 0 ? (
+        <Text style={styles.patternHint}>{hint}</Text>
+      ) : items.map(p => {
+        const m = sectionMeta(p.category);
+        return (
+          <View key={p.key} style={styles.patternRow}>
+            <View style={[styles.sessionDot, { backgroundColor: m.color, marginTop: 5 }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.patternName}>{p.name}</Text>
+              <Text style={styles.patternMeta}>
+                {p.status === 'faded'
+                  ? `Last confessed ${fmtDay(p.lastDate)} · ${p.appearances} of ${p.total}`
+                  : `${p.appearances} of ${p.total} confession${p.total === 1 ? '' : 's'} · ${m.label}`}
+              </Text>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function HistoryView({ onBack }: { onBack: () => void }) {
+  const [records, setRecords] = useState<ConfessionRecord[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [open, setOpen] = useState<string | null>(null);
+
+  useEffect(() => { loadHistory().then(list => { setRecords(list); setLoaded(true); }); }, []);
+
+  const patterns = analyzeHistory(records);
+  const recurring = patterns.filter(p => p.status === 'recurring');
+  const first = patterns.filter(p => p.status === 'first');
+  const faded = patterns.filter(p => p.status === 'faded');
+
+  const remove = (r: ConfessionRecord) => {
+    confirmDestructive('Remove this record', `Delete the notes saved from ${fmtDay(r.date)}? This cannot be undone.`, 'Delete',
+      async () => setRecords(await deleteHistoryRecord(r.id)));
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <SubHeader title="Confession history" onBack={onBack} />
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.sessionIntro}>
+          Each time you tap “Record this confession”, your notes are saved here as they stood.
+          Encrypted, on this phone only — never sent anywhere, not even to your father.
+        </Text>
+
+        {loaded && records.length === 0 && (
+          <View style={styles.emptyCard}>
+            <View style={{ marginBottom: 10, opacity: 0.6 }}><CalendarIcon size={32} color={colors.gold} /></View>
+            <Text style={styles.emptyCardTitle}>No history yet</Text>
+            <Text style={styles.emptyCardBody}>
+              After your next confession, tap “Record this confession” and what you noted will be kept here
+              to look back on.
+            </Text>
+          </View>
+        )}
+
+        {records.length > 0 && (
+          <View style={styles.catCard}>
+            <Text style={[styles.catLabel, { color: colors.goldLight, marginBottom: 4 }]}>
+              PATTERNS ACROSS {records.length} CONFESSION{records.length === 1 ? '' : 'S'}
+            </Text>
+            <PatternGroup title="Still recurring" color={colors.red} items={recurring}
+              hint={records.length < 2 ? 'Patterns show once you have recorded two confessions.' : 'Nothing from before came back this time.'} />
+            <PatternGroup title="First time" color={colors.gold} items={first}
+              hint="Nothing new in your latest confession." />
+            <PatternGroup title="Fallen away" color={colors.green} items={faded}
+              hint={records.length < 2 ? 'Once there is more than one confession here, what you stopped confessing shows up.' : 'Everything confessed before was confessed again.'} />
+          </View>
+        )}
+
+        {records.length > 0 && <Text style={styles.sectionLabel}>EACH CONFESSION</Text>}
+        {records.map(r => {
+          const items = [...recordItems(r).values()];
+          const isOpen = open === r.id;
+          const sinCount = items.length;
+          return (
+            <View key={r.id} style={styles.journalCard}>
+              <TouchableOpacity style={styles.journalCardHeader} onPress={() => setOpen(isOpen ? null : r.id)} activeOpacity={0.7}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.journalCardTitle}>{fmtDay(r.date)}</Text>
+                  <Text style={styles.journalCardDate}>
+                    {sinCount} confessed · {r.incidents.length} journal note{r.incidents.length === 1 ? '' : 's'}
+                    {r.guidance.length ? ` · ${r.guidance.length} question${r.guidance.length === 1 ? '' : 's'}` : ''}
+                    {'  '}{isOpen ? '▴' : '▾'}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => remove(r)} hitSlop={10}><Text style={{ fontSize: 16, color: colors.muted }}>✕</Text></TouchableOpacity>
+              </TouchableOpacity>
+              {isOpen && (
+                <View style={{ marginTop: 4 }}>
+                  {items.length === 0 && r.guidance.length === 0 && (
+                    <Text style={styles.patternHint}>Nothing was noted for this confession.</Text>
+                  )}
+                  {items.map((it, i) => {
+                    const m = sectionMeta(it.category);
+                    return (
+                      <View key={i} style={styles.patternRow}>
+                        <View style={[styles.sessionDot, { backgroundColor: m.color, marginTop: 5 }]} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.patternName}>{it.name}</Text>
+                          <Text style={styles.patternMeta}>{m.label}</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                  {/* A free-text entry's title is its first line, so only quote
+                      the note when it says more than the item line already did. */}
+                  {r.incidents.filter(i => i.note && i.note.trim() !== i.title.trim()).map(i => (
+                    <Text key={i.id} style={styles.journalCardBody}>“{i.note}”</Text>
+                  ))}
+                  {r.guidance.length > 0 && (
+                    <>
+                      <Text style={[styles.patternGroupTitle, { color: colors.gold, marginTop: 6 }]}>Questions brought</Text>
+                      {r.guidance.map(g => <Text key={g.id} style={styles.journalCardBody}>{g.text}</Text>)}
+                    </>
+                  )}
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
 // ─── Complete ────────────────────────────────────────────────────────────────────
 
 function CompleteView({ onBack }: { onBack: () => void }) {
   const { user, profile, refreshProfile } = useSession();
   const { demoMode } = useDemoMode();
   const [recorded, setRecorded] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [vitalsReset, setVitalsReset] = useState(false);
   const [notesDeleted, setNotesDeleted] = useState(false);
 
-  // Reaching this screen IS the confession — record today automatically
-  // (on-device always; mirrored to the profile when signed in). Same-day
-  // duplicates collapse in the store, so re-visits are harmless.
-  useEffect(() => {
-    (async () => {
+  // Nothing is recorded just by arriving here. This screen used to log the
+  // confession on mount, so opening the notes and tapping through — or
+  // landing here by accident — wrote a confession date that never happened,
+  // and the Father of Confession's "days since" moved with it. Recording is
+  // now its own deliberate tap below. Same-day duplicates still collapse in
+  // the store, so tapping twice is harmless.
+  async function recordNow() {
+    if (recording || recorded) return;
+    setRecording(true);
+    try {
       const prevConfession = await lastConfessionDate();
+      // Snapshot the notes as they stand into the on-device history BEFORE
+      // anything else — this is the record the user looks back on, and it
+      // must exist even if the user deletes the period's notes a moment later.
+      await archiveConfession();
       await recordConfession();
       if (!demoMode && user) {
         await db.setLastConfession(user.id, new Date().toISOString());
@@ -951,8 +1059,10 @@ function CompleteView({ onBack }: { onBack: () => void }) {
       // Release (fold in) any canon parts the FOC assigned since the last confession.
       await foldOnConfession({ memberId: user?.id ?? '', userId: user?.id ?? null, demoMode, previousLastConfession: prevConfession, focId: profile?.foc_id });
       setRecorded(true);
-    })();
-  }, []);
+    } finally {
+      setRecording(false);
+    }
+  }
 
   // Start a fresh Spiritual Vitals window from today — adherence on the Home
   // card then reads "since this confession".
@@ -977,7 +1087,10 @@ function CompleteView({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: '#0A2A22' }]}>
+    // Themed, not hard-coded: this was a fixed dark green while the text used
+    // theme tokens, so on the light theme it was sepia ink on dark green —
+    // unreadable on the phone.
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.greenCanvas }]}>
       <ScrollView contentContainerStyle={{ padding: 28, alignItems: 'center' }}>
         <Text style={styles.completeCross}>✝︎</Text>
         <Text style={styles.completeTitle}>Glory to God</Text>
@@ -1000,13 +1113,24 @@ function CompleteView({ onBack }: { onBack: () => void }) {
           ))}
         </View>
 
-        <View style={[styles.bigBtn, { backgroundColor: 'rgba(93,202,135,0.12)', borderWidth: 1, borderColor: colors.green }]}>
-          <Text style={[styles.bigBtnText, { color: colors.green }]}>
+        <TouchableOpacity
+          style={[styles.bigBtn, recorded
+            ? { backgroundColor: 'rgba(93,202,135,0.12)', borderWidth: 1, borderColor: colors.green }
+            : { backgroundColor: colors.green }]}
+          onPress={recordNow}
+          disabled={recorded || recording}
+        >
+          <Text style={[styles.bigBtnText, { color: recorded ? colors.green : colors.navy }]}>
             {recorded
               ? `✓ ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} recorded as your confession`
-              : 'Recording your confession date…'}
+              : recording ? 'Recording…' : '✝︎  Record this confession'}
           </Text>
-        </View>
+        </TouchableOpacity>
+        {!recorded && (
+          <Text style={styles.recordHint}>
+            Nothing is logged until you tap this — if you got here by accident, just go back.
+          </Text>
+        )}
         <TouchableOpacity
           style={[styles.bigBtn, { backgroundColor: 'rgba(201,168,76,0.15)', borderWidth: 1, borderColor: colors.gold }]}
           onPress={resetVitals}
@@ -1017,7 +1141,9 @@ function CompleteView({ onBack }: { onBack: () => void }) {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.bigBtn, { backgroundColor: colors.red, opacity: notesDeleted ? 0.55 : 1 }]} onPress={handleDelete} disabled={notesDeleted}>
-          <Text style={[styles.bigBtnText, { color: colors.cream }]}>
+          {/* Literal, not colors.cream: cream is sepia ink on the light theme,
+              which vanished into the red. White reads on red in both. */}
+          <Text style={[styles.bigBtnText, { color: '#F5F0E8' }]}>
             {notesDeleted ? '✓ Notes permanently deleted' : '🗑  Delete my confession notes'}
           </Text>
         </TouchableOpacity>
@@ -1035,9 +1161,9 @@ export default function ConfessionScreen() {
   const [screen, setScreen] = useState<SubScreen>('hub');
   if (screen === 'journal')     return <JournalView    onBack={() => setScreen('hub')} />;
   if (screen === 'examination') return <ExaminationView onBack={() => setScreen('hub')} />;
-  if (screen === 'guidance')    return <GuidanceView    onBack={() => setScreen('hub')} />;
   if (screen === 'session')     return <SessionView    onBack={() => setScreen('hub')} onComplete={() => setScreen('complete')} />;
   if (screen === 'complete')    return <CompleteView   onBack={() => setScreen('hub')} />;
+  if (screen === 'history')     return <HistoryView     onBack={() => setScreen('hub')} />;
   return <Hub onNav={setScreen} />;
 }
 
@@ -1129,6 +1255,10 @@ const styles = lazyThemed(() => StyleSheet.create({
   pickCardRef: { fontFamily: fonts.latoBold, fontSize: 11 },
   noteLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, marginBottom: 8 },
   noteInput: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, minHeight: 110, fontFamily: fonts.latoLight, fontSize: 14, lineHeight: 20, color: colors.cream, backgroundColor: colors.panel },
+  // Spiritual guidance section
+  guidanceHint: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, marginBottom: 10 },
+  guidanceText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.cream, lineHeight: 19, marginBottom: 2 },
+  guidanceInput: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, minHeight: 64, fontFamily: fonts.latoLight, fontSize: 14, lineHeight: 20, color: colors.cream, backgroundColor: colors.panel, marginTop: 4, marginBottom: 8 },
   composerHint: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, marginTop: 12 },
 
   // Examination
@@ -1164,6 +1294,14 @@ const styles = lazyThemed(() => StyleSheet.create({
   strikethrough: { textDecorationLine: 'line-through' },
   sessionNote: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginTop: 4 },
   sessionNoteText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },
+  recordHint: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, textAlign: 'center', marginTop: -4, marginBottom: 12, paddingHorizontal: 8 },
+  // Confession history
+  patternGroup: { marginTop: 10 },
+  patternGroupTitle: { fontFamily: fonts.latoBold, fontSize: 12, marginBottom: 4 },
+  patternHint: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },
+  patternRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
+  patternName: { fontFamily: fonts.lato, fontSize: 13, color: colors.cream },
+  patternMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 1 },
   bigBtn: { width: '100%', paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 10 },
   bigBtnText: { fontFamily: fonts.latoBold, fontSize: 14, letterSpacing: 0.3 },
 

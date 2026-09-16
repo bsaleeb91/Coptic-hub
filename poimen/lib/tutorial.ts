@@ -172,8 +172,9 @@ export const MODULE_TUTORIALS: Record<TutorialModule, TutorialStep[]> = {
       id: 'conf-guidance',
       title: 'Nothing particular in mind?',
       body:
-        'That happens, and it is not a reason to stay away. Ask for guidance instead: bring a ' +
-        'question, a struggle you cannot name yet, or a topic you want your father to speak to.',
+        'That happens, and it is not a reason to stay away. At the foot of the journal there is ' +
+        'a place for questions — a struggle you cannot name yet, or a topic you want your father ' +
+        'to speak to. They wait in your notes with everything else.',
       position: 'bottom',
     },
     {
@@ -182,6 +183,15 @@ export const MODULE_TUTORIALS: Record<TutorialModule, TutorialStep[]> = {
       body:
         'Open My confession notes and everything you have gathered is in one list. Tap each item ' +
         'as you speak it, so you can see what is left without losing your place.',
+      position: 'bottom',
+    },
+    {
+      id: 'conf-history',
+      title: 'Looking back',
+      body:
+        'Each time you record a confession, your notes are kept — on this phone only — so you ' +
+        'can see later what keeps returning and what has fallen away. It is there to be read in ' +
+        'a year, not to keep score this week.',
       position: 'bottom',
     },
     {
