@@ -91,18 +91,34 @@ function getTodayCelebration(): string | null {
 // ── VitalRow — canon adherence over the trailing window ──────
 // Read-only: values are computed from My Spiritual Canon check-off history
 // (lib/canon/history.ts), not self-reported.
-function VitalRow({ label, value, text, last }: { label: string; value: number | null; text?: string; last: boolean }) {
-  return (
+// A vital your rule has never asked for reads as "—" forever, which looks like
+// something the app can't track rather than something you haven't chosen yet.
+// Every one of them IS configurable — the spiritual book, the services,
+// communion, diakonia — just several taps deep in the rule editor with nothing
+// pointing there. So an untracked row says so, and is the way to fix it.
+function VitalRow({ label, value, text, last, untracked, onPress }: {
+  label: string; value: number | null; text?: string; last: boolean;
+  untracked?: boolean; onPress?: () => void;
+}) {
+  const body = (
     <View style={[styles.vitalRow, !last && { marginBottom: 16 }]}>
-      <Text style={styles.vitalLabel}>{label}</Text>
-      <View style={styles.vitalTrack}>
-        <View style={[styles.vitalFill, { width: `${value ?? 0}%` as any }]} />
-      </View>
-      <Text style={[styles.vitalVal, text != null && { width: undefined, minWidth: 34 }]}>
-        {text ?? (value != null ? `${value}%` : '—')}
-      </Text>
+      <Text style={[styles.vitalLabel, untracked && styles.vitalLabelOff]}>{label}</Text>
+      {untracked ? (
+        <Text style={styles.vitalAdd}>Add to your canon  ›</Text>
+      ) : (
+        <>
+          <View style={styles.vitalTrack}>
+            <View style={[styles.vitalFill, { width: `${value ?? 0}%` as any }]} />
+          </View>
+          <Text style={[styles.vitalVal, text != null && { width: undefined, minWidth: 34 }]}>
+            {text ?? (value != null ? `${value}%` : '—')}
+          </Text>
+        </>
+      )}
     </View>
   );
+  if (!untracked || !onPress) return body;
+  return <TouchableOpacity onPress={onPress} activeOpacity={0.7}>{body}</TouchableOpacity>;
 }
 
 // ── Customize sheet ───────────────────────────────────────────
@@ -690,15 +706,22 @@ export default function DashboardScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-            {(vitalStats ?? []).map((s, i, rows) => (
-              <VitalRow
-                key={s.key}
-                label={s.key === 'confession' ? 'Confession (days since)' : s.label}
-                value={s.pct}
-                text={s.key === 'confession' ? (daysSinceConfession != null ? `${daysSinceConfession}d` : '—') : undefined}
-                last={i === rows.length - 1}
-              />
-            ))}
+            {(vitalStats ?? []).map((s, i, rows) => {
+              // Confession is scored from recorded dates, not check-offs, so a
+              // due of 0 there means "not yet due", not "not in your rule".
+              const untracked = s.key !== 'confession' && s.due === 0;
+              return (
+                <VitalRow
+                  key={s.key}
+                  label={s.key === 'confession' ? 'Confession (days since)' : s.label}
+                  value={s.pct}
+                  text={s.key === 'confession' ? (daysSinceConfession != null ? `${daysSinceConfession}d` : '—') : undefined}
+                  last={i === rows.length - 1}
+                  untracked={untracked}
+                  onPress={() => router.push({ pathname: '/canon/rule', params: { focus: s.key } })}
+                />
+              );
+            })}
             <PrivacyNote text={PRIVACY_COPY.vitals} />
           </View>
         )}
@@ -917,6 +940,11 @@ const styles = lazyThemed(() => StyleSheet.create({
   vitalLabel: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, flex: 1 },
   vitalTrack: { width: 80, height: 18, justifyContent: 'center', flexShrink: 0 },
   vitalFill: { height: 4, backgroundColor: colors.gold, borderRadius: 4 },
+  vitalLabelOff: { color: colors.muted },
+  vitalAdd: {
+    fontFamily: fonts.latoBold, fontSize: 11, color: colors.gold,
+    letterSpacing: 0.3, flexShrink: 0,
+  },
   vitalVal: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream, width: 34, textAlign: 'right' },
 
   // Vitals nudge banner

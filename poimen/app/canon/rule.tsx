@@ -4,12 +4,13 @@
 // items due today (built from the rule for this weekday); "Edit" configures the
 // rule per day of the week. Distinct from the priest-assigned canon on the tab.
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { goBack } from '@/lib/nav';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { useSession } from '@/lib/auth';
@@ -89,7 +90,33 @@ function LockedValue({ text }: { text: string }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
+// Which part of the rule a Spiritual Vitals row corresponds to. A member who
+// taps "Spiritual Book — not in your rule yet" on the dashboard lands here,
+// scrolled to the thing they tapped, rather than at the top of a 570-line
+// editor with no indication of where to look.
+const FOCUS_ANCHOR: Record<string, 'everyday' | 'services' | 'days'> = {
+  book: 'everyday', quiet: 'everyday', scripture: 'everyday', fasting: 'everyday',
+  liturgy: 'services', communion: 'services',
+  service: 'days', prayer: 'days',
+};
+
 export default function RuleScreen() {
+  const { focus } = useLocalSearchParams<{ focus?: string }>();
+  const scroller = useRef<ScrollView>(null);
+  const anchorY = useRef<Record<string, number>>({});
+  const scrolled = useRef(false);
+
+  // Runs on the layout that reports the anchor, so it fires once the position
+  // is actually known rather than guessing at a delay.
+  const onAnchorLayout = (name: string) => (e: { nativeEvent: { layout: { y: number } } }) => {
+    anchorY.current[name] = e.nativeEvent.layout.y;
+    const want = focus ? FOCUS_ANCHOR[focus] : undefined;
+    if (!want || scrolled.current || want !== name) return;
+    scrolled.current = true;
+    // A little above the heading, so it does not sit flush against the header.
+    scroller.current?.scrollTo({ y: Math.max(0, e.nativeEvent.layout.y - 12), animated: true });
+  };
+
   const { user, profile } = useSession();
   const { demoMode } = useDemoMode();
   const canSync = !!user && !demoMode;
@@ -181,7 +208,7 @@ export default function RuleScreen() {
           )}
         </View>
       </View>
-      <ScrollView contentContainerStyle={{ padding: SP.lg, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+      <ScrollView ref={scroller} contentContainerStyle={{ padding: SP.lg, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <Text style={s.note}>
           Set your rule together with your father of confession. Add only what you can keep faithfully.
         </Text>
@@ -196,7 +223,7 @@ export default function RuleScreen() {
         )}
 
         {/* Daily */}
-        <Text style={s.sectionLabel}>Every day</Text>
+        <Text style={s.sectionLabel} onLayout={onAnchorLayout('everyday')}>Every day</Text>
         {isLocked('prostrations') ? (
           <>
             <FieldRow label="Prostrations (metanias)"><LockedValue text={`${effRule.prostrations}`} /></FieldRow>
@@ -302,7 +329,7 @@ export default function RuleScreen() {
 
         {/* Church services — specific days OR a number of times per week */}
         <View style={s.card}>
-          <Text style={s.sectionLabel}>Church services</Text>
+          <Text style={s.sectionLabel} onLayout={onAnchorLayout('services')}>Church services</Text>
           {isLocked('services') ? (
             <>
               {effRule.servicesMode === 'counts' ? (
@@ -385,6 +412,7 @@ export default function RuleScreen() {
 
         {/* By day of week */}
         <Text style={[s.sectionLabel, { marginTop: SP.lg }]}>For each day of the week</Text>
+        <View onLayout={onAnchorLayout('days')} />
         {WEEKDAYS.map((name, i) => {
           const d = rule.days[i];
           const ed = effRule.days[i];   // effective (includes any FOC-locked parts) — for the summary
