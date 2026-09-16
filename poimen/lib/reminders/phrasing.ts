@@ -1,25 +1,16 @@
 // lib/reminders/phrasing.ts
-// The pure half of the reminder feature: how a time is written, how a time is
-// stepped, and how a list of canon items becomes one sentence.
+// The pure half of the reminder feature: how a list of canon items becomes one
+// sentence.
 //
-// Split out from store.ts and content.ts because those reach for AsyncStorage
-// and the psalm/canon stores, and none of this needs to. A notification's text
-// is the only part of the app a member reads without opening it, and it cannot
-// be checked by looking at a screen — so it is tested instead.
-
-// "8:00 PM" — how a time is written everywhere in the reminder UI.
-export function formatTime(hour: number, minute: number): string {
-  const suffix = hour < 12 ? 'AM' : 'PM';
-  const h12 = hour % 12 === 0 ? 12 : hour % 12;
-  return `${h12}:${String(minute).padStart(2, '0')} ${suffix}`;
-}
-
-// Step a time by whole minutes, wrapping around midnight in both directions so
-// the stepper in app/reminders.tsx never dead-ends at 12:00 AM.
-export function stepTime(hour: number, minute: number, deltaMinutes: number): { hour: number; minute: number } {
-  const total = (((hour * 60 + minute + deltaMinutes) % 1440) + 1440) % 1440;
-  return { hour: Math.floor(total / 60), minute: total % 60 };
-}
+// Split out from content.ts because that reaches for the psalm and canon
+// stores and none of this needs to. A notification's text is the only part of
+// the app a member reads without opening it, and it cannot be checked by
+// looking at a screen — so it is tested instead.
+//
+// The time formatting and stepping helpers that used to live here went with
+// the hand-rolled ‹ › stepper they existed for: the reminder screen now uses
+// the app's own ScrollPicker and formatMinute, the same control and the same
+// labels as the priest's availability windows.
 
 // Canon item labels carry UI detail a notification has no room for — "Attend
 // Vespers — 1 of 2 this week", "Read 3 chapters · Mon, Wed". The reminder keeps

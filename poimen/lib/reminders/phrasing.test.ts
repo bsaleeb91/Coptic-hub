@@ -5,45 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatTime, stepTime, cleanLabel, describeItems } from './phrasing.ts';
-
-// ─── formatTime ───────────────────────────────────────────────────────────────
-
-test('midnight and noon are 12, not 0', () => {
-  assert.equal(formatTime(0, 0), '12:00 AM');
-  assert.equal(formatTime(12, 0), '12:00 PM');
-});
-
-test('the minute is always two digits', () => {
-  assert.equal(formatTime(20, 0), '8:00 PM');
-  assert.equal(formatTime(9, 5), '9:05 AM');
-});
-
-test('the AM/PM boundary falls where it should', () => {
-  assert.equal(formatTime(11, 59), '11:59 AM');
-  assert.equal(formatTime(12, 1), '12:01 PM');
-  assert.equal(formatTime(23, 30), '11:30 PM');
-});
-
-// ─── stepTime ─────────────────────────────────────────────────────────────────
-
-test('stepping forward crosses the hour', () => {
-  assert.deepEqual(stepTime(19, 30, 30), { hour: 20, minute: 0 });
-});
-
-test('stepping back before midnight wraps to the end of the day', () => {
-  assert.deepEqual(stepTime(0, 0, -30), { hour: 23, minute: 30 });
-});
-
-test('stepping forward past midnight wraps to the start of the day', () => {
-  assert.deepEqual(stepTime(23, 30, 30), { hour: 0, minute: 0 });
-});
-
-test('a whole day of steps returns to where it began', () => {
-  let t = { hour: 17, minute: 0 };
-  for (let i = 0; i < 48; i++) t = stepTime(t.hour, t.minute, 30);
-  assert.deepEqual(t, { hour: 17, minute: 0 });
-});
+import { cleanLabel, describeItems } from './phrasing.ts';
 
 // ─── cleanLabel ───────────────────────────────────────────────────────────────
 

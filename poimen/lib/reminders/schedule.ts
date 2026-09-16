@@ -21,7 +21,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { ReminderKind, loadReminderSettings } from './store';
-import { canonReminder, psalmsReminder } from './content';
+import { canonReminder, psalmsReminder, loadCanonContext, loadPsalmContext } from './content';
 
 // Two weeks of lead time. Every scheduled notification counts against iOS's
 // 64-pending limit, and at two kinds per day this peaks at 28 — comfortably
@@ -134,6 +134,14 @@ export async function syncReminders(ctx: SyncContext): Promise<number> {
 
   await ensureAndroidChannel();
 
+  // Gathered ONCE for the whole window. Doing this per day meant fourteen
+  // reads of every local store and fourteen network calls for the FOC's
+  // assignments, on every single change to a reminder time.
+  const [canonCtx, psalmCtx] = await Promise.all([
+    settings.canon.enabled  ? loadCanonContext(ctx) : Promise.resolve(null),
+    settings.psalms.enabled ? loadPsalmContext()    : Promise.resolve(null),
+  ]);
+
   const now = new Date();
   let scheduled = 0;
 
@@ -151,8 +159,8 @@ export async function syncReminders(ctx: SyncContext): Promise<number> {
       if (when.getTime() <= now.getTime()) continue;
 
       const content = kind === 'canon'
-        ? await canonReminder(day, ctx)
-        : await psalmsReminder(day);
+        ? (canonCtx ? await canonReminder(day, canonCtx) : null)
+        : (psalmCtx ? psalmsReminder(day, psalmCtx) : null);
       if (!content) continue;   // nothing due that day; stay silent
 
       try {

@@ -11,6 +11,14 @@
 //
 // Everything here reads from the same local stores the Canon and Psalms tabs
 // read, so it is accurate offline and costs nothing to compute.
+//
+// THE STORES ARE READ ONCE, NOT ONCE PER DAY. The window is fourteen days and
+// the rule behind it does not change between them, so loading it per day meant
+// fourteen reads of every store and — because a Father of Confession's
+// assignments come from the server — fourteen network round trips for one
+// rebuild. That ran on every change to a reminder time, while the control that
+// triggered it was disabled, which is what made the time picker feel like it
+// had a floor at 6pm. It did not; the taps were being dropped.
 
 import { loadRule } from '@/lib/canon/rule-store';
 import { todayItems, customDueToday, RuleItem } from '@/lib/canon/today';
@@ -34,17 +42,28 @@ export interface ReminderContent {
 // readiness. None of that changes how MANY items stand on a given day, which is
 // all a reminder needs, so this deliberately stays the cheap subset rather than
 // a second copy of a 100-line function that would drift from the original.
-async function canonItemsOn(date: Date, userId: string | null, demoMode: boolean, focId: string | null): Promise<RuleItem[]> {
+// Everything the canon side of the window needs, gathered once.
+export interface CanonContext {
+  rule: Awaited<ReturnType<typeof loadRule>>;
+  custom: { id: string; text: string; frequency: string; days: number[] | null }[];
+  postponed: Record<string, string>;
+  serviceDone: Record<string, string>;
+}
+
+export async function loadCanonContext(
+  opts: { userId: string | null; demoMode: boolean; focId: string | null },
+): Promise<CanonContext> {
   const rule = await loadRule();
 
   // A Father of Confession's assignments overlay the member's own rule. This
   // may reach the network; offline, the member's own rule is still the right
-  // answer, so a failure falls through to it rather than skipping the reminder.
+  // answer, so a failure falls through to it rather than skipping reminders
+  // entirely.
   let overlayRule = rule;
-  let custom: { id: string; text: string; frequency: string; days: number[] | null }[] = [];
+  let custom: CanonContext['custom'] = [];
   try {
     const [assigned, last] = await Promise.all([
-      loadAssignedForMember(userId ?? '', demoMode, focId),
+      loadAssignedForMember(opts.userId ?? '', opts.demoMode, opts.focId),
       lastConfessionDate(),
     ]);
     const overlay = applyOverlay(rule, assigned, last);
@@ -55,19 +74,22 @@ async function canonItemsOn(date: Date, userId: string | null, demoMode: boolean
   }
 
   const [postponed, serviceDone] = await Promise.all([loadPostponements(), loadServiceDone()]);
-  const structured = todayItems(overlayRule, date, postponed, serviceDone);
-  const customItems: RuleItem[] = custom
-    .filter(c => customDueToday(c.frequency, c.days, date, serviceDone, `assigned_${c.id}`, postponed))
-    .map(c => ({ key: `assigned_${c.id}`, label: c.text, icon: 'quiet' }));
+  return { rule: overlayRule, custom, postponed, serviceDone };
+}
 
+function canonItemsOn(date: Date, ctx: CanonContext): RuleItem[] {
+  const structured = todayItems(ctx.rule, date, ctx.postponed, ctx.serviceDone);
+  const customItems: RuleItem[] = ctx.custom
+    .filter(c => customDueToday(c.frequency, c.days, date, ctx.serviceDone, `assigned_${c.id}`, ctx.postponed))
+    .map(c => ({ key: `assigned_${c.id}`, label: c.text, icon: 'quiet' }));
   return [...structured, ...customItems];
 }
 
 export async function canonReminder(
   date: Date,
-  opts: { userId: string | null; demoMode: boolean; focId: string | null },
+  ctx: CanonContext,
 ): Promise<ReminderContent | null> {
-  const items = await canonItemsOn(date, opts.userId, opts.demoMode, opts.focId);
+  const items = canonItemsOn(date, ctx);
   if (items.length === 0) return null;   // a day the rule asks nothing of
 
   // Already-checked items are dropped, so a reminder never asks for something
@@ -93,8 +115,18 @@ function dueOn(card: PartCard, dateStr: string): boolean {
   return card.due <= dateStr;
 }
 
-export async function psalmsReminder(date: Date): Promise<ReminderContent | null> {
+export interface PsalmContext {
+  selection: string[];
+  cards: Record<string, PartCard>;
+  streak: Awaited<ReturnType<typeof loadStreak>>;
+}
+
+export async function loadPsalmContext(): Promise<PsalmContext> {
   const [selection, cards, streak] = await Promise.all([loadSelection(), loadCards(), loadStreak()]);
+  return { selection, cards, streak };
+}
+
+export function psalmsReminder(date: Date, { selection, cards, streak }: PsalmContext): ReminderContent | null {
   if (selection.length === 0) return null;   // nothing chosen to memorize yet
 
   const dateStr = localDateStr(date);

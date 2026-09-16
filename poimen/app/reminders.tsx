@@ -23,7 +23,8 @@ import * as H from '@/lib/haptics';
 import {
   ReminderKind, ReminderSettings, loadReminderSettings, saveReminderSettings,
 } from '@/lib/reminders/store';
-import { formatTime, stepTime } from '@/lib/reminders/phrasing';
+import ScrollPicker from '@/components/ui/ScrollPicker';
+import { formatMinute } from '@/lib/scheduling/slots';
 import {
   remindersSupported, getPermissionState, requestPermission,
   syncReminders, pendingCount, PermissionState,
@@ -33,7 +34,14 @@ import * as db from '@/lib/db';
 import type { PushCategory, PushPrefs } from '@/lib/db/push';
 import { DEFAULT_PUSH_PREFS } from '@/lib/db/push';
 
-const STEP_MINUTES = 30;
+// Quarter-hour options, the same granularity and the same picker the priest's
+// availability windows use (app/(priest)/schedule.tsx). A reminder time is the
+// same kind of choice, and it should not be a different kind of control.
+const PICK_STEP = 15;
+const TIME_VALUES = Array.from({ length: 1440 / PICK_STEP }, (_, i) => i * PICK_STEP);
+const TIME_LABELS = TIME_VALUES.map(formatMinute);
+const labelFor  = (hour: number, minute: number) => formatMinute(hour * 60 + minute);
+const minutesOf = (label: string) => TIME_VALUES[TIME_LABELS.indexOf(label)] ?? 0;
 
 // The server-sent half. Split from the reminders above because the difference
 // is not cosmetic: those are written by this phone from data it already holds,
@@ -164,10 +172,13 @@ export default function RemindersScreen() {
     setPushBusy(null);
   }
 
-  async function nudge(kind: ReminderKind, delta: number) {
+  async function pickTime(kind: ReminderKind, label: string) {
     if (!settings) return;
+    const total = minutesOf(label);
+    const hour = Math.floor(total / 60);
+    const minute = total % 60;
+    if (hour === settings[kind].hour && minute === settings[kind].minute) return;
     H.tap();
-    const { hour, minute } = stepTime(settings[kind].hour, settings[kind].minute, delta);
     await apply({ ...settings, [kind]: { ...settings[kind], hour, minute } });
   }
 
@@ -238,26 +249,12 @@ export default function RemindersScreen() {
 
               {s.enabled && (
                 <View style={styles.timeRow}>
-                  <TouchableOpacity
-                    style={styles.stepBtn}
-                    onPress={() => nudge(kind, -STEP_MINUTES)}
-                    disabled={busy}
-                    accessibilityLabel={`Move the ${copy.title} reminder earlier`}
-                  >
-                    <Text style={styles.stepText}>‹</Text>
-                  </TouchableOpacity>
-                  <View style={styles.timeBox}>
-                    <Text style={styles.timeValue}>{formatTime(s.hour, s.minute)}</Text>
-                    <Text style={styles.timeCaption}>every day</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.stepBtn}
-                    onPress={() => nudge(kind, STEP_MINUTES)}
-                    disabled={busy}
-                    accessibilityLabel={`Move the ${copy.title} reminder later`}
-                  >
-                    <Text style={styles.stepText}>›</Text>
-                  </TouchableOpacity>
+                  <Text style={styles.timeCaption}>Every day at</Text>
+                  <ScrollPicker
+                    options={TIME_LABELS}
+                    value={labelFor(s.hour, s.minute)}
+                    onChange={label => pickTime(kind, label)}
+                  />
                 </View>
               )}
 
@@ -368,18 +365,10 @@ const styles = lazyThemed(() => StyleSheet.create({
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   toggleLabel: { fontFamily: fonts.lato, fontSize: 14, color: colors.cream },
 
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
-  stepBtn: {
-    width: 44, height: 44, borderRadius: 10,
-    borderWidth: 1, borderColor: colors.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  stepText: { fontFamily: fonts.cormorant, fontSize: 26, color: colors.gold, lineHeight: 30 },
-  timeBox: { flex: 1, alignItems: 'center' },
-  timeValue: { fontFamily: fonts.cormorantMedium, fontSize: 26, color: colors.cream },
+  timeRow: { marginTop: 16, gap: 8 },
   timeCaption: {
     fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.5,
-    color: colors.faint, textTransform: 'uppercase', marginTop: 2,
+    color: colors.faint, textTransform: 'uppercase',
   },
 
   hint: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 19, marginTop: 14 },
