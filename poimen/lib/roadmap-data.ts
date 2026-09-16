@@ -26,10 +26,6 @@ export const PHASES: RoadmapPhase[] = [
       },
       {
         "id": "queued-2026-09-02-4",
-        "label": "Reminder notifications for Psalms and Canon"
-      },
-      {
-        "id": "queued-2026-09-02-5",
         "label": "Tutorial of the app, especially the Confession module"
       }
     ]

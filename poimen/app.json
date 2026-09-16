@@ -27,7 +27,10 @@
         "backgroundColor": "#0f1f3d"
       },
       "package": "com.coptic.poimen",
-      "versionCode": 1
+      "versionCode": 1,
+      "permissions": [
+        "POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -48,6 +51,12 @@
         "expo-calendar",
         {
           "calendarPermission": "Poimen adds confirmed appointments to your calendar so times booked here are blocked on Calendly and anywhere else that reads it."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#c9a84c"
         }
       ]
     ],

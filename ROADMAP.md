@@ -9,7 +9,6 @@ Not scheduled yet — captured here so they aren't lost between sessions.
 - Add full address to the database (congregant profile/contact)
 - In-app feedback mechanism built into the app
 - Community feature: streaks and leaderboards for Psalm memorization
-- Reminder notifications for Psalms and Canon
 - Tutorial of the app, especially the Confession module
 
 ### Queued 2026-09-07
@@ -134,6 +133,30 @@ parish boundaries, and it cannot simply reuse the class query.
 Kept here so a finished item is not queued again. Outside the "Next Up" block
 on purpose: scripts/gen-roadmap.mjs stops at the next top-level heading, so
 none of this reaches the in-app roadmap.
+
+### Shipped 2026-09-15
+
+**Reminder notifications for Psalms and Canon.**
+Local notifications only — `expo-notifications` schedules them on the phone and
+there is no push server, no device token, and nothing about a rule or a review
+queue leaving the device to make one happen. Both are off until switched on in
+`app/reminders.tsx`, each at a time the member picks.
+  - Each day is scheduled individually over a rolling 14-day window
+    (`lib/reminders/schedule.ts`) rather than as one repeating daily trigger,
+    so a reminder can name what is actually due that day — the two services
+    standing in the rule, the number of portions up for review — instead of
+    repeating one fixed sentence until it becomes wallpaper.
+  - A day with nothing due is not scheduled at all, and today's canon reminder
+    is dropped once the canon is complete. Silence on an empty day is what
+    makes the reminder mean something on a full one.
+  - The window is rebuilt on every foreground (`components/ReminderSync.tsx`),
+    which is what keeps it in step with a rule edit, a finished passage or a
+    service checked off — none of which need to know reminders exist.
+  - The phrasing is unit-tested (`lib/reminders/phrasing.test.ts`): a
+    notification is read once, on a lock screen, and cannot be corrected after
+    the phone has said it.
+  - REQUIRES A NATIVE REBUILD. expo-notifications is a native module, so this
+    cannot reach members over the air — it ships with the next EAS build.
 
 ### Shipped 2026-09-07
 

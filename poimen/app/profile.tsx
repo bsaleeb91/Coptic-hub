@@ -692,6 +692,17 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </Card>
 
+        {/* ── Reminders ── */}
+        <Card title="Reminders" titleIcon="◷">
+          <Text style={styles.privacyText}>
+            A nudge for your canon and your psalms, at a time you pick. Written by this phone
+            rather than sent to it — nothing about your rule leaves the device to make one happen.
+          </Text>
+          <TouchableOpacity style={styles.feedbackBtn} onPress={() => { H.tap(); router.push('/reminders'); }} activeOpacity={0.85}>
+            <Text style={styles.feedbackBtnText}>Set up reminders</Text>
+          </TouchableOpacity>
+        </Card>
+
         {/* ── Feedback ── */}
         <Card title="Feedback" titleIcon="✎">
           <Text style={styles.privacyText}>

@@ -24,6 +24,7 @@ import * as db from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { TutorialProvider } from '@/lib/tutorial-context';
 import RouteMemory from '@/components/RouteMemory';
+import ReminderSync from '@/components/ReminderSync';
 import { Modal, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView } from 'react-native';
 import { colors, fonts, applyTheme, loadThemeMode, lazyThemed, ThemeMode } from '@/lib/theme';
 import { isBiometricAvailable, loadFaceIdLockEnabled, authenticateWithBiometrics, onFaceIdLockChange } from '@/lib/biometrics';
@@ -233,7 +234,7 @@ const pinStyles = lazyThemed(() => StyleSheet.create({
 }));
 
 function RootLayoutNav() {
-  const { session, loading } = useSession();
+  const { session, loading, profile } = useSession();
   const { demoMode, setDemoMode } = useDemoMode();
   const segments = useSegments();
   const { locked, unlock } = useFaceIdLock(session, demoMode);
@@ -299,11 +300,20 @@ function RootLayoutNav() {
         <Stack.Screen name="reset-password" />
         <Stack.Screen name="auth-callback" />
         <Stack.Screen name="link-to-foc" />
+        <Stack.Screen name="reminders" />
       </Stack>
       {/* Land back where you left off after the app is reclaimed in the
           background — only once signed in (or exploring a demo), so it can
           never take over the sign-in redirect above. */}
       <RouteMemory enabled={!!session || demoMode} />
+      {/* Rebuilds the fortnight of scheduled reminders on every foreground, and
+          opens the tab a tapped reminder is about. */}
+      <ReminderSync
+        enabled={!!session || demoMode}
+        userId={session?.user?.id ?? null}
+        demoMode={demoMode}
+        focId={profile?.foc_id ?? null}
+      />
       {!demoMode && session && <PINModal />}
     </>
   );
