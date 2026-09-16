@@ -14,7 +14,7 @@
 //      on our servers, readable by us", say that instead of softening it.
 //   3. If behaviour changes, this file changes in the same commit.
 
-// What actually happens to each kind of entry, as of 2026-09-13.
+// What actually happens to each kind of entry, as of 2026-09-16.
 //
 //   confession journal   AsyncStorage only, sealed to the member's keypair.
 //                        Never sent to Supabase. (lib/confession/store.ts)
@@ -23,8 +23,19 @@
 //   pastoral notes       Sealed to the author's keypair before upload; only
 //                        the author can open them. (lib/db/pastoral.ts)
 //   journal entries      Stored in agent_progress as plain text today.
-//   canon + vitals       Check-offs stay on device; adherence percentages
-//                        reach the FOC only after consent.
+//   canon + vitals       WHICH items were checked stays on device. Adherence
+//                        percentages reach the FOC only after consent. Since
+//                        2026-09-16, a member who switches the canon reminder
+//                        on also sends DAILY TOTALS — due and done, never which
+//                        — because a server that nudges without them is a
+//                        server guessing about someone's rule. No person sees
+//                        those totals; they exist to decide whether a reminder
+//                        would be wrong.
+//   notifications        Reminders for the canon and psalms are written by the
+//                        phone and involve no server. Server-sent ones are
+//                        opt-in per category and require a device code, a time
+//                        zone and an hour. Expo carries them, so it sees the
+//                        device code and the notification text.
 //   profile fields       Name, church, and confession dates are stored plainly
 //                        so the app can list and match on them.
 //   contact + family     PHASE 1 of the rollout: pastoral_contacts (phone,
@@ -59,8 +70,14 @@ export const PRIVACY_COPY = {
     'Your Father of Confession sees adherence percentages, never the individual check-offs, and ' +
     'only while you leave this on. You can withdraw it at any time.',
 
-  // Canon tab.
-  canon: 'Your spiritual canon stays private to you — it is never shared with anyone.',
+  // Canon tab. "Never shared" was true when nothing about the canon left the
+  // phone. Daily totals now do, for members who switch the reminder on, so the
+  // sentence says what is true of both.
+  canon:
+    'Your spiritual canon stays private to you — no one is shown what you keep or miss. ' +
+    'If you turn the canon reminder on, your phone sends daily totals only (how many things ' +
+    'were due, how many you marked done) so a reminder is never sent about a day you have ' +
+    'already finished.',
 
   // Sign-up, before an account exists.
   signup:
@@ -80,5 +97,7 @@ export const PRIVACY_COPY = {
     'On this device only: your confession examination and journal. ' +
     'Encrypted before upload: prayer request bodies, and the notes your priest writes. ' +
     'Stored as written: your name, church, journal entries, confession dates, and anything you ' +
-    'enter for visitation — phone, address, and family details.',
+    'enter for visitation — phone, address, and family details. ' +
+    'Only if you switch notifications on: a code for this device, your time zone, the hour you ' +
+    'picked, and — for the canon reminder — daily totals of what was due and done.',
 } as const;

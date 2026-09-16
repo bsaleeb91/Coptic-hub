@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { APP_NAME, APP_NAME_UPPER } from '@/lib/brand';
 
-const LAST_UPDATED = 'September 13, 2026';
+const LAST_UPDATED = 'September 16, 2026';
 const CONTACT_EMAIL = 'bsaleeb@gmail.com';
 const BUNDLE_ID = 'com.coptic.poimen';
 
@@ -37,9 +37,13 @@ export default function PrivacyScreen() {
           <Bullet>Family details, if you enter them: your life stage, spouse's name, and the first names and birth years of your children. Stored as written, and visible to your Father of Confession under the same consent.</Bullet>
           <Bullet>The date of your last confession, if you choose to self-report it.</Bullet>
           <Bullet>Your last active timestamp (used to display your online status to your FOC only).</Bullet>
+          <Bullet>If you turn on notifications from {APP_NAME}: a code identifying each device you enable them on, your time zone, and the hour you chose to be notified. The device code is issued by our notification provider and identifies the device, not you; the time zone is needed because notifications are scheduled in your local time and our servers cannot otherwise know when your evening is.</Bullet>
+          <Bullet>If you additionally turn on the canon reminder: for each day, how many things your rule asked of you and how many you marked done. Counts only — never which ones. "3 of 5" is what decides whether a reminder would be wrong to send; which five is not something we ask for.</Bullet>
         </Section>
 
         <Section title="What We Don't Collect">
+          <Bullet>Reminders about your canon and your psalms are written by your phone, not sent to it. Your rule, your review queue and your streak are read from the device to write them and none of that leaves it. Notifications from our servers are a separate thing you switch on yourself, and they are about events your phone cannot know — an appointment your father confirmed while the app was closed.</Bullet>
+          <Bullet>Which parts of your canon you kept or missed. Only daily totals are sent, and only if you turn the canon reminder on. Your Father of Confession sees the same wellness percentages as before; the daily counts are used to schedule a reminder and are not shown to anyone.</Bullet>
           <Bullet>Your confession journal and examination of conscience stay on your device. They are encrypted before being written to local storage and are never sent to our servers, so we never receive or store their content. The key that opens them is your own keypair; we hold only a copy of it that your PIN unlocks, and your PIN never reaches us.</Bullet>
         </Section>
 
@@ -61,6 +65,7 @@ export default function PrivacyScreen() {
           <Bullet>To provide the pastoral care features of the app (flock management, prayer, canon assignment).</Bullet>
           <Bullet>To connect you with your Father of Confession, if you choose to link accounts.</Bullet>
           <Bullet>To display your spiritual wellness data to your FOC — only with your explicit consent.</Bullet>
+          <Bullet>To send the notifications you have switched on, at the hour and in the time zone you set.</Bullet>
           <Bullet>We do not use your data for advertising, analytics profiling, or sale to third parties.</Bullet>
         </Section>
 
@@ -69,11 +74,13 @@ export default function PrivacyScreen() {
           <Bullet>With your designated Father of Confession, for data categories you have explicitly consented to share.</Bullet>
           <Bullet>With servants assigned to your parish, for features within their role scope.</Bullet>
           <Bullet>With Supabase (our database provider) as encrypted storage. Supabase does not have access to the content of encrypted fields.</Bullet>
+          <Bullet>With Expo, our notification provider, if you switch notifications on: the device code and the text of the notification itself, which is what delivery through Apple and Google requires. A notification's text names what is due — "Your appointment is confirmed", or how many things remain in your rule — so keep that in mind when choosing which to enable. No confession, journal or prayer content is ever placed in one.</Bullet>
           <Bullet>We do not share your data with any other third parties.</Bullet>
         </Section>
 
         <Section title="Your Choices and Rights">
           <Bullet>You may revoke FOC consent at any time from your Profile screen. This immediately removes your FOC's access to your wellness data.</Bullet>
+          <Bullet>You may turn any notification off at any time from Reminders in your Profile. Switching the last one off removes that device's code from our servers.</Bullet>
           <Bullet>You may update or delete your account by contacting us at the email below.</Bullet>
           <Bullet>You may request a copy of your data at any time.</Bullet>
         </Section>
@@ -83,6 +90,11 @@ export default function PrivacyScreen() {
             We retain your data for as long as your account is active. If you request account
             deletion, we will remove your personal data within 30 days, except where retention
             is required by law.
+          </Body>
+          <Body>
+            Notifications are kept only as long as sending them requires: a queued notification is
+            discarded once it is delivered or once it is too late to be worth sending, and the
+            record of it is removed within 30 days.
           </Body>
         </Section>
 
