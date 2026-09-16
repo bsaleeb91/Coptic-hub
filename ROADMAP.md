@@ -9,7 +9,6 @@ Not scheduled yet — captured here so they aren't lost between sessions.
 - Add full address to the database (congregant profile/contact)
 - In-app feedback mechanism built into the app
 - Community feature: streaks and leaderboards for Psalm memorization
-- Tutorial of the app, especially the Confession module
 
 ### Queued 2026-09-07
 
@@ -157,6 +156,22 @@ queue leaving the device to make one happen. Both are off until switched on in
     the phone has said it.
   - REQUIRES A NATIVE REBUILD. expo-notifications is a native module, so this
     cannot reach members over the air — it ships with the next EAS build.
+
+**Tutorial of the app, especially the Confession module.**
+The role tour (congregant / priest / servant) gave Confession one step out of
+seven, which said what the tab was for and nothing about how to use it. The tab
+now has its own six-step walkthrough (`MODULE_TUTORIALS.confession` in
+`lib/tutorial.ts`), running once on first open and replayable from a "How this
+tab works" link on the hub.
+  - It teaches the order the four entry points are meant to be used in —
+    journal as life happens, examination before you go, notes while you are
+    there — which the cards themselves do not suggest.
+  - `lib/tutorial-store.ts` is now keyed by `TutorialKey` rather than by role,
+    so module walkthroughs sit alongside role tours. Role keys are unchanged,
+    so nobody who has taken one is shown it again.
+  - Copy rule held throughout: the tab prepares someone for the sacrament and
+    never stands in for it, and the one thing that does leave the phone (the
+    date) is named alongside the things that do not.
 
 ### Shipped 2026-09-07
 

@@ -13,12 +13,13 @@ import {
   TextInput, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
+import { useTutorial } from '@/lib/tutorial-context';
 import { SIN_CATALOGUE } from '@/lib/confession/sinCatalogue';
 import { resetVitalsEpoch } from '@/lib/canon/history';
 import { confirmDestructive } from '@/lib/confirm';
@@ -119,6 +120,16 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
   const { user, profile, refreshProfile } = useSession();
   const { demoMode } = useDemoMode();
   const router = useRouter();
+  const { startModuleTutorialIfNew, replayModuleTutorial } = useTutorial();
+
+  // The walkthrough runs once, the first time this tab is opened. It is the
+  // one screen in the app someone can land on and not know where to begin:
+  // four entry points across two sections, used in an order the cards do not
+  // themselves suggest. Attached to the hub rather than the tab's root so it
+  // never fires over the journal or the examination.
+  useFocusEffect(useCallback(() => {
+    startModuleTutorialIfNew('confession');
+  }, [startModuleTutorialIfNew]));
 
   const [history, setHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(!demoMode);
@@ -229,6 +240,14 @@ function Hub({ onNav }: { onNav: (s: SubScreen) => void }) {
             leaves this phone. Only the date of your confession is ever shared with your Father of Confession.
           </Text>
         </View>
+
+        <TouchableOpacity
+          style={styles.howRow}
+          onPress={() => replayModuleTutorial('confession')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.howText}>How this tab works  →</Text>
+        </TouchableOpacity>
 
         {/* Prepare */}
         <Text style={styles.sectionLabel}>PREPARE</Text>
@@ -1046,6 +1065,8 @@ const styles = lazyThemed(() => StyleSheet.create({
   privacyText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, flex: 1 },
   strong: { fontFamily: fonts.latoBold, color: colors.cream },
 
+  howRow: { alignSelf: 'flex-start', paddingVertical: 6, marginBottom: 10 },
+  howText: { fontFamily: fonts.latoBold, fontSize: 11, letterSpacing: 0.6, color: colors.gold },
   sectionLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.textSecond, marginBottom: 8, marginTop: 6 },
   labelHint: { fontFamily: fonts.latoLight, letterSpacing: 0, textTransform: 'none', color: colors.muted },
 

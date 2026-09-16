@@ -23,10 +23,6 @@ export const PHASES: RoadmapPhase[] = [
       {
         "id": "queued-2026-09-02-3",
         "label": "Community feature: streaks and leaderboards for Psalm memorization"
-      },
-      {
-        "id": "queued-2026-09-02-4",
-        "label": "Tutorial of the app, especially the Confession module"
       }
     ]
   },
