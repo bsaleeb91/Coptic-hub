@@ -1,23 +1,24 @@
 {
-  "translation": "World English Bible, British Edition (public domain), via bible-api.com",
+  "translation": "New King James Version (NKJV)",
+  "copyright": "Scripture taken from the New King James Version®. Copyright © 1982 by Thomas Nelson. Used by permission. All rights reserved.",
+  "source": "scripts/nkjv-source.txt (fetched from biblegateway.com via Claude in Chrome, 2026-09-18)",
   "passages": [
     {
       "reference": "Genesis 3:8-10",
       "verses": [
         {
           "verse": "3:8",
-          "text": "They heard the LORD God’s voice walking in the garden in the cool of the day, and the man and his wife hid themselves from the presence of the LORD God amongst the trees of the garden."
+          "text": "And they heard the sound of the Lord God walking in the garden in the cool of the day, and Adam and his wife hid themselves from the presence of the Lord God among the trees of the garden."
         },
         {
           "verse": "3:9",
-          "text": "The LORD God called to the man, and said to him, “Where are you?”"
+          "text": "Then the Lord God called to Adam and said to him, \"Where are you?\""
         },
         {
           "verse": "3:10",
-          "text": "The man said, “I heard your voice in the garden, and I was afraid, because I was naked; so I hid myself.”"
+          "text": "So he said, \"I heard Your voice in the garden, and I was afraid because I was naked; and I hid myself.\""
         }
       ],
-      "url": "https://bible-api.com/Genesis%203%3A8-10?translation=webbe",
       "attaches_to": "era-1"
     },
     {
@@ -25,10 +26,29 @@
       "verses": [
         {
           "verse": "3:21",
-          "text": "The LORD God made garments of animal skins for Adam and for his wife, and clothed them."
+          "text": "Also for Adam and his wife the Lord God made tunics of skin, and clothed them."
         }
       ],
-      "url": "https://bible-api.com/Genesis%203%3A21?translation=webbe",
+      "attaches_to": "era-1"
+    },
+    {
+      "reference": "Genesis 42:21",
+      "verses": [
+        {
+          "verse": "42:21",
+          "text": "Then they said to one another, \"We are truly guilty concerning our brother, for we saw the anguish of his soul when he pleaded with us, and we would not hear; therefore this distress has come upon us.\""
+        }
+      ],
+      "attaches_to": "era-1"
+    },
+    {
+      "reference": "Genesis 50:20",
+      "verses": [
+        {
+          "verse": "50:20",
+          "text": "But as for you, you meant evil against me; but God meant it for good, in order to bring it about as it is this day, to save many people alive."
+        }
+      ],
       "attaches_to": "era-1"
     },
     {
@@ -36,10 +56,9 @@
       "verses": [
         {
           "verse": "25:8",
-          "text": "Let them make me a sanctuary, that I may dwell amongst them."
+          "text": "And let them make Me a sanctuary, that I may dwell among them."
         }
       ],
-      "url": "https://bible-api.com/Exodus%2025%3A8?translation=webbe",
       "attaches_to": "era-2"
     },
     {
@@ -47,14 +66,13 @@
       "verses": [
         {
           "verse": "33:14",
-          "text": "He said, “My presence will go with you, and I will give you rest.”"
+          "text": "And He said, \"My Presence will go with you, and I will give you rest.\""
         },
         {
           "verse": "33:15",
-          "text": "Moses said to him, “If your presence doesn’t go with me, don’t carry us up from here."
+          "text": "Then he said to Him, \"If Your Presence does not go with us, do not bring us up from here."
         }
       ],
-      "url": "https://bible-api.com/Exodus%2033%3A14-15?translation=webbe",
       "attaches_to": "era-2"
     },
     {
@@ -62,10 +80,9 @@
       "verses": [
         {
           "verse": "8:7",
-          "text": "The LORD said to Samuel, “Listen to the voice of the people in all that they tell you; for they have not rejected you, but they have rejected me as the king over them."
+          "text": "And the Lord said to Samuel, \"Heed the voice of the people in all that they say to you; for they have not rejected you, but they have rejected Me, that I should not reign over them."
         }
       ],
-      "url": "https://bible-api.com/1%20Samuel%208%3A7?translation=webbe",
       "attaches_to": "era-3"
     },
     {
@@ -73,10 +90,9 @@
       "verses": [
         {
           "verse": "16:7",
-          "text": "But the LORD said to Samuel, “Don’t look on his face, or on the height of his stature, because I have rejected him; for I don’t see as man sees. For man looks at the outward appearance, but the LORD looks at the heart.”"
+          "text": "But the Lord said to Samuel, \"Do not look at his appearance or at his physical stature, because I have refused him. For the Lord does not see as man sees; for man looks at the outward appearance, but the Lord looks at the heart.\""
         }
       ],
-      "url": "https://bible-api.com/1%20Samuel%2016%3A7?translation=webbe",
       "attaches_to": "era-3"
     },
     {
@@ -84,10 +100,9 @@
       "verses": [
         {
           "verse": "8:27",
-          "text": "But will God in very deed dwell on the earth? Behold, heaven and the heaven of heavens can’t contain you; how much less this house that I have built!"
+          "text": "\"But will God indeed dwell on the earth? Behold, heaven and the heaven of heavens cannot contain You. How much less this temple which I have built!"
         }
       ],
-      "url": "https://bible-api.com/1%20Kings%208%3A27?translation=webbe",
       "attaches_to": "era-3"
     },
     {
@@ -95,14 +110,13 @@
       "verses": [
         {
           "verse": "10:18",
-          "text": "The LORD’s glory went out from over the threshold of the house and stood over the cherubim."
+          "text": "Then the glory of the Lord departed from the threshold of the temple and stood over the cherubim."
         },
         {
           "verse": "10:19",
-          "text": "The cherubim lifted up their wings and mounted up from the earth in my sight when they went out, with the wheels beside them. Then they stood at the door of the east gate of the LORD’s house; and the glory of the God of Israel was over them above."
+          "text": "And the cherubim lifted their wings and mounted up from the earth in my sight. When they went out, the wheels were beside them; and they stood at the door of the east gate of the Lord's house, and the glory of the God of Israel was above them."
         }
       ],
-      "url": "https://bible-api.com/Ezekiel%2010%3A18-19?translation=webbe",
       "attaches_to": "era-4"
     },
     {
@@ -110,14 +124,13 @@
       "verses": [
         {
           "verse": "36:15",
-          "text": "The LORD, the God of their fathers, sent to them by his messengers, rising up early and sending, because he had compassion on his people and on his dwelling place;"
+          "text": "And the Lord God of their fathers sent warnings to them by His messengers, rising up early and sending them, because He had compassion on His people and on His dwelling place."
         },
         {
           "verse": "36:16",
-          "text": "but they mocked the messengers of God, despised his words, and scoffed at his prophets, until the LORD’s wrath arose against his people, until there was no remedy."
+          "text": "But they mocked the messengers of God, despised His words, and scoffed at His prophets, until the wrath of the Lord arose against His people, till there was no remedy."
         }
       ],
-      "url": "https://bible-api.com/2%20Chronicles%2036%3A15-16?translation=webbe",
       "attaches_to": "era-4"
     },
     {
@@ -125,10 +138,9 @@
       "verses": [
         {
           "verse": "1:14",
-          "text": "The Word became flesh and lived amongst us. We saw his glory, such glory as of the only born Son of the Father, full of grace and truth."
+          "text": "And the Word became flesh and dwelt among us, and we beheld His glory, the glory as of the only begotten of the Father, full of grace and truth."
         }
       ],
-      "url": "https://bible-api.com/John%201%3A14?translation=webbe",
       "attaches_to": "closing"
     }
   ]

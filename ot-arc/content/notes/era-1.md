@@ -7,9 +7,9 @@
 ## Questions for the class
 - Why would God ask a question He already knows the answer to? What was He inviting Adam to do?
 - Adam and Eve hid. What do people hide behind today when they know they have done wrong?
-- After Babel, God starts over with one man, Abraham. Why start smaller instead of starting from scratch?
+- After Babel, God calls one man, Abraham. Why work through one person instead of starting over with everyone?
 
 ## The storylines here
-- **Father:** A promise after the Fall, a covenant after the flood, a call after Babel. The cycle begins: God loves, man sins, God comes looking.
+- **Father:** Joseph's brothers sell him into slavery, and God is working even there. Years later they admit, “We are truly guilty” (Genesis 42:21), and ask his forgiveness. Joseph answers, “you meant evil against me; but God meant it for good” (Genesis 50:20). The cycle begins: God loves, man sins, man repents, God forgives.
 - **Teacher:** The coats of skin, Abel's offering, Isaac on the mountain. The first pictures of love that costs something.
 - **Neighbor:** Eden is God's home with man. God walks in the garden, and man walks out.

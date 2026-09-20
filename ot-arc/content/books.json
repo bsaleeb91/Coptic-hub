@@ -1,0 +1,15 @@
+{
+  "_note": "Added 2026-09-20, not from the handoff. Books are taken from each era's span in part-one.json (Genesis 1-50; Exodus-Judges; 1 Samuel-1 Kings 11; 1 Kings 12-2 Kings 25). Books between Exodus and Judges are the standard canonical order.",
+  "eras": {
+    "era-1": [{ "name": "Genesis", "range": "1–50" }],
+    "era-2": [{ "name": "Exodus" }, { "name": "Leviticus" }, { "name": "Numbers" }, { "name": "Deuteronomy" }, { "name": "Joshua" }, { "name": "Judges" }],
+    "era-3": [{ "name": "1 Samuel" }, { "name": "2 Samuel" }, { "name": "1 Kings", "range": "1–11" }],
+    "era-4": [{ "name": "1 Kings", "range": "12–22" }, { "name": "2 Kings" }]
+  },
+  "art": {
+    "era-1": { "title": "Adam and Eve Driven Out of Eden", "alt": "Engraving of Adam and Eve walking away from Eden, an angel with a sword above them in a shaft of light", "pos": "50% 50%" },
+    "era-2": { "title": "Moses Breaks the Tables of the Law", "alt": "Engraving of Moses raising the stone tablets above his head while the people cower below", "pos": "50% 20%" },
+    "era-3": { "title": "The Judgment of Solomon", "alt": "Engraving of King Solomon standing on steps to give judgment while a soldier holds a child and a woman pleads", "pos": "50% 25%" },
+    "era-4": { "title": "The Prophet Jeremiah", "alt": "Engraving of a prophet on stone steps, arm raised toward heaven, surrounded by mourning people", "pos": "40% 30%" }
+  }
+}

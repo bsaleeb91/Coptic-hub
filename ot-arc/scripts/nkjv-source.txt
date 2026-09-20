@@ -1,4 +1,4 @@
-Source: https://www.biblegateway.com/passage/?search=Genesis+3%3A8-10%3BGenesis+3%3A21%3BExodus+25%3A8%3BExodus+33%3A14-15%3B1+Samuel+8%3A7%3B1+Samuel+16%3A7%3B1+Kings+8%3A27%3BEzekiel+10%3A18-19%3B2+Chronicles+36%3A15-16%3BJohn+1%3A14&version=NKJV
+Source: https://www.biblegateway.com/passage/?search=Genesis+3%3A8-10%3BGenesis+3%3A21%3BGenesis+42%3A21%3BGenesis+50%3A20%3BExodus+25%3A8%3BExodus+33%3A14-15%3B1+Samuel+8%3A7%3B1+Samuel+16%3A7%3B1+Kings+8%3A27%3BEzekiel+10%3A18-19%3B2+Chronicles+36%3A15-16%3BJohn+1%3A14&version=NKJV
 Fetched via Claude in Chrome on 2026-09-18. Copied verbatim below (footnote markers like [a] left in place, "Read full chapter" / footnote text / store ads stripped).
 
 Genesis 3:8-10
@@ -14,6 +14,16 @@ Genesis 3:21
 New King James Version
 
 21 Also for Adam and his wife the Lord God made tunics of skin, and clothed them.
+
+Genesis 42:21
+New King James Version
+
+21 Then they said to one another, "We are truly guilty concerning our brother, for we saw the anguish of his soul when he pleaded with us, and we would not hear; therefore this distress has come upon us."
+
+Genesis 50:20
+New King James Version
+
+20 But as for you, you meant evil against me; but God meant it for good, in order to bring it about as it is this day, to save many people alive.
 
 Exodus 25:8
 New King James Version

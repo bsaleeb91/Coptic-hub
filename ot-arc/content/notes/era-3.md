@@ -1,8 +1,8 @@
 ## Talking points
 - **The peak.** A king, a capital, a temple, and glory filling the house. On the arc, this is as high as it gets since Eden.
-- **The crack.** They asked for "a king like the nations." God tells Samuel, "they have not rejected you, but they have rejected me as the king over them" (1 Samuel 8:7).
+- **The crack.** They asked for "a king like the nations." God tells Samuel, "they have not rejected you, but they have rejected Me, that I should not reign over them" (1 Samuel 8:7).
 - **Three kings, forty years each.** Saul, "lust for mortal glory." David, "lust for the divine Kingdom." Solomon, building the Temple.
-- **The heart.** "For man looks at the outward appearance, but the LORD looks at the heart" (1 Samuel 16:7). This is the line between Saul and David.
+- **The heart.** "for man looks at the outward appearance, but the Lord looks at the heart" (1 Samuel 16:7). This is the line between Saul and David.
 - **The most honest moment.** At the dedication, the man who built the house admits it can't hold God (1 Kings 8:27).
 
 ## Questions for the class

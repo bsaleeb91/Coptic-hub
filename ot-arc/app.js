@@ -387,6 +387,27 @@
       }).join("") + "</div></div>";
   }
 
+  var BOOKS = { eras: {}, art: {} };
+  var ICONS = {
+    "thread-mercy": '<svg class="thread-icon" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path d="M16 27C6 19 4 13 4 9.5A6.5 6.5 0 0 1 16 7a6.5 6.5 0 0 1 12 2.5C28 13 26 19 16 27z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+    "thread-sacrifice": '<svg class="thread-icon" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path d="M5 27h22M8 27V19h16v8M16 17c-4-3-4-6-1-10 0 3 5 4 5 8 0 1.5-1 2-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    "thread-dwelling": '<svg class="thread-icon" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path d="M3 27L16 5l13 22zM12 27l4-9 4 9M16 5v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  };
+
+  function booksHTML(part) {
+    return '<hr class="section-rule"><section id="books"><div class="wide"><p class="eyebrow">Where we are reading</p><h2>The books in each era</h2><div class="books-grid">' +
+      part.eras.map(function (e, i) {
+        var art = BOOKS.art[e.id], list = BOOKS.eras[e.id] || [];
+        return '<a class="book-card" href="#' + esc(e.id) + '">' +
+          (art ? '<img src="images/' + esc(e.id) + '.jpg" alt="" loading="lazy" style="object-position:' + esc(art.pos) + '">' : "") +
+          '<span class="era-num">ERA ' + ROMAN[i] + "</span>" +
+          '<span class="book-era-title">' + esc(e.title) + "</span>" +
+          '<span class="spines">' + list.map(function (b) {
+            return '<span class="spine">' + esc(b.name) + (b.range ? "<small>" + esc(b.range) + "</small>" : "") + "</span>";
+          }).join("") + "</span></a>";
+      }).join("") + "</div></div></section>";
+  }
+
   function renderPart(part, arc, quotes, scripture, notes, cls) {
     var eras = part.eras, threads = part.threads, h = "";
     var wbe = scripture.translation.split(" (")[0];
@@ -399,10 +420,12 @@
       '<svg class="ornament" width="120" height="14" viewBox="0 0 120 14" aria-hidden="true"><path d="M0 7h50M70 7h50" stroke="currentColor" stroke-width="1"/><path d="M60 1v12M55 5h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' +
       "</header>";
 
+    h += booksHTML(part);
+
     h += '<hr class="section-rule"><section id="storylines"><div class="wrap"><p class="eyebrow">Three storylines</p><h2>Look for these in every era</h2><div class="chains">';
     threads.forEach(function (t, i) {
       var c = cls.threads[t.id];
-      h += '<article class="chain-card" id="' + esc(t.id) + '"><h3>' + esc(t.name) + "</h3>" +
+      h += '<article class="chain-card" id="' + esc(t.id) + '"><h3>' + (ICONS[t.id] || "") + esc(t.name) + "</h3>" +
         '<p class="short">' + esc(c.short) + "</p>" +
         '<ol class="chain' + (c.chain_repeats ? " repeats" : "") + '">' + c.chain.map(function (s) { return "<li>" + esc(s) + "</li>"; }).join("") + "</ol>" +
         (c.chain_repeats ? '<p class="repeat-note">…and around again</p>' : "") +
@@ -419,10 +442,13 @@
       var featured = byId(quotes, c.quote);
       var others = quotes.filter(function (q) { return q.attaches_to === e.id && q.id !== c.quote; });
       h += '<hr class="section-rule"><section id="' + esc(e.id) + '"><div class="wrap">' +
-        '<div class="era-head"><span class="era-num">ERA ' + ROMAN[i] + "</span><h2>" + esc(e.title) + "</h2>" +
+        '<div class="era-intro">' +
+        (BOOKS.art[e.id] ? '<figure class="era-art"><img src="images/' + esc(e.id) + '.jpg" alt="' + esc(BOOKS.art[e.id].alt) + '" loading="lazy">' +
+          "<figcaption>Gustave Doré, <em>" + esc(BOOKS.art[e.id].title) + "</em></figcaption></figure>" : "") +
+        '<div class="era-intro-text"><div class="era-head"><span class="era-num">ERA ' + ROMAN[i] + "</span><h2>" + esc(e.title) + "</h2>" +
         '<span class="era-span">' + esc(e.span) + "</span></div>" +
+        '<p class="summary">' + esc(c.summary) + "</p></div></div>" +
         (MODE === "teacher" ? '<div class="mini-arc" data-arc="' + esc(e.id) + '"></div>' : "") +
-        '<p class="summary">' + esc(c.summary) + "</p>" +
         '<ul class="beats">' + c.beats.map(function (b) { return "<li>" + esc(b) + "</li>"; }).join("") + "</ul>" +
         (vt ? '<blockquote class="verse"><p>' + esc(vt) + "</p><cite>" + esc(c.verse_ref) + "</cite></blockquote>" : "") +
         (featured ? '<div class="quotes">' + quoteHTML(featured) + "</div>" : "") +
@@ -470,7 +496,7 @@
 
   function renderNav(part) {
     var nav = document.getElementById("nav");
-    var links = [["#storylines", "Storylines"]];
+    var links = [["#books", "The books"], ["#storylines", "Storylines"]];
     part.eras.forEach(function (e, i) { links.push(["#" + e.id, ROMAN[i] + " · " + e.title]); });
     links.push(["#arc", "How close to God?"]);
     links.push(["#closing", "The end"]);
@@ -537,18 +563,21 @@
 
   getJSON("content/parts.json").then(function (reg) {
     var p = reg.parts[0];
-    return Promise.all([getJSON(p.content), getJSON(p.arc), getJSON("content/quotes.json"), getJSON("content/scripture.json"), getJSON(p.class)])
+    return Promise.all([getJSON(p.content), getJSON(p.arc), getJSON("content/quotes.json"), getJSON("content/scripture.json"), getJSON(p.class), getJSON("content/books.json")])
       .then(function (r) {
         var part = r[0], ids = part.eras.map(function (e) { return e.id; }).concat(part.threads.map(function (t) { return t.id; }));
         var notesP = MODE === "teacher"
           ? Promise.all(ids.map(function (id) { return getText("content/notes/" + id + ".md"); }))
           : Promise.resolve([]);
+        BOOKS = r[5];
         return notesP.then(function (mds) {
           var notes = {}; ids.forEach(function (id, i) { notes[id] = mds[i] || ""; });
           document.getElementById("app").innerHTML = renderPart(part, r[1], r[2].quotes, r[3], notes, r[4]);
           document.getElementById("footer").innerHTML =
+            "<p>Illustrations: Gustave Doré (1832–1883), Bible engravings, public domain, via Wikimedia Commons.</p>" +
             "<p>Historical outline: Fr. Tadros Y. Malaty, <em>A Historical Map of the Old Testament</em>.</p>" +
             "<p>Quotations are copied word for word from the church's commentary library. Scripture: " + esc(r[3].translation) + ".</p>" +
+            (r[3].copyright ? "<p>" + esc(r[3].copyright) + "</p>" : "") +
             (MODE === "teacher" ? '<p><a href="/">Open the class version (no speaker notes)</a></p>' : "");
           renderNav(part);
           drawAll(r[1], part.eras);

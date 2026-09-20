@@ -25,6 +25,12 @@ PASSAGES = [
     ("era-1", "Genesis 3:21", [
         ("3:21", "Also for Adam and his wife the Lord God made tunics of skin, and clothed them."),
     ]),
+    ("era-1", "Genesis 42:21", [
+        ("42:21", 'Then they said to one another, "We are truly guilty concerning our brother, for we saw the anguish of his soul when he pleaded with us, and we would not hear; therefore this distress has come upon us."'),
+    ]),
+    ("era-1", "Genesis 50:20", [
+        ("50:20", "But as for you, you meant evil against me; but God meant it for good, in order to bring it about as it is this day, to save many people alive."),
+    ]),
     ("era-2", "Exodus 25:8", [
         ("25:8", "And let them make Me a sanctuary,[a] that I may dwell among them."),
     ]),
