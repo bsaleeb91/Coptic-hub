@@ -406,8 +406,14 @@
             var bs = list.filter(function (b) { return b.kind === k; });
             if (!bs.length) return "";
             return '<span class="spine-group">' + (BOOKS.kinds && BOOKS.kinds[k] ? '<span class="spine-label">' + esc(BOOKS.kinds[k]) + "</span>" : "") +
-              '<span class="spines">' + bs.map(function (b) {
-                return '<span class="spine ' + k + '">' + esc(b.name) + (b.range ? "<small>" + esc(b.range) + "</small>" : "") + "</span>";
+              bs.map(function (b, j) {
+                var head = "";
+                if (b.when && (j === 0 || bs[j - 1].when !== b.when)) {
+                  head = (j ? "</span>" : "") + '<span class="spine-when">' + esc(b.when) + "</span>" +
+                    (BOOKS.when_notes && BOOKS.when_notes[b.when] ? '<span class="spine-note">' + esc(BOOKS.when_notes[b.when]) + "</span>" : "") +
+                    '<span class="spines">';
+                } else if (j === 0) head = '<span class="spines">';
+                return head + '<span class="spine ' + k + '">' + esc(b.name) + (b.range ? "<small>" + esc(b.range) + "</small>" : "") + "</span>";
               }).join("") + "</span></span>";
           }).join("") + "</a>";
       }).join("") + "</div>" + (BOOKS.later ? '<p class="books-later">' + esc(BOOKS.later) + "</p>" : "") + "</div></section>";
