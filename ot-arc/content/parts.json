@@ -1,0 +1,11 @@
+{
+  "_about": "Parts render in order. To add Part Two: add content/part-two.json (same shape as part-one.json), content/arc-part-two.json, notes in content/notes/, and an entry here.",
+  "parts": [
+    {
+      "id": "part-one",
+      "content": "content/part-one.json",
+      "arc": "content/arc-part-one.json",
+      "class": "content/class-part-one.json"
+    }
+  ]
+}

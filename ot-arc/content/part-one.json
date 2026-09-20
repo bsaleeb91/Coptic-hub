@@ -1,0 +1,112 @@
+{
+  "id": "part-one",
+  "title": "Creation to Captivity",
+  "part_label": "Part One",
+  "_source": "Copy extracted verbatim from 'Claude Code Handoff — Old Testament Arc Site.docx' (section three). Do not edit wording here without flagging.",
+  "opening": {
+    "span": "Genesis 1 to 2 Kings 25, about 4004–587 BC",
+    "framing": "the house God builds with man and refuses to give up on",
+    "_handoff_line": "Opening — title, the span (Genesis 1 to 2 Kings 25, about 4004–587 BC), and the framing line: the house God builds with man and refuses to give up on."
+  },
+  "eras": [
+    {
+      "id": "era-1",
+      "title": "The Palace and the Exile",
+      "span": "Genesis 1–50",
+      "theme": "God builds a home, man walks out, and after each collapse God narrows His focus rather than abandon the project — a promise after the Fall, a covenant after the flood, one man called after Babel",
+      "takeaway": "God doesn't abandon the project. He starts smaller.",
+      "beats": [
+        "Creation as a royal palace built for a king and queen (~4004 BC)",
+        "the Fall",
+        "Noah and the flood (~2349 BC)",
+        "the Tower of Babel",
+        "the patriarchs: Abraham (2166–1991), Isaac (2066–1886), Jacob (2006), Job (1859), Joseph (1915–1805)",
+        "the family settles in Goshen and bondage begins (~1706 BC)"
+      ],
+      "key_verse": {
+        "passage": "Genesis 3",
+        "why": "God asks \"Where are you?\" — not for information. He is the one walking in the garden looking for the people hiding from Him. And He makes them coats of skin: something dies to cover their shame, and He does the covering"
+      }
+    },
+    {
+      "id": "era-2",
+      "title": "The God Who Moves In",
+      "span": "Exodus – Judges",
+      "theme": "Israel can't climb up to God, so God comes down: blood of the lamb, water of the sea, law at Sinai, then a tent pitched in the middle of the camp. The wilderness exposes that you can take the people out of Egypt without getting Egypt out of the people",
+      "takeaway": "Rescue is instant. Transformation is slow.",
+      "beats": [
+        "Moses and the ten plagues, the Passover lamb (~1447 BC)",
+        "crossing the Red Sea",
+        "the Law at Sinai",
+        "the Tabernacle established",
+        "wilderness wandering, the camp arranged in the shape of a cross",
+        "Joshua crosses the Jordan (~1407 BC)",
+        "the land divided among the tribes",
+        "the judges cycle: Othniel, Ehud, Shamgar, Deborah and Barak, Gideon, Abimelech, Tola, Jair, Jephthah, Ibzan, Elon, Abdon, Samson",
+        "Samuel, last judge and first prophet"
+      ],
+      "key_verse": {
+        "passage": "Exodus 25:8",
+        "why": "\"Let them make me a sanctuary, that I may dwell among them\" — the thesis of the whole era. Pair with the golden calf and Moses saying, in effect, if You don't come with us don't send us up from here"
+      }
+    },
+    {
+      "id": "era-3",
+      "title": "The Golden House",
+      "span": "1 Samuel – 1 Kings 11",
+      "theme": "The peak — a king, a capital, a temple, glory filling the house. But the crack is already there: they asked for a king like the nations, which Samuel names as rejecting God as King",
+      "takeaway": "Getting everything you want doesn't fix what's wrong inside you.",
+      "beats": [
+        "Saul, 40 years, \"lust for mortal glory\" (~1050 BC)",
+        "David, 40 years, \"lust for the divine Kingdom\"",
+        "Solomon, 40 years, building the Temple"
+      ],
+      "key_verse": {
+        "passage": "1 Kings 8:27",
+        "why": "Solomon at the dedication asks whether God will really dwell on earth when heaven itself can't contain Him. The most honest moment in the era comes from the man who built the house. Pair with 1 Samuel 16:7, God looking at the heart"
+      }
+    },
+    {
+      "id": "era-4",
+      "title": "The Glory Departs",
+      "span": "1 Kings 12 – 2 Kings 25",
+      "theme": "The house divides, then empties. The prophets are the tell — God sends warning after warning for two centuries before letting the walls fall",
+      "takeaway": "God is willing to lose the Temple but not His people.",
+      "beats": [
+        "The split at Rehoboam and Jeroboam (931 BC)",
+        "Israel in the north, capital Samaria, every king evil",
+        "Judah in the south, capital Jerusalem, a mix of good and bad kings",
+        "Assyria takes Israel (722 BC)",
+        "Babylon takes Judah (587 BC)"
+      ],
+      "key_verse": {
+        "passage": "Ezekiel 10",
+        "why": "The glory leaves the temple slowly — it lifts, pauses at the threshold, moves to the east gate, pauses, then stops on the mountain east of the city. Like someone who keeps turning around. Pair with 2 Chronicles 36, God sending messengers again and again"
+      }
+    }
+  ],
+  "threads": [
+    {
+      "id": "thread-mercy",
+      "name": "God as Father",
+      "says": "God loves, man sins, man repents, God forgives — on repeat",
+      "note": "Malaty's own framing is punishment education: the consequence is pedagogical, how a Father teaches, not an offended King getting paid. Keep that framing"
+    },
+    {
+      "id": "thread-sacrifice",
+      "name": "God as Teacher",
+      "says": "Consequences are real and costly, and God teaches this through sacrifice — escalating from the coats of skin, to Abel, to Isaac on the mountain, to the Passover lamb, to the Levitical system, to Christ",
+      "note": "This is my synthesis, not Malaty's. Hebrews 9–10 makes the argument explicitly. Frame it as God teaching through pictures what love that costs everything looks like, rather than as a transaction"
+    },
+    {
+      "id": "thread-dwelling",
+      "name": "God as Neighbor",
+      "says": "God moves in: tabernacle, then temple, then the human heart",
+      "note": "Strongest match to Malaty. His prophets table already runs this: Haggai's aim is constructing the internal temple of the heart, Zechariah's is Christ constructing His temple, Ezekiel opens hope by building the Messianic temple. The interior temple is not a later retrofit — the prophets were already pointing at it"
+    }
+  ],
+  "closing": {
+    "line": "They return, rebuild a smaller temple, and then four hundred years of silence — until God builds His house a different way entirely, and the Word becomes flesh and dwells among us.",
+    "payoff": "The payoff worth surfacing: John 1:14 uses the tabernacle word. The house God couldn't fit into becomes a body."
+  }
+}

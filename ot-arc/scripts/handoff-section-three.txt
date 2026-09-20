@@ -1,0 +1,160 @@
+Claude Code Handoff — Old Testament Arc Site
+Sep 18, 2026 · @Someone
+Context
+Build a mobile-first teaching site for Part One of a two-part Old Testament Bible study, then deploy it to Vercel.
+I teach 8th grade Sunday school at a Coptic Orthodox parish. The study covers the whole Old Testament in two sessions. Part One is Creation to Captivity — Genesis 1 through the Babylonian exile in 587 BC. Part Two picks up at exile and runs through the intertestamental period to the coming of Christ. This handoff covers Part One only, but structure the code so Part Two can be added later as a second section.
+Who uses it: me, on an iPhone and an iPad, while teaching. Not the students, and not projected. It needs to read well at arm's length on a tablet, and it needs somewhere for me to keep my own teaching notes.
+Source text: the historical spine comes from A Historical Map of the Old Testament by Fr. Tadros Y. Malaty, which divides the OT into six eras. Eras 1–4 cover Part One. I consolidated and renamed them thematically — the era titles in section three are mine, not Malaty's, though the historical beats under each are his.
+What exists already: a one-page visual summary (a Letter-size infographic with a line chart of nearness to God across the four eras, plus four columns of detail). The site replaces it. Section three below is that content in full — treat it as the source of truth for copy, and don't re-derive or rewrite it.
+Task 1 — Pull patristic quotes from the coptic hub commentary database
+I have a Bible commentary database I built in my coptic hub repo. Find it, understand its schema, and extract supporting church father quotes for the content in section three. Do this first — the site's content depends on what you find.
+Steps:
+Locate the repo and the commentary data. Report back what format it's in (SQLite, JSON, markdown files, CSV) and what fields each record has — especially whether quotes carry a father's name, a work title, and a scripture reference.
+Extract quotes matching the passages listed in section three. Each of the four eras needs a key verse quote, and each of the three storylines needs one or two.
+Write the results to content/quotes.json in the new site project, one record per quote.
+Required shape for each quote record:
+Field
+Contents
+id
+stable slug, e.g. athanasius-incarnation-7
+father
+e.g. "St. Athanasius the Apostolic"
+work
+e.g. "On the Incarnation, §7"
+scripture
+the verse or passage it comments on
+quote
+the quote itself, kept short — two or three sentences at most
+attaches_to
+which era or storyline it supports (see section three ids)
+source
+where in the repo it came from, so I can trace it back
+Rules that matter here:
+Only use quotes that actually exist in my database. Do not generate, paraphrase into, or fill gaps with quotes from your own knowledge.
+If a slot has no match in the database, leave it empty and list it under an unmatched key at the end of the file. I'd rather have holes than invented patristics.
+Prefer Alexandrian and Egyptian fathers where the database has them — Athanasius, Cyril of Alexandria, Macarius the Great, Antony, Shenoute — since this is a Coptic parish. Fall back to the wider fathers otherwise.
+Flag anything attributed to "Macarius" — scholarship splits the Fifty Spiritual Homilies off to Pseudo-Macarius, though Coptic tradition holds them as St. Macarius the Great. Note which the database means so I don't misattribute in front of the class.
+The content
+This is the full copy for the site. Use it as written. The id column is what attaches_to in quotes.json should reference.
+The four eras
+id
+Era
+Span
+Spiritual theme
+Takeaway line
+era-1
+The Palace and the Exile
+Genesis 1–50
+God builds a home, man walks out, and after each collapse God narrows His focus rather than abandon the project — a promise after the Fall, a covenant after the flood, one man called after Babel
+God doesn't abandon the project. He starts smaller.
+era-2
+The God Who Moves In
+Exodus – Judges
+Israel can't climb up to God, so God comes down: blood of the lamb, water of the sea, law at Sinai, then a tent pitched in the middle of the camp. The wilderness exposes that you can take the people out of Egypt without getting Egypt out of the people
+Rescue is instant. Transformation is slow.
+era-3
+The Golden House
+1 Samuel – 1 Kings 11
+The peak — a king, a capital, a temple, glory filling the house. But the crack is already there: they asked for a king like the nations, which Samuel names as rejecting God as King
+Getting everything you want doesn't fix what's wrong inside you.
+era-4
+The Glory Departs
+1 Kings 12 – 2 Kings 25
+The house divides, then empties. The prophets are the tell — God sends warning after warning for two centuries before letting the walls fall
+God would rather lose the house than lose the people.
+Historical beats per era
+These come from Malaty and should appear under each era on the site.
+era-1 — Creation as a royal palace built for a king and queen (~4004 BC) · the Fall · Noah and the flood (~2349 BC) · the Tower of Babel · the patriarchs: Abraham (2166–1991), Isaac (2066–1886), Jacob (2006), Job (1859), Joseph (1915–1805) · the family settles in Goshen and bondage begins (~1706 BC)
+era-2 — Moses and the ten plagues, the Passover lamb (~1447 BC) · crossing the Red Sea · the Law at Sinai · the Tabernacle established · wilderness wandering, the camp arranged in the shape of a cross · Joshua crosses the Jordan (~1407 BC) · the land divided among the tribes · the judges cycle: Othniel, Ehud, Shamgar, Deborah and Barak, Gideon, Abimelech, Tola, Jair, Jephthah, Ibzan, Elon, Abdon, Samson · Samuel, last judge and first prophet
+era-3 — Saul, 40 years, "lust for mortal glory" (~1050 BC) · David, 40 years, "lust for the divine Kingdom" · Solomon, 40 years, building the Temple
+era-4 — The split at Rehoboam and Jeroboam (931 BC) · Israel in the north, capital Samaria, every king evil · Judah in the south, capital Jerusalem, a mix of good and bad kings · Assyria takes Israel (722 BC) · Babylon takes Judah (587 BC)
+Key verse per era
+Each era gets one anchor passage. These are the slots patristic quotes should attach to.
+id
+Passage
+Why it's the anchor
+era-1
+Genesis 3
+God asks "Where are you?" — not for information. He is the one walking in the garden looking for the people hiding from Him. And He makes them coats of skin: something dies to cover their shame, and He does the covering
+era-2
+Exodus 25:8
+"Let them make me a sanctuary, that I may dwell among them" — the thesis of the whole era. Pair with the golden calf and Moses saying, in effect, if You don't come with us don't send us up from here
+era-3
+1 Kings 8:27
+Solomon at the dedication asks whether God will really dwell on earth when heaven itself can't contain Him. The most honest moment in the era comes from the man who built the house. Pair with 1 Samuel 16:7, God looking at the heart
+era-4
+Ezekiel 10
+The glory leaves the temple slowly — it lifts, pauses at the threshold, moves to the east gate, pauses, then stops on the mountain east of the city. Like someone who keeps turning around. Pair with 2 Chronicles 36, God sending messengers again and again
+The three storylines
+These run underneath all four eras and are the spine of the whole study. On the site they need to be reachable independently of the era navigation — I teach them as a cross-cutting thread.
+id
+Storyline
+What it says
+Note
+thread-mercy
+God as Father
+God loves, man sins, man repents, God forgives — on repeat
+Malaty's own framing is punishment education: the consequence is pedagogical, how a Father teaches, not an offended King getting paid. Keep that framing
+thread-sacrifice
+God as Teacher
+Consequences are real and costly, and God teaches this through sacrifice — escalating from the coats of skin, to Abel, to Isaac on the mountain, to the Passover lamb, to the Levitical system, to Christ
+This is my synthesis, not Malaty's. Hebrews 9–10 makes the argument explicitly. Frame it as God teaching through pictures what love that costs everything looks like, rather than as a transaction
+thread-dwelling
+God as Neighbor
+God moves in: tabernacle, then temple, then the human heart
+Strongest match to Malaty. His prophets table already runs this: Haggai's aim is constructing the internal temple of the heart, Zechariah's is Christ constructing His temple, Ezekiel opens hope by building the Messianic temple. The interior temple is not a later retrofit — the prophets were already pointing at it
+The closing line
+This ends Part One and hands off to Part Two. Give it real weight in the layout.
+They return, rebuild a smaller temple, and then four hundred years of silence — until God builds His house a different way entirely, and the Word becomes flesh and dwells among us.
+The payoff worth surfacing: John 1:14 uses the tabernacle word. The house God couldn't fit into becomes a body.
+Task 2 — Build the site
+A single-page site I scroll through on a phone or tablet while teaching. Not a slideshow, not a deck. Reading, with my notes attached.
+Structure
+Opening — title, the span (Genesis 1 to 2 Kings 25, about 4004–587 BC), and the framing line: the house God builds with man and refuses to give up on.
+The arc — the line chart of nearness to God across the four eras, described below. This is the one visual that carries the whole study.
+The four eras — one section each: title, span, historical beats, spiritual theme, key verse, patristic quote, takeaway line.
+The three storylines — reachable on their own, not buried at the bottom of the era list. These cut across all four eras. Your call on placement: build them as a standalone section, or thread them through the four eras so each era carries the three, or both behind a toggle. I want to see how it plays out before I decide — intertwined may well be the better read. Tell me which you picked and why.
+The closing — the handoff line into Part Two, given real weight.
+The arc chart
+The spine of the whole thing. A single continuous line, left to right, tracing nearness to God. It starts at its highest point in Eden, collapses through the Fall and Babel, climbs back at Sinai, jitters through the judges cycle, reaches its true peak at Solomon's Temple, then descends steadily into exile.
+Two things the shape has to communicate, so don't smooth them away:
+The Temple and Eden sit at nearly the same height.
+The bottom of the chart is exile, not the Fall.
+Label these points: Eden · The Fall · Babel · Abraham · Exodus · Sinai · Judges · David · The Temple · The Split · Exile. Inline SVG, not a charting library. On a phone it can rotate to vertical or scroll horizontally — your call, but it must stay legible at phone width, and the four era sections should visibly correspond to their stretch of the curve.
+Notes
+The feature I actually need. Every era and every storyline gets a notes field I can type into.
+Saves automatically, no save button.
+Persists across my phone and my iPad — so server-side storage, not localStorage. A small KV store or SQLite is fine; I'm the only user, so no auth beyond a shared secret in an env var if you want one.
+Survives redeploys.
+Give me one button somewhere that exports all notes as markdown, so I'm never locked in.
+Look
+Warm and reverent, not corporate and not childish. The reference is the Malaty booklet: parchment ground, deep maroon, a little gold. A serif display face over a clean body face; Cormorant Garamond over Source Sans 3 works, but use your judgment.
+Body text large enough to read at arm's length on an iPad — don't design for a laptop and shrink.
+Respect the system dark mode setting. Parchment in dark mode should go warm dark, not black.
+No emoji anywhere. No gradient washes. Icons only if they're real SVG.
+The patristic quotes should feel set apart from my own commentary — they're someone else's voice.
+Task 3 — Deploy to Vercel
+Deploy to my Vercel account and give me the URL.
+Next.js is fine, or anything else that deploys cleanly to Vercel. Pick whatever makes the notes persistence simplest.
+The notes store needs to survive redeploys — Vercel's filesystem is ephemeral, so use a hosted store (Vercel KV, Postgres, Turso, whatever's least friction) rather than writing to disk.
+Put the project in its own repo, separate from coptic hub. Don't commit anything from coptic hub into it beyond the extracted content/quotes.json.
+Keep it unlisted rather than indexed. A noindex meta tag is enough; I don't need auth.
+Tell me which env vars you set and where, so I can rotate them later.
+I'm teaching this soon, so if the notes persistence turns into a rabbit hole, ship the site with notes working via a simple store and tell me what you'd do differently with more time.
+Acceptance checklist
+☐ content/quotes.json exists, every quote traceable to a record in the coptic hub database, unmatched slots listed rather than filled
+☐ No invented patristic quotes anywhere in the codebase
+☐ Macarius attributions flagged as described in Task 1
+☐ All four eras and all three storylines present, copy matching section three
+☐ Arc chart renders legibly at iPhone width and iPad width
+☐ Temple and Eden read as near-equal heights; exile is the lowest point
+☐ Notes save automatically and appear on a second device
+☐ Notes survive a redeploy
+☐ Markdown export of notes works
+☐ Dark mode respected
+☐ Deployed, URL in hand, env vars documented
+Two things to get right
+Don't rewrite my copy. Section three is the product of a long working session. Tighten a line if it's genuinely broken, but flag it rather than silently improving it.
+The theology has a house style. This is a Coptic Orthodox parish, and the framing matters more than it might look. Consequence is pedagogical rather than transactional; sacrifice is God teaching through pictures rather than a debt being settled; the indwelling of the heart is what the prophets were already pointing at rather than a New Testament innovation. If you find yourself reaching for standard evangelical substitutionary framing, stop and leave it as written.
+Open question for you to answer back
+After you read the commentary database, tell me how much of it is usable for this. If it's rich enough, I'd rather have two or three quotes per era than one — but I'd rather have one good one than three thin ones.

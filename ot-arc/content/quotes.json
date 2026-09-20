@@ -1,0 +1,234 @@
+{
+  "_about": "Quotes copied verbatim from commentary.db chunks (see `source`). Global normalization: whitespace collapsed, ligatures fi/fl expanded, the scanner's quote marks U+2015/U+2016 shown as curly quotes. Per-quote PDF artifact fixes are listed in `extraction_fixes`. voice='commentator' marks Fr. Tadros Malaty's own words (he is not a church father). An ellipsis joins two excerpts from the same chunk; a leading/trailing ellipsis marks an excerpt cut mid-sentence. Rebuild with: python scripts/build_quotes.py",
+  "quotes": [
+    {
+      "id": "malaty-genesis-3-god-approached",
+      "father": "Fr. Tadros Y. Malaty",
+      "work": "Commentary on Genesis, ch. 3 (\"God's care for man\")",
+      "scripture": "Genesis 3:8-9",
+      "quote": "God did not wait for man to come to Him to apologize for his sins, but He approached him, so that, by love He would draw him to recognize his sins and to confess them.",
+      "attaches_to": "era-1",
+      "source": "~/projects/commentary.db | chunks.id=174180 | Fr. Tadros Malaty Bible Commentary / 001_Genesis - Fr. Tadros Yacoub Malaty.pdf | PDF p. 60",
+      "voice": "commentator"
+    },
+    {
+      "id": "ambrose-repentance-where-are-you",
+      "father": "St. Ambrose of Milan",
+      "work": "Concerning Repentance, Book 2 (as cited by Fr. Tadros Malaty, Commentary on Job)",
+      "scripture": "Genesis 3:9",
+      "quote": "“Where are you hiding? Why are you hiding yourself from God, whom you always longed to see?!”",
+      "attaches_to": "era-1",
+      "source": "~/projects/commentary.db | chunks.id=180685 | Fr. Tadros Malaty Bible Commentary / 018_JOB.pdf | PDF p. 575",
+      "voice": "father",
+      "extraction_fixes": [
+        "'longed to see1?!' -> 'longed to see?!'"
+      ]
+    },
+    {
+      "id": "athanasius-incarnation-6",
+      "father": "St. Athanasius the Apostolic",
+      "work": "On the Incarnation, §6",
+      "scripture": "Genesis 3 (the Fall and its consequence)",
+      "quote": "Surely it would have been better never to have been created at all than, having been created, to be neglected and perish; … It was impossible, therefore, that God should leave man to be carried off by corruption, because it would be unfitting and unworthy of Himself.",
+      "attaches_to": "era-1",
+      "source": "~/projects/commentary.db | chunks.id=7932 | Athanasius of Alexandria / On the Incarnation - Saint Athanasius.pdf | PDF p. 13",
+      "voice": "father"
+    },
+    {
+      "id": "malaty-exodus-intro-god-came-down",
+      "father": "Fr. Tadros Y. Malaty",
+      "work": "Commentary on Exodus, Introduction (\"The book of the Passover\")",
+      "scripture": "Exodus 3:8; Exodus 25:8",
+      "quote": "He came down to His people, as a Cloud to shade them by day, as a symbol of protection; as a pillar of fire, to give them light, as the secret of their enlightenment and as their Leader; As a Rock to quench their thirst; and in the tabernacle to dwell among them.",
+      "attaches_to": "era-2",
+      "source": "~/projects/commentary.db | chunks.id=174705 | Fr. Tadros Malaty Bible Commentary / 002_Exodus - Fr. Tadros Yacoub Malaty.pdf | PDF p. 8",
+      "voice": "commentator"
+    },
+    {
+      "id": "malaty-exodus-intro-bondage-of-lust",
+      "father": "Fr. Tadros Y. Malaty",
+      "work": "Commentary on Exodus, Introduction (\"The book of freedom\")",
+      "scripture": "Exodus 16:3; Exodus 32",
+      "quote": "God delivered them through Moses from the bondage of Pharaoh. But, even after their crossover, they remained in the bondage of lust by: (1) sitting near the pots of meat in Egypt (Ex. 16: 3), and by (2) their temporary enjoyment of carnal lusts that led them to worship the Egyptian golden calf, that had remained deep in their hearts (Ex. 32).",
+      "attaches_to": "era-2",
+      "source": "~/projects/commentary.db | chunks.id=174706 | Fr. Tadros Malaty Bible Commentary / 002_Exodus - Fr. Tadros Yacoub Malaty.pdf | PDF p. 9",
+      "voice": "commentator"
+    },
+    {
+      "id": "ephrem-exodus-25-9",
+      "father": "St. Ephrem the Syrian",
+      "work": "Commentary on Exodus 25.1 (as cited in Ancient Christian Commentary on Scripture, OT vol. 3)",
+      "scripture": "Exodus 25:9",
+      "quote": "By saying [to him], “You shall make everything according to the model of the tabernacle that I will show you,” he first called it a model and a temporal tabernacle to indicate that it was transitory and that it would be replaced by the church, the perfect prototype which lasts forever.",
+      "attaches_to": "era-2",
+      "source": "~/projects/commentary.db | chunks.id=167759 | Ancient Christian Commentary / Exodus, Leviticus, Numbers, Deuteronomy.pdf | PDF p. 149",
+      "voice": "father"
+    },
+    {
+      "id": "clement-alexandria-fragment-1kings-8-27",
+      "father": "Clement of Alexandria",
+      "work": "Fragment 12.3 (as cited in Ancient Christian Commentary on Scripture, OT vol. 5)",
+      "scripture": "1 Kings 8:27",
+      "quote": "“Will God in very deed dwell with humans on the earth?” He dwells on the earth clothed in flesh, and his abode with humans is effected by the conjunction and harmony that obtain among the righteous and that build … a new temple.",
+      "attaches_to": "era-3",
+      "source": "~/projects/commentary.db | chunks.id=163222 | Ancient Christian Commentary / 5 12 Kings 12 Chronicles Ezra Nehemiah Esther.pdf | PDF p. 69",
+      "voice": "father"
+    },
+    {
+      "id": "cyril-micah-4-rejected-gods-reign",
+      "father": "St. Cyril of Alexandria",
+      "work": "Commentary on Micah 4 (Commentary on the Twelve Prophets, FOTC 116, p. 229)",
+      "scripture": "1 Samuel 8:5-7 (cited on Micah 4:9)",
+      "quote": "The God of all had been king of the people of Israel in the beginning, with the all-wise Moses acting as mediator. … When affairs were like this for them and were conducted in the best arrangement, the wretches entertained ideas that bode no good for them; they shook off the yoke, as it were, of God’s reign …",
+      "attaches_to": "era-3",
+      "source": "~/projects/commentary.db | chunks.id=44839 | Fathers of the Church / 116. Volume 116 - Comm. on the 12 Prophets Vol.2 - St. Cyril.pdf | PDF p. 240",
+      "voice": "father",
+      "extraction_fixes": [
+        "'af- ter' -> 'after'",
+        "'conduct- ed' -> 'conducted'"
+      ]
+    },
+    {
+      "id": "clement-alexandria-educator-1sam-16-7",
+      "father": "Clement of Alexandria",
+      "work": "Christ the Educator 3.2.11-12 (as cited in Ancient Christian Commentary on Scripture, OT vol. 4)",
+      "scripture": "1 Samuel 16:7",
+      "quote": "He finally anointed not the one who was fair in body but the one who was fair of soul.",
+      "attaches_to": "era-3",
+      "source": "~/projects/commentary.db | chunks.id=162779 | Ancient Christian Commentary / 4 JOSHUA JUDGES RUTH 12 SAMUEL.pdf | PDF p. 238",
+      "voice": "father"
+    },
+    {
+      "id": "malaty-ezekiel-10-glory-departs",
+      "father": "Fr. Tadros Y. Malaty",
+      "work": "Commentary on Ezekiel, ch. 10 (\"The divine glory departs from the house of the Lord\")",
+      "scripture": "Ezekiel 10",
+      "quote": "It was not possible for the Lord to dwell where man persists on doing evil; … It was imperative for God to depart from His old temple that persisted on denial, to set in us a new temple, made by His Holy Spirit.",
+      "attaches_to": "era-4",
+      "source": "~/projects/commentary.db | chunks.id=186850 | Fr. Tadros Malaty Bible Commentary / 026 Ezekiel.pdf | PDF p. 106",
+      "voice": "commentator"
+    },
+    {
+      "id": "malaty-ezekiel-11-waiting-for-one-soul",
+      "father": "Fr. Tadros Y. Malaty",
+      "work": "Commentary on Ezekiel, ch. 11",
+      "scripture": "Ezekiel 11:16-20",
+      "quote": "He is waiting for one single soul in captivity, to turn it into a temple and a little sanctuary that gives Him pleasure. He chastens, not to avenge, but to mend and renew!",
+      "attaches_to": "era-4",
+      "source": "~/projects/commentary.db | chunks.id=186856 | Fr. Tadros Malaty Bible Commentary / 026 Ezekiel.pdf | PDF p. 111",
+      "voice": "commentator"
+    },
+    {
+      "id": "cyril-micah-4-brought-back",
+      "father": "St. Cyril of Alexandria",
+      "work": "Commentary on Micah 4 (Commentary on the Twelve Prophets, FOTC 116, p. 230)",
+      "scripture": "Micah 4:10 (the exile to Babylon)",
+      "quote": "But he does not leave it completely without consolation; at once he proceeded to say that it will escape and be brought back through God’s compassion.",
+      "attaches_to": "era-4",
+      "source": "~/projects/commentary.db | chunks.id=44840 | Fathers of the Church / 116. Volume 116 - Comm. on the 12 Prophets Vol.2 - St. Cyril.pdf | PDF p. 241",
+      "voice": "father",
+      "extraction_fixes": [
+        "'es- cape' -> 'escape'"
+      ]
+    },
+    {
+      "id": "clement-alexandria-instructor-1-8",
+      "father": "Clement of Alexandria",
+      "work": "The Instructor (Paedagogus), Book I, ch. 8",
+      "scripture": "(on God's justice and goodness)",
+      "quote": "I will grant that He punishes the disobedient (for punishment is for the good and advantage of him who is punished, for it is the correction of a refractory subject); but I will not grant that He wishes to take vengeance.",
+      "attaches_to": "thread-mercy",
+      "source": "~/projects/commentary.db | chunks.id=19834 | Clement of Alexandria / St. Clement- The Instructor.pdf | PDF p. 25",
+      "voice": "father"
+    },
+    {
+      "id": "antony-letter-2-god-visits",
+      "father": "St. Antony the Great",
+      "work": "Letter Two (trans. Samuel Rubenson)",
+      "scripture": "(on God's repeated visitations)",
+      "quote": "God did not visit his creatures only once, but since the beginning of the world, as soon as anyone has turned through the law of promise to the Creator of all, God embraces him in his benevolence, grace and Spirit.",
+      "attaches_to": "thread-mercy",
+      "source": "~/projects/commentary.db | chunks.id=73438 | Monastic / Letters of St. Antony.pdf | PDF p. 4",
+      "voice": "father"
+    },
+    {
+      "id": "malaty-genesis-intro-coats-of-skin",
+      "father": "Fr. Tadros Y. Malaty",
+      "work": "Introduction to Genesis, ch. 3 (\"God's Concern for Man\")",
+      "scripture": "Genesis 3:21",
+      "quote": "God gave them coats of skin not silk, a symbol of the toils of repentance. Perhaps the skin may have come from the sacrifice of a lamb so that God might teach Adam and Eve sacrifice, symbolic of Christ's sacrifice on the cross.",
+      "attaches_to": "thread-sacrifice",
+      "source": "~/projects/commentary.db | chunks.id=174641 | Fr. Tadros Malaty Bible Commentary / 001_Genesis_Intro - Fr. Tadros Yacoub Malaty.pdf | PDF p. 26",
+      "voice": "commentator"
+    },
+    {
+      "id": "cyril-glaphyra-genesis-isaac",
+      "father": "St. Cyril of Alexandria",
+      "work": "Glaphyra on Genesis, Book 3 (FOTC 137, p. 156)",
+      "scripture": "Genesis 22:6",
+      "quote": "As for the boy, Isaac, the wood for the burnt offering was laid upon him by his father, and he carried it until he came to the place where the sacrifice would be made. So Christ, carrying his own cross upon his shoulder, suffered outside the gate.",
+      "attaches_to": "thread-sacrifice",
+      "source": "~/projects/commentary.db | chunks.id=25899 | Cyril of Alexandria / (Fathers of the Church_ a New Translation_ Ser. volume 137) Lunn, Nicholas P._ St. Cyril of Alexandria, St - Glaphyra on the Pentateuch, Volume 1-The Catholic University of America Press (2019).pdf | PDF p. 166",
+      "voice": "father",
+      "extraction_fixes": [
+        "'car- rying116' -> 'carrying'",
+        "' [144]' -> ''"
+      ]
+    },
+    {
+      "id": "malaty-haggai-preface",
+      "father": "Fr. Tadros Y. Malaty",
+      "work": "Commentary on Haggai, Preface",
+      "scripture": "Haggai",
+      "quote": "As though it is a divine call to every soul to regain in the Lord, her gladness of salvation through the dwelling of the Lord in her, and proclaiming her heart, a temple for the Lord, and her depths, a sanctuary for Him.",
+      "attaches_to": "thread-dwelling",
+      "source": "~/projects/commentary.db | chunks.id=188163 | Fr. Tadros Malaty Bible Commentary / 037 Haggai - Fr Tadros Malaty.pdf | PDF p. 3",
+      "voice": "commentator"
+    },
+    {
+      "id": "antony-letter-2-moses-built-the-house",
+      "father": "St. Antony the Great",
+      "work": "Letter Two (trans. Samuel Rubenson)",
+      "scripture": "(Moses and the prophets)",
+      "quote": "Moses built the house, yet did not finish it. but left and died. Then God by his Spirit raised up the council of the prophets, and they built upon the foundation laid by Moses, but could not complete it and likewise they left and died.",
+      "attaches_to": "thread-dwelling",
+      "source": "~/projects/commentary.db | chunks.id=73438 | Monastic / Letters of St. Antony.pdf | PDF p. 4",
+      "voice": "father"
+    },
+    {
+      "id": "macarius-homily-47-throne-house-temple",
+      "father": "St. Macarius the Great (the Egyptian)",
+      "work": "Fifty Spiritual Homilies, Homily 47, §14 (trans. A. J. Mason, 1921)",
+      "scripture": "Exodus 14-15, read of the soul",
+      "quote": "Glory to Him who has delivered the soul from the bondage of Pharaoh, and has made her His own throne, and house, and temple, and His pure bride …",
+      "attaches_to": "thread-dwelling",
+      "source": "~/projects/commentary.db | chunks.id=72537 | Monastic / Fifty Homilies Of St Macarius.pdf | PDF p. 353",
+      "voice": "father",
+      "note": "MACARIUS FLAG: the database's source is A. J. Mason's 1921 translation, titled 'Fifty Spiritual Homilies of St. Macarius the Egyptian' (i.e. Macarius the Great); Mason's introduction defends that attribution. Modern scholarship assigns these homilies to an anonymous Syrian author, 'Pseudo-Macarius', and the Ancient Christian Commentary volumes in the same database cite them that way. Coptic tradition holds them as St. Macarius the Great's."
+    },
+    {
+      "id": "athanasius-incarnation-9-king-in-the-city",
+      "father": "St. Athanasius the Apostolic",
+      "work": "On the Incarnation, §9",
+      "scripture": "John 1:14",
+      "quote": "You know how it is when some great king enters a large city and dwells in one of its houses; because of his dwelling in that single house, the whole city is honored, and enemies and robbers cease to molest it. … Even so is it with the King of all; He has come into our country and dwelt in one body amidst the many …",
+      "attaches_to": "closing",
+      "source": "~/projects/commentary.db | chunks.id=7935 | Athanasius of Alexandria / On the Incarnation - Saint Athanasius.pdf | PDF p. 16",
+      "voice": "father"
+    },
+    {
+      "id": "cyril-john-1-14-dwelt-in-flesh",
+      "father": "St. Cyril of Alexandria",
+      "work": "Commentary on John, Book I (on John 1:14)",
+      "scripture": "John 1:14",
+      "quote": "…you might not suppose that He is transformed into flesh, but rather that He dwelt in Flesh, using His own Body, the Temple that is from the Holy Virgin.",
+      "attaches_to": "closing",
+      "source": "~/projects/commentary.db | chunks.id=28078 | Cyril of Alexandria / Commentary on the Gospel of John.pdf | PDF p. 165",
+      "voice": "father",
+      "extraction_fixes": [
+        "'the Col. it~. Holy Virgin' -> 'the Holy Virgin'"
+      ]
+    }
+  ],
+  "unmatched": []
+}

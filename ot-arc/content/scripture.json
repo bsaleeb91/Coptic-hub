@@ -1,0 +1,135 @@
+{
+  "translation": "World English Bible, British Edition (public domain), via bible-api.com",
+  "passages": [
+    {
+      "reference": "Genesis 3:8-10",
+      "verses": [
+        {
+          "verse": "3:8",
+          "text": "They heard the LORD God’s voice walking in the garden in the cool of the day, and the man and his wife hid themselves from the presence of the LORD God amongst the trees of the garden."
+        },
+        {
+          "verse": "3:9",
+          "text": "The LORD God called to the man, and said to him, “Where are you?”"
+        },
+        {
+          "verse": "3:10",
+          "text": "The man said, “I heard your voice in the garden, and I was afraid, because I was naked; so I hid myself.”"
+        }
+      ],
+      "url": "https://bible-api.com/Genesis%203%3A8-10?translation=webbe",
+      "attaches_to": "era-1"
+    },
+    {
+      "reference": "Genesis 3:21",
+      "verses": [
+        {
+          "verse": "3:21",
+          "text": "The LORD God made garments of animal skins for Adam and for his wife, and clothed them."
+        }
+      ],
+      "url": "https://bible-api.com/Genesis%203%3A21?translation=webbe",
+      "attaches_to": "era-1"
+    },
+    {
+      "reference": "Exodus 25:8",
+      "verses": [
+        {
+          "verse": "25:8",
+          "text": "Let them make me a sanctuary, that I may dwell amongst them."
+        }
+      ],
+      "url": "https://bible-api.com/Exodus%2025%3A8?translation=webbe",
+      "attaches_to": "era-2"
+    },
+    {
+      "reference": "Exodus 33:14-15",
+      "verses": [
+        {
+          "verse": "33:14",
+          "text": "He said, “My presence will go with you, and I will give you rest.”"
+        },
+        {
+          "verse": "33:15",
+          "text": "Moses said to him, “If your presence doesn’t go with me, don’t carry us up from here."
+        }
+      ],
+      "url": "https://bible-api.com/Exodus%2033%3A14-15?translation=webbe",
+      "attaches_to": "era-2"
+    },
+    {
+      "reference": "1 Samuel 8:7",
+      "verses": [
+        {
+          "verse": "8:7",
+          "text": "The LORD said to Samuel, “Listen to the voice of the people in all that they tell you; for they have not rejected you, but they have rejected me as the king over them."
+        }
+      ],
+      "url": "https://bible-api.com/1%20Samuel%208%3A7?translation=webbe",
+      "attaches_to": "era-3"
+    },
+    {
+      "reference": "1 Samuel 16:7",
+      "verses": [
+        {
+          "verse": "16:7",
+          "text": "But the LORD said to Samuel, “Don’t look on his face, or on the height of his stature, because I have rejected him; for I don’t see as man sees. For man looks at the outward appearance, but the LORD looks at the heart.”"
+        }
+      ],
+      "url": "https://bible-api.com/1%20Samuel%2016%3A7?translation=webbe",
+      "attaches_to": "era-3"
+    },
+    {
+      "reference": "1 Kings 8:27",
+      "verses": [
+        {
+          "verse": "8:27",
+          "text": "But will God in very deed dwell on the earth? Behold, heaven and the heaven of heavens can’t contain you; how much less this house that I have built!"
+        }
+      ],
+      "url": "https://bible-api.com/1%20Kings%208%3A27?translation=webbe",
+      "attaches_to": "era-3"
+    },
+    {
+      "reference": "Ezekiel 10:18-19",
+      "verses": [
+        {
+          "verse": "10:18",
+          "text": "The LORD’s glory went out from over the threshold of the house and stood over the cherubim."
+        },
+        {
+          "verse": "10:19",
+          "text": "The cherubim lifted up their wings and mounted up from the earth in my sight when they went out, with the wheels beside them. Then they stood at the door of the east gate of the LORD’s house; and the glory of the God of Israel was over them above."
+        }
+      ],
+      "url": "https://bible-api.com/Ezekiel%2010%3A18-19?translation=webbe",
+      "attaches_to": "era-4"
+    },
+    {
+      "reference": "2 Chronicles 36:15-16",
+      "verses": [
+        {
+          "verse": "36:15",
+          "text": "The LORD, the God of their fathers, sent to them by his messengers, rising up early and sending, because he had compassion on his people and on his dwelling place;"
+        },
+        {
+          "verse": "36:16",
+          "text": "but they mocked the messengers of God, despised his words, and scoffed at his prophets, until the LORD’s wrath arose against his people, until there was no remedy."
+        }
+      ],
+      "url": "https://bible-api.com/2%20Chronicles%2036%3A15-16?translation=webbe",
+      "attaches_to": "era-4"
+    },
+    {
+      "reference": "John 1:14",
+      "verses": [
+        {
+          "verse": "1:14",
+          "text": "The Word became flesh and lived amongst us. We saw his glory, such glory as of the only born Son of the Father, full of grace and truth."
+        }
+      ],
+      "url": "https://bible-api.com/John%201%3A14?translation=webbe",
+      "attaches_to": "closing"
+    }
+  ]
+}

@@ -1,0 +1,150 @@
+{
+  "_about": "Student-level text for the class page. Written for 7th-8th graders from the handoff copy; takeaway lines stay verbatim in part-one.json. verse = a single verse whose text is in scripture.json; quote = an id in quotes.json. Everything else on the teacher page lives in speaker notes. moments = 'Which storyline is this?' cards; each answer matches the handoff's storyline lists or the era's speaker notes ('The storylines here').",
+  "intro": "The Old Testament is the story of a house: the home God builds so He can live with us, and how He never gives up on it.",
+  "eras": {
+    "era-1": {
+      "summary": "God makes a home for us. We walk out. He doesn't give up.",
+      "beats": [
+        "God creates the world as a beautiful home for Adam and Eve.",
+        "Adam and Eve disobey God and hide from Him.",
+        "The flood, and then the Tower of Babel.",
+        "God calls one man, Abraham, and his family: Isaac, Jacob, and Joseph.",
+        "Jacob's family moves to Egypt, where their children later become slaves."
+      ],
+      "verse": "3:9",
+      "verse_ref": "Genesis 3:9",
+      "quote": "ambrose-repentance-where-are-you",
+      "question": "Why would God ask \"Where are you?\" when He already knew?",
+      "moments": [
+        {
+          "text": "God walks in the garden with Adam and Eve",
+          "thread": "thread-dwelling"
+        },
+        {
+          "text": "God makes them coats of skin",
+          "thread": "thread-sacrifice"
+        },
+        {
+          "text": "A promise after the Fall, a covenant after the flood, a call after Babel",
+          "thread": "thread-mercy"
+        }
+      ]
+    },
+    "era-2": {
+      "summary": "We can't climb up to God, so God comes down.",
+      "beats": [
+        "God frees Israel from slavery in Egypt through Moses, with the ten plagues and the Passover lamb.",
+        "They cross the Red Sea.",
+        "God gives the Law at Mount Sinai and lives among them in the Tabernacle, a tent in the middle of the camp.",
+        "Joshua leads them into the Promised Land.",
+        "The judges: Israel keeps turning away, and God keeps rescuing them."
+      ],
+      "verse": "25:8",
+      "verse_ref": "Exodus 25:8",
+      "quote": "malaty-exodus-intro-god-came-down",
+      "question": "Israel was rescued in one night but took forty years to change. Why is changing so much slower than being rescued?",
+      "moments": [
+        {
+          "text": "The Passover lamb",
+          "thread": "thread-sacrifice"
+        },
+        {
+          "text": "A tent in the middle of the camp",
+          "thread": "thread-dwelling"
+        },
+        {
+          "text": "The judges: Israel turns away, cries out, and God rescues them, again and again",
+          "thread": "thread-mercy"
+        }
+      ]
+    },
+    "era-3": {
+      "summary": "Israel gets everything it asked for, and it still isn't enough.",
+      "beats": [
+        "Israel asks for a king \"like the nations\" around them.",
+        "Three kings, forty years each: Saul, David, and Solomon.",
+        "Solomon builds the Temple, and God's glory fills it."
+      ],
+      "verse": "8:27",
+      "verse_ref": "1 Kings 8:27",
+      "quote": "clement-alexandria-educator-1sam-16-7",
+      "question": "Israel got everything it asked for. Why wasn't it enough?",
+      "moments": [
+        {
+          "text": "God's glory fills the Temple",
+          "thread": "thread-dwelling"
+        },
+        {
+          "text": "God gives them the king they asked for, and doesn't leave them",
+          "thread": "thread-mercy"
+        },
+        {
+          "text": "The sacrifices move from the tent into the Temple",
+          "thread": "thread-sacrifice"
+        }
+      ]
+    },
+    "era-4": {
+      "summary": "God warns His people again and again, and then lets the walls fall.",
+      "beats": [
+        "The kingdom splits in two: Israel in the north and Judah in the south.",
+        "God sends prophet after prophet to warn them.",
+        "Assyria conquers Israel (722 BC).",
+        "Babylon conquers Judah and burns the Temple (587 BC)."
+      ],
+      "verse": "36:15",
+      "verse_ref": "2 Chronicles 36:15",
+      "quote": "malaty-ezekiel-11-waiting-for-one-soul",
+      "question": "God kept sending messengers \"because he had compassion.\" How can a warning be an act of love?",
+      "moments": [
+        {
+          "text": "Prophet after prophet, warning after warning",
+          "thread": "thread-mercy"
+        },
+        {
+          "text": "The glory leaves the Temple",
+          "thread": "thread-dwelling"
+        },
+        {
+          "text": "In Babylon there is no Temple and no altar",
+          "thread": "thread-sacrifice"
+        }
+      ]
+    }
+  },
+  "threads": {
+    "thread-mercy": {
+      "short": "We fall. God forgives. Again and again.",
+      "chain": [
+        "We sin",
+        "We feel the consequence",
+        "We turn back",
+        "God forgives"
+      ],
+      "chain_repeats": true
+    },
+    "thread-sacrifice": {
+      "short": "God teaches with pictures what real love costs.",
+      "chain": [
+        "Coats of skin",
+        "Abel",
+        "Isaac",
+        "The Passover lamb",
+        "Temple sacrifices",
+        "Christ"
+      ]
+    },
+    "thread-dwelling": {
+      "short": "God wants to live with us.",
+      "chain": [
+        "The garden",
+        "The tent",
+        "The Temple",
+        "The heart"
+      ]
+    }
+  },
+  "closing": {
+    "quote": "athanasius-incarnation-9-king-in-the-city"
+  }
+}

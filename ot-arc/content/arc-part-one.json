@@ -1,0 +1,23 @@
+{
+  "_about": "Nearness-to-God curve for the arc chart (0 = farthest, 100 = nearest). Heights are a teaching illustration drawn from the handoff's description, not data: Eden highest, collapse through the Fall and Babel, climb at Sinai, jitter through the judges, true peak at the Temple nearly level with Eden, steady descent, exile lowest. Unlabeled points shape the curve (the judges' jitter, Saul, the slide after the split).",
+  "points": [
+    { "label": "Eden", "value": 96, "era": "era-1" },
+    { "label": "The Fall", "value": 52, "era": "era-1" },
+    { "label": "Babel", "value": 34, "era": "era-1" },
+    { "label": "Abraham", "value": 56, "era": "era-1" },
+    { "label": "Exodus", "value": 64, "era": "era-2" },
+    { "label": "Sinai", "value": 82, "era": "era-2" },
+    { "value": 68, "era": "era-2" },
+    { "value": 76, "era": "era-2" },
+    { "label": "Judges", "value": 58, "era": "era-2" },
+    { "value": 71, "era": "era-2" },
+    { "value": 60, "era": "era-2" },
+    { "value": 70, "era": "era-3" },
+    { "label": "David", "value": 86, "era": "era-3" },
+    { "label": "The Temple", "value": 93, "era": "era-3" },
+    { "label": "The Split", "value": 70, "era": "era-4" },
+    { "value": 50, "era": "era-4" },
+    { "value": 31, "era": "era-4" },
+    { "label": "Exile", "value": 10, "era": "era-4" }
+  ]
+}
