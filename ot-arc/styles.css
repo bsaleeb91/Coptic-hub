@@ -349,3 +349,9 @@ button.moment:not(.open) .moment-answer { display: none; }
 
 .chain-card h3 { display: flex; align-items: center; gap: 10px; }
 .thread-icon { color: var(--gold); flex: none; }
+
+.spine-group { display: block; padding: 0 16px; margin-top: 6px; }
+.spine-group .spines { padding: 0; margin-top: 4px; }
+.spine-label { display: block; margin-top: 6px; font-size: 0.72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
+.spine.wisdom, .spine.retold, .spine.prophet { background: transparent; color: var(--maroon); border: 1px solid var(--maroon-soft); border-left: 4px solid var(--gold-soft); padding: 3px 9px; }
+.books-later { color: var(--ink-soft); font-size: 0.95rem; margin: 16px 0 0; max-width: 46rem; }

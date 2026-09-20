@@ -402,10 +402,15 @@
           (art ? '<img src="images/' + esc(e.id) + '.jpg" alt="" loading="lazy" style="object-position:' + esc(art.pos) + '">' : "") +
           '<span class="era-num">ERA ' + ROMAN[i] + "</span>" +
           '<span class="book-era-title">' + esc(e.title) + "</span>" +
-          '<span class="spines">' + list.map(function (b) {
-            return '<span class="spine">' + esc(b.name) + (b.range ? "<small>" + esc(b.range) + "</small>" : "") + "</span>";
-          }).join("") + "</span></a>";
-      }).join("") + "</div></div></section>";
+          ["story", "wisdom", "retold", "prophet"].map(function (k) {
+            var bs = list.filter(function (b) { return b.kind === k; });
+            if (!bs.length) return "";
+            return '<span class="spine-group">' + (BOOKS.kinds && BOOKS.kinds[k] ? '<span class="spine-label">' + esc(BOOKS.kinds[k]) + "</span>" : "") +
+              '<span class="spines">' + bs.map(function (b) {
+                return '<span class="spine ' + k + '">' + esc(b.name) + (b.range ? "<small>" + esc(b.range) + "</small>" : "") + "</span>";
+              }).join("") + "</span></span>";
+          }).join("") + "</a>";
+      }).join("") + "</div>" + (BOOKS.later ? '<p class="books-later">' + esc(BOOKS.later) + "</p>" : "") + "</div></section>";
   }
 
   function renderPart(part, arc, quotes, scripture, notes, cls) {
