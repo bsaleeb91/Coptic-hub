@@ -505,6 +505,82 @@
     return h;
   }
 
+  /* ---------- teacher script: a lean, step-by-step companion to the class page ----------
+     Skips reprinting anything the class page already shows (read straight off that page,
+     mirrored to the TV) and instead gives one cue per step, with any extra background
+     placed right after the step it belongs to instead of bundled at the end. */
+  function cue(text) { return '<p class="cue">' + esc(text) + "</p>"; }
+  function note(html) { return html ? '<div class="note">' + html + "</div>" : ""; }
+
+  function renderTeacherPart(part, arc, quotes, scripture, notes, cls) {
+    var eras = part.eras, threads = part.threads, h = "";
+
+    h += '<header class="opening wrap">' +
+      '<p class="eyebrow">' + esc(part.part_label) + " · Presenter script</p>" +
+      "<h1>" + esc(part.title) + "</h1>" +
+      '<p class="teacher-help">Keep the <a href="/">class link</a> cast to the TV and this page beside it. ' +
+      'Each step below just says <strong>“read the slide”</strong> for what the class already sees, then adds anything extra to say.</p>' +
+      "</header>";
+
+    h += '<hr class="section-rule"><section id="books"><div class="wide"><p class="eyebrow">Where we are reading</p><h2>The books in each era</h2>' +
+      cue("Read the slide.") + "</div></section>";
+
+    h += '<hr class="section-rule"><section id="storylines"><div class="wrap"><p class="eyebrow">Three storylines</p><h2>Look for these in every era</h2><div class="chains">';
+    threads.forEach(function (t) {
+      var c = cls.threads[t.id];
+      h += '<article class="chain-card" id="' + esc(t.id) + '"><h3>' + (ICONS[t.id] || "") + esc(t.name) + "</h3>" +
+        cue("Read the slide.") +
+        note('<p><span class="label">What it says</span>' + esc(sentence(t.says)) + "</p>" +
+          '<p><span class="label">Background</span>' + esc(sentence(t.note)) + "</p>") +
+        extra(quotesFor(quotes, t.id) + notesHTML(notes[t.id])) +
+        "</article>";
+    });
+    h += "</div></div></section>";
+
+    eras.forEach(function (e, i) {
+      var c = cls.eras[e.id];
+      var featured = byId(quotes, c.quote);
+      var others = quotes.filter(function (q) { return q.attaches_to === e.id && q.id !== c.quote; });
+      h += '<hr class="section-rule"><section id="' + esc(e.id) + '"><div class="wrap">' +
+        '<div class="era-head"><span class="era-num">ERA ' + ROMAN[i] + "</span><h2>" + esc(e.title) + "</h2>" +
+        '<span class="era-span">' + esc(e.span) + "</span></div>" +
+        '<div class="mini-arc" data-arc="' + esc(e.id) + '"></div>' +
+        '<ol class="script">' +
+        "<li>" + cue("Read the slide — the picture, the summary and the beats.") + note(esc(sentence(e.theme))) + "</li>" +
+        "<li>" + cue("Read the verse aloud — " + c.verse_ref + ".") + note(esc(sentence(e.key_verse.why))) + "</li>" +
+        (featured ? "<li>" + cue("Read the quote — " + featured.father + ".") + "</li>" : "") +
+        "<li>" + cue("Ask the question, then tap to reveal.") + note("<strong>Takeaway:</strong> " + esc(e.takeaway)) + "</li>" +
+        "</ol>" +
+        (c.moments && c.moments.length
+          ? cue("Let them answer “Which storyline is this?” — the answers are already showing here.") + momentsHTML(c.moments, threads)
+          : "") +
+        extra('<div><span class="label">Full timeline</span><ul>' + e.beats.map(function (b) { return "<li>" + esc(b) + "</li>"; }).join("") + "</ul></div>" +
+          passagesFor(scripture, e.id) +
+          (others.length ? '<div class="quotes">' + others.map(quoteHTML).join("") + "</div>" : "") +
+          notesHTML(notes[e.id])) +
+        "</div></section>";
+    });
+
+    h += '<hr class="section-rule"><section id="arc"><div class="wide"><p class="eyebrow">The big picture</p><h2>How close to God?</h2>' +
+      cue("Let them drag the dots, then hit Reveal.") +
+      note("Point out: the Temple and Eden sit at nearly the same height, and the bottom of the chart is exile, not the Fall.") +
+      '<figure class="arc-figure"><div data-arc="full"></div></figure>' +
+      "</div></section>";
+
+    var closingQuote = byId(quotes, cls.closing.quote);
+    h += '<section class="closing" id="closing"><div class="wrap"><p class="eyebrow">The end of Part One</p>' +
+      cue("Read the closing line, then John 1:14, then the closing quote.") +
+      note(esc(part.closing.payoff)) +
+      (closingQuote ? '<div class="quotes">' + quoteHTML(closingQuote) + "</div>" : "") +
+      extra(quotesFor(quotes.filter(function (q) { return q.id !== cls.closing.quote; }), "closing")) +
+      '<p class="next-part">Part Two picks up in exile</p></div></section>';
+    return h;
+
+    function extra(html) {
+      return html ? '<details class="extra"><summary>More background</summary>' + html + "</details>" : "";
+    }
+  }
+
   function renderNav(part) {
     var nav = document.getElementById("nav");
     var links = [["#books", "The books"], ["#storylines", "Storylines"]];
@@ -583,13 +659,15 @@
         BOOKS = r[5];
         return notesP.then(function (mds) {
           var notes = {}; ids.forEach(function (id, i) { notes[id] = mds[i] || ""; });
-          document.getElementById("app").innerHTML = renderPart(part, r[1], r[2].quotes, r[3], notes, r[4]);
+          document.getElementById("app").innerHTML = MODE === "teacher"
+            ? renderTeacherPart(part, r[1], r[2].quotes, r[3], notes, r[4])
+            : renderPart(part, r[1], r[2].quotes, r[3], notes, r[4]);
           document.getElementById("footer").innerHTML =
             "<p>Illustrations: Gustave Doré (1832–1883), Bible engravings, public domain, via Wikimedia Commons.</p>" +
             "<p>Historical outline: Fr. Tadros Y. Malaty, <em>A Historical Map of the Old Testament</em>.</p>" +
             "<p>Quotations are copied word for word from the church's commentary library. Scripture: " + esc(r[3].translation) + ".</p>" +
             (r[3].copyright ? "<p>" + esc(r[3].copyright) + "</p>" : "") +
-            (MODE === "teacher" ? '<p><a href="/">Open the class version (no speaker notes)</a></p>' : "");
+            (MODE === "teacher" ? '<p><a href="/">Open the class version</a></p>' : "");
           renderNav(part);
           drawAll(r[1], part.eras);
           wireInteractions(r[1], part.eras);

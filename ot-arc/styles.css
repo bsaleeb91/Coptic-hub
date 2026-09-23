@@ -358,3 +358,26 @@ button.moment:not(.open) .moment-answer { display: none; }
 
 .spine-when { display: block; margin-top: 8px; font-size: 0.8rem; font-style: italic; color: var(--ink-soft); line-height: 1.3; }
 .spine-note { display: block; margin-top: 3px; font-size: 0.75rem; color: var(--ink-soft); line-height: 1.3; }
+
+/* ---------- teacher: presenter script (cue + note steps, background collapsed) ---------- */
+.teacher-help { max-width: var(--measure); margin: 0 auto; color: var(--ink-soft); font-size: 1rem; }
+.teacher-help a { color: var(--maroon); }
+ol.script { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 14px; counter-reset: step; }
+ol.script > li { counter-increment: step; position: relative; padding-left: 2.1em; }
+ol.script > li::before {
+  content: counter(step); position: absolute; left: 0; top: 0.15em;
+  width: 1.5em; height: 1.5em; border-radius: 50%; background: var(--maroon); color: #FBF6EC;
+  font-family: var(--display); font-weight: 700; font-size: 0.95rem; line-height: 1.5em; text-align: center;
+}
+:root[data-theme="dark"] ol.script > li::before { color: #1E1712; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) ol.script > li::before { color: #1E1712; } }
+p.cue { font-family: var(--display); font-size: 1.3rem; font-weight: 600; color: var(--maroon); margin: 0; }
+.note { margin: 8px 0 0; padding: 10px 14px; background: var(--quote-bg); border-left: 3px solid var(--gold-soft); border-radius: 0 8px 8px 0; }
+.note p { margin: 0 0 8px; }
+.note p:last-child { margin-bottom: 0; }
+.chain-card .cue { margin-top: 4px; }
+.chain-card .note { margin-top: 10px; }
+details.extra { margin-top: 16px; }
+details.extra summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; color: var(--ink-soft); }
+details.extra summary:hover { color: var(--maroon); }
+details.extra > *:not(summary) { margin-top: 12px; }
