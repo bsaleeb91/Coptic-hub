@@ -35,43 +35,74 @@ returns table (
   congregants bigint,
   foc_linked bigint
 )
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
 begin
-  if not public.is_admin() then raise exception 'Access denied'; end if;
+  if not public.is_admin() then
+    raise exception 'Access denied';
+  end if;
+
   return query
+    with counts as (
+      select
+        p.church_id as cid,
+        count(*) filter (
+          where p.role = 'priest'
+        ) as n_priests,
+        count(*) filter (
+          where p.role = 'servant'
+        ) as n_servants,
+        count(*) filter (
+          where p.role = 'congregant'
+        ) as n_congregants,
+        count(*) filter (
+          where p.role = 'congregant'
+            and p.foc_id is not null
+        ) as n_foc
+      from profiles p
+      group by p.church_id
+    )
     select
-      c.id   as church_id,
-      c.name as church_name,
-      count(*) filter (where p.role = 'priest')                              as priests,
-      count(*) filter (where p.role = 'servant')                             as servants,
-      count(*) filter (where p.role = 'congregant')                          as congregants,
-      count(*) filter (where p.role = 'congregant' and p.foc_id is not null) as foc_linked
+      c.id,
+      c.name,
+      coalesce(n.n_priests, 0),
+      coalesce(n.n_servants, 0),
+      coalesce(n.n_congregants, 0),
+      coalesce(n.n_foc, 0)
     from churches c
-    left join profiles p on p.church_id = c.id
-    group by c.id, c.name
+    left join counts n on n.cid = c.id
 
     union all
 
-    -- The accounts no church row can see. Aggregate with no GROUP BY,
-    -- so HAVING collapses it to zero rows when there are none.
     select
       null::uuid,
       null::text,
-      count(*) filter (where p.role = 'priest'),
-      count(*) filter (where p.role = 'servant'),
-      count(*) filter (where p.role = 'congregant'),
-      count(*) filter (where p.role = 'congregant' and p.foc_id is not null)
-    from profiles p
-    where p.church_id is null
-    having count(*) filter (where p.role in ('priest', 'servant', 'congregant')) > 0
+      n.n_priests,
+      n.n_servants,
+      n.n_congregants,
+      n.n_foc
+    from counts n
+    where n.cid is null
+      and n.n_priests
+        + n.n_servants
+        + n.n_congregants > 0
 
-    -- Churches alphabetical, the unassigned row last. By ordinal, not by
-    -- name: church_name is also a RETURNS TABLE variable in scope here, so
-    -- naming it in ORDER BY raises "column reference is ambiguous". The
-    -- pre-union version sidestepped this with `order by c.name`, which a
-    -- UNION cannot reference.
     order by 2 asc nulls last;
 end;
 $$;
 
-alter function public.get_church_breakdown() owner to postgres;
+-- Notes on the shape above, both of which have bitten this function:
+--
+--  • The CTE's columns are named n_* rather than priests/servants/etc.
+--    Those are RETURNS TABLE names, which are variables in scope inside
+--    plpgsql, so selecting a same-named column raises "column reference
+--    is ambiguous" at CALL time — not when the function is created.
+--    ORDER BY is by ordinal for the same reason.
+--
+--  • No `alter function ... owner to postgres` here. The SQL editor runs
+--    a pasted batch in one transaction, so a privilege error on that line
+--    would roll back the definition with it. `create or replace` keeps
+--    the existing owner anyway, so it was a no-op worth dropping.
