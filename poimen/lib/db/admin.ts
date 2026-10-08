@@ -29,9 +29,12 @@ export interface MonthlyActivity {
   journal_active: number;
 }
 
+// A null church_id/church_name is the synthetic trailing row for
+// accounts that never picked a church (get_church_breakdown), not a
+// church record with a missing name.
 export interface ChurchBreakdown {
-  church_id: string;
-  church_name: string;
+  church_id: string | null;
+  church_name: string | null;
   priests: number;
   servants: number;
   congregants: number;

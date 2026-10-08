@@ -117,7 +117,13 @@ export default function AdminScreen() {
       setChurches((prev) => [
         ...prev,
         { church_id: church.id, church_name: church.name, priests: 0, servants: 0, congregants: 0, foc_linked: 0 },
-      ].sort((a, b) => a.church_name.localeCompare(b.church_name)));
+      ].sort((a, b) => {
+        // The unassigned row carries a null name and sorts last, matching
+        // the RPC's "nulls last". localeCompare on it would throw.
+        if (a.church_name === null) return 1;
+        if (b.church_name === null) return -1;
+        return a.church_name.localeCompare(b.church_name);
+      }));
       setNewChurchName('');
       setNewChurchAddress('');
     } else {
@@ -316,30 +322,50 @@ export default function AdminScreen() {
             {churches.length === 0 ? (
               <Text style={styles.emptyText}>No churches added yet.</Text>
             ) : (
-              churches.map((c) => (
-                <Card key={c.church_id} title={c.church_name} titleIcon="✦">
-                  <View style={styles.churchStats}>
-                    <View style={styles.churchStat}>
-                      <Text style={[styles.churchStatVal, { color: colors.blue }]}>{c.priests}</Text>
-                      <Text style={styles.churchStatLabel}>Priests</Text>
+              churches.map((c) => {
+                // null church_id = the trailing row for accounts that never
+                // picked a church. It is not a church and has no members to
+                // compare against, so it is labelled rather than named.
+                const unassigned = c.church_id === null;
+                return (
+                  <Card
+                    key={c.church_id ?? '__unassigned__'}
+                    title={c.church_name ?? 'No Church Selected'}
+                    titleIcon={unassigned ? '◌' : '✦'}
+                  >
+                    <View style={styles.churchStats}>
+                      <View style={styles.churchStat}>
+                        <Text style={[styles.churchStatVal, { color: colors.blue }]}>{c.priests}</Text>
+                        <Text style={styles.churchStatLabel}>Priests</Text>
+                      </View>
+                      <View style={styles.churchStat}>
+                        <Text style={[styles.churchStatVal, { color: colors.gold }]}>{c.congregants}</Text>
+                        <Text style={styles.churchStatLabel}>Congregants</Text>
+                      </View>
+                      <View style={styles.churchStat}>
+                        <Text style={[styles.churchStatVal, { color: colors.green }]}>{c.servants}</Text>
+                        <Text style={styles.churchStatLabel}>Servants</Text>
+                      </View>
+                      <View style={styles.churchStat}>
+                        {/* A church with no congregants has no linked rate —
+                            0% would read as a failure rather than as absence. */}
+                        <Text style={[styles.churchStatVal, { color: colors.green }]}>
+                          {c.congregants > 0 ? `${Math.round((c.foc_linked / c.congregants) * 100)}%` : '—'}
+                        </Text>
+                        <Text style={styles.churchStatLabel}>
+                          FOC Linked {c.congregants > 0 ? `· ${c.foc_linked}/${c.congregants}` : ''}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={styles.churchStat}>
-                      <Text style={[styles.churchStatVal, { color: colors.gold }]}>{c.congregants}</Text>
-                      <Text style={styles.churchStatLabel}>Congregants</Text>
-                    </View>
-                    <View style={styles.churchStat}>
-                      <Text style={[styles.churchStatVal, { color: colors.green }]}>{c.servants}</Text>
-                      <Text style={styles.churchStatLabel}>Servants</Text>
-                    </View>
-                    <View style={styles.churchStat}>
-                      <Text style={[styles.churchStatVal, { color: colors.green }]}>
-                        {c.congregants > 0 ? Math.round((c.foc_linked / c.congregants) * 100) : 0}%
+                    {unassigned ? (
+                      <Text style={styles.churchNote}>
+                        These accounts never picked a church on their Profile, so they are
+                        counted in the totals above but in none of the churches listed.
                       </Text>
-                      <Text style={styles.churchStatLabel}>FOC Linked</Text>
-                    </View>
-                  </View>
-                </Card>
-              ))
+                    ) : null}
+                  </Card>
+                );
+              })
             )}
           </>
         )}
@@ -410,6 +436,7 @@ const styles = lazyThemed(() => StyleSheet.create({
   addChurchBtn: { marginTop: 10, alignSelf: 'flex-start' as any, borderWidth: 1, borderColor: colors.gold, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
   addChurchBtnText: { fontFamily: fonts.latoBold, fontSize: 11, letterSpacing: 0.5, color: colors.gold },
   churchStats: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 4 },
+  churchNote: { fontFamily: fonts.latoLight, fontSize: 11, lineHeight: 16, color: colors.muted, marginTop: 10 },
   churchStat: { alignItems: 'center', gap: 4 },
   churchStatVal: { fontFamily: fonts.cormorantMedium, fontSize: 24 },
   churchStatLabel: { fontFamily: fonts.latoBold, fontSize: 8, letterSpacing: 1, color: colors.muted, textTransform: 'uppercase' },
