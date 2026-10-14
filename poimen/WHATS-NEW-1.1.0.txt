@@ -1,0 +1,14 @@
+Stronger privacy for priests' notes
+• Private notes are better protected. Your encryption key's backup can no longer be read by other accounts, and a failed connection can never replace it.
+• Private notes you write when logging an encounter now appear on the member's Notes tab, alongside your other pastoral notes. Only you can see them.
+
+New in 1.1.0
+• Reminders for your canon and psalms, set from your own phone
+• Track any Spiritual Vital from your Canon
+• Psalm memorization: each grade shows when the portion returns
+• Confession: guidance in the journal, explicit recording, and a clearer history
+• Blessings are now their own list in the journal
+• Search for your church and add a structured address
+• Opt-in class psalm leaderboard (off by default)
+• Send feedback from inside the app
+• Clearer explanation of what is private, in one place

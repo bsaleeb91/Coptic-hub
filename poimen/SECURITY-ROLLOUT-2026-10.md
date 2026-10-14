@@ -38,7 +38,14 @@ notes go, and hardening the PIN. Tick items off as they land.
       Priests' Private Notes" — https://claude.ai/code/artifact/55bab711-0230-48d8-a908-b11f59fea5f5
       (private until shared from its Share menu).
 
+- [x] **Backup-history safety net** — `private.key_backup_history` + trigger,
+      applied 2026-10-14 (`20261014010000_key_backup_history.sql`).
+- [x] **1.1.0 submitted to Apple** 2026-10-14 — build 22 (`4006bcf`), status
+      "Waiting for Review"; expedited review granted ("We'll expedite review for
+      Nepsis – Pastoral Care"). What's New text: `WHATS-NEW-1.1.0.txt`.
+
 ## Now
+- [ ] Watch for Apple's review email; on approval, release 1.1.0.
 - [ ] ~~OTA for 1.0.0~~ — **NOT POSSIBLE.** `eas fingerprint:compare` against
       build 17 shows its binary was built WITHOUT the `expo-updates` native module
       (also without `expo-crypto`), so App Store 1.0.0 never checks for OTA
@@ -46,10 +53,10 @@ notes go, and hardening the PIN. Tick items off as they land.
       `Coptic-hub-v100`) but must not be published — it would reach nobody, and
       its native fingerprint (`1525b776…`) doesn't match build 17 (`7b479ec8…`).
       1.0.0 users only get the fix by installing a new App Store build.
-- [ ] **Decide the 1.0.0 gap:** until users move to 1.1.x, a 1.0.0 user who
-      reinstalls or changes phone can have their backup overwritten. Options:
-      a server-side backup-history trigger (keeps every replaced `key_backup`,
-      so an overwrite is recoverable), and/or ship 1.1.x to the App Store soon.
+- [x] **Decide the 1.0.0 gap:** until users move to 1.1.x, a 1.0.0 user who
+      reinstalls or changes phone can have their backup overwritten. Resolved
+      with both: the backup-history trigger (applied) makes an overwrite
+      recoverable, and 1.1.0 is submitted to the App Store.
 
 ## Next App Store release (1.1.x)
 - [ ] Slow PIN key derivation — new `pinbak2:` format (Argon2/PBKDF2, pure JS,
