@@ -230,9 +230,19 @@ export async function saveKeyBackup(userId: string, backup: string): Promise<voi
   await supabase.from('profiles').update({ key_backup: backup }).eq('id', userId);
 }
 
-export async function getKeyBackup(userId: string): Promise<string | null> {
-  const { data } = await supabase.from('profiles').select('key_backup').eq('id', userId).single();
-  return (data as any)?.key_backup ?? null;
+// Always the signed-in user's own backup. key_backup is not selectable through
+// the API (20261013020000) — anyone could read a priest's row and brute-force
+// the PIN offline — so the RPC is the only way to it. userId is kept so callers
+// don't change; the function reads auth.uid() regardless.
+//
+// Throws when the read fails. null must mean "this user has no backup": the
+// caller answers that by minting a new keypair and saving its backup over the
+// stored one, so a network error read as null would orphan everything the old
+// key sealed.
+export async function getKeyBackup(_userId: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('get_my_key_backup');
+  if (error) throw new Error(`Couldn't read key backup: ${error.message}`);
+  return (data as string | null) ?? null;
 }
 
 // All profiles — admin use only.

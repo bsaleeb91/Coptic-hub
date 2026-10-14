@@ -99,6 +99,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function checkKeyState(userId: string) {
+    // If the backup can't be read, decide nothing: guessing "no backup" here
+    // would overwrite the real one. This runs again on the next auth change.
+    let backup: string | null;
+    try {
+      backup = await db.getKeyBackup(userId);
+    } catch {
+      return;
+    }
     const hasKP = await hasLocalKeypair();
     if (hasKP) {
       const existingPubKey = await db.getPublicKey(userId);
@@ -106,11 +114,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const pk = await getPublicKeyBase64();
         await db.upsertPublicKey(userId, pk);
       }
-      const backup = await db.getKeyBackup(userId);
       if (!backup) setPinAction('setup');
       settleLegacyNotes(userId);
     } else {
-      const backup = await db.getKeyBackup(userId);
       if (backup) {
         // A backup exists but the keypair is not here yet. Do NOT migrate now —
         // recovery is about to install a different keypair, and anything
