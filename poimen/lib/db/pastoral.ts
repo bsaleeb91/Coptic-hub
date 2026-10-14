@@ -124,6 +124,32 @@ export async function getPastoralNotes(authorId: string, memberId: string): Prom
   return Promise.all(data.map(async (n) => ({ ...n, body: await decryptNote(n.body) })));
 }
 
+// Private notes a priest attached while logging encounters with one member,
+// opened for the priest who wrote them (RLS returns only their own rows).
+// Read-only here: they belong to the encounter, so they are edited there if
+// anywhere, not from the notes list.
+export interface EncounterPrivateNote {
+  id: string;
+  body: string;
+  encounter_type: string;
+  encountered_at: string;
+}
+
+export async function getEncounterPrivateNotes(priestId: string, memberId: string): Promise<EncounterPrivateNote[]> {
+  const { data } = await supabase
+    .from('pastoral_encounter_private_notes')
+    .select('id, private_note, pastoral_encounters!inner(encounter_type, encountered_at, congregant_id)')
+    .eq('priest_id', priestId)
+    .eq('pastoral_encounters.congregant_id', memberId);
+  if (!data) return [];
+  return Promise.all(data.map(async (n: any) => ({
+    id: n.id,
+    body: await decryptNote(n.private_note),
+    encounter_type: n.pastoral_encounters.encounter_type,
+    encountered_at: n.pastoral_encounters.encountered_at,
+  })));
+}
+
 export async function insertPastoralNote(authorId: string, memberId: string, body: string): Promise<{ data: PastoralNote | null; error: string | null }> {
   const encryptedBody = await encryptNote(body);
   const { data, error } = await supabase

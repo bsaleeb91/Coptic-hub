@@ -245,6 +245,9 @@ export default function MemberScreen() {
   const [notes, setNotes] = useState<db.PastoralNote[]>(
     demo.note ? [{ id: 'demo-note-1', author_id: 'demo-priest', member_id: memberId ?? '', body: demo.note, created_at: new Date(Date.now() - 86400000 * 10).toISOString(), updated_at: new Date(Date.now() - 86400000 * 10).toISOString() }] : []
   );
+  // Private notes written in Log Encounter. Shown in the same list as the
+  // notes above, but read-only: they belong to their encounter.
+  const [encounterNotes, setEncounterNotes] = useState<db.EncounterPrivateNote[]>([]);
   const [newNoteText, setNewNoteText] = useState('');
   const [addingNote, setAddingNote] = useState(false);
   const [addNoteError, setAddNoteError] = useState('');
@@ -368,6 +371,7 @@ export default function MemberScreen() {
 
     loadEffectiveRule(profileData?.last_confession_at ?? null);
     db.getLastEncounterDate(memberId, 'visit').then(setLastVisit);
+    db.getEncounterPrivateNotes(user.id, memberId).then(setEncounterNotes);
     db.getVisitRequest(memberId).then(r => setVisitRequested(r.active));
     db.getMemberPhoto(user.id, memberId).then(setMyPhotoUrl);
     setMemberAvatarUrl(profileData?.avatar_url ?? null);
@@ -524,6 +528,15 @@ export default function MemberScreen() {
   const sinceTxt = daysSince !== null && daysSince !== undefined ? `${daysSince}d` : '—';
   const sinceColor = daysSince === null || daysSince === undefined ? colors.muted : daysSince < 30 ? colors.green : daysSince < 60 ? colors.yellow : colors.red;
   const lifeStageDisplay = formatLifeStageLine(lifeStageData, memberChildren);
+
+  // One newest-first list: standalone pastoral notes by when they were
+  // written, encounter notes by when the encounter happened.
+  const noteItems = [
+    ...notes.map(n => ({ kind: 'pastoral' as const, ms: new Date(n.created_at).getTime(), note: n })),
+    ...encounterNotes.map(n => ({ kind: 'encounter' as const, ms: new Date(n.encountered_at).getTime(), note: n })),
+  ].sort((a, b) => b.ms - a.ms);
+  const encounterLabel = (n: db.EncounterPrivateNote) =>
+    `${n.encounter_type.charAt(0).toUpperCase()}${n.encounter_type.slice(1)} · ${new Date(n.encountered_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -802,11 +815,23 @@ export default function MemberScreen() {
                   <Text style={styles.privacyNoteText}>✦ Your private notes. Never visible to the member.</Text>
                 </View>
 
-                {notes.length === 0 && (
+                {noteItems.length === 0 && (
                   <Text style={styles.emptyText}>No notes yet. Add your first note below.</Text>
                 )}
 
-                {notes.map(note => (
+                {noteItems.map(item => {
+                  if (item.kind === 'encounter') {
+                    return (
+                      <View key={`enc-${item.note.id}`} style={styles.noteCard}>
+                        <View style={styles.noteCardHeader}>
+                          <Text style={styles.noteCardDate}>{encounterLabel(item.note).toUpperCase()}</Text>
+                        </View>
+                        <Text style={styles.noteCardBody}>{item.note.body}</Text>
+                      </View>
+                    );
+                  }
+                  const note = item.note;
+                  return (
                   <View key={note.id} style={styles.noteCard}>
                     <View style={styles.noteCardHeader}>
                       <Text style={styles.noteCardDate}>
@@ -859,7 +884,8 @@ export default function MemberScreen() {
                       <Text style={styles.noteCardBody}>{note.body}</Text>
                     )}
                   </View>
-                ))}
+                  );
+                })}
 
                 <View style={styles.addNoteSection}>
                   <TextInput
