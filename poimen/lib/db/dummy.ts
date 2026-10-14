@@ -132,7 +132,7 @@ export const DUMMY_PRAYER_REQUESTS = [
 // ── Agent progress (vitals, journal disciplines/entries) ──────
 export const DUMMY_PROGRESS: Record<string, Record<string, any>> = {
   [DEMO_IDS.cong1]: {
-    vitals: { prayer: 65, scripture: 80, liturgy: 80, fasting: 90, service: 50 },
+    vitals: { prayer: 65, scripture: 80, liturgy: 80, communion: 65, fasting: 90, service: 50 },
     'journal-disciplines': [
       { id: 'disc-1', icon: '🙏', name: 'Morning Agpeya',       freq: 'daily',     streak: '5-day streak', shared: true,  done: true },
       { id: 'disc-2', icon: '📖', name: 'Bible Reading',        freq: 'daily',     streak: '5-day streak', shared: true,  done: false },
@@ -149,7 +149,7 @@ export const DUMMY_PROGRESS: Record<string, Record<string, any>> = {
     'pastoral-notes-self': null,
   },
   [DEMO_IDS.cong2]: {
-    vitals: { prayer: 90, scripture: 88, liturgy: 95, fasting: 75, service: 60 },
+    vitals: { prayer: 90, scripture: 88, liturgy: 95, communion: 80, fasting: 75, service: 60 },
     'journal-disciplines': [
       { id: 'disc-a', icon: '🙏', name: 'Evening Prayer',   freq: 'daily',  streak: '12-day streak', shared: true,  done: true },
       { id: 'disc-b', icon: '📖', name: 'Daily Scripture',  freq: 'daily',  streak: '12-day streak', shared: true,  done: true },
@@ -158,12 +158,12 @@ export const DUMMY_PROGRESS: Record<string, Record<string, any>> = {
     'journal-entries': [],
   },
   [DEMO_IDS.cong3]: {
-    vitals: { prayer: 20, scripture: 15, liturgy: 40, fasting: 10, service: 5 },
+    vitals: { prayer: 20, scripture: 15, liturgy: 40, communion: 25, fasting: 10, service: 5 },
     'journal-disciplines': [],
     'journal-entries': [],
   },
   [DEMO_IDS.cong4]: {
-    vitals: { prayer: 85, scripture: 75, liturgy: 90, fasting: 80, service: 70 },
+    vitals: { prayer: 85, scripture: 75, liturgy: 90, communion: 75, fasting: 80, service: 70 },
     'journal-disciplines': [
       { id: 'disc-d', icon: '🙏', name: 'Agpeya (3 hours)',  freq: 'daily',   streak: '20-day streak', shared: true, done: true },
       { id: 'disc-e', icon: '🌿', name: 'Fasting',           freq: 'weekly',  streak: 'Every Wed+Fri', shared: true, done: false },

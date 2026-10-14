@@ -14,12 +14,15 @@ import * as db from '@/lib/db';
 import { useDemoMode } from '@/lib/demo';
 import { loadRule, WEEKDAYS, SERVICES } from '@/lib/canon/rule-store';
 import {
-  loadServiceLog, ensureWeek, weekCounts, loggedOn, logAttendance, unlogLatest, weekStartStr,
+  loadServiceLog, ensurePeriods, periodCounts, loggedOn, logAttendance, unlogLatest,
 } from '@/lib/canon/service-log';
 import { hydrateRuleFromCloud } from '@/lib/canon/rule-sync';
-import { todayItems, customDueToday, RuleItem, weeklyServiceKey, isWeeklyServiceKey } from '@/lib/canon/today';
+import { todayItems, customDueToday, RuleItem, weeklyServiceKey, isWeeklyServiceKey, serviceKeyOf } from '@/lib/canon/today';
 import { isFastDay } from '@/lib/canon/fasting';
 import { loadChecks, saveChecks, backfillDates, isSameDay } from '@/lib/canon/checks';
+import { loadAttendance, logAttendanceOn, unlogAttendanceOn } from '@/lib/canon/attendance';
+import { periodStart, periodNoun } from '@/lib/canon/periods';
+import type { ServiceCount } from '@/lib/canon/rule-store';
 import {
   postponeOptionsFor, PostponeOption, loadPostponements, postponeServiceItem,
   loadServiceDone, recordServiceDone, clearServiceDone, localDateStr,
@@ -28,6 +31,7 @@ import { recordCanonDay, finalizeWeeklyServices } from '@/lib/canon/history';
 import { lastConfessionDate, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
 import { loadAssignedForMember, applyOverlay, categoryForItemKey } from '@/lib/canon/assigned';
 import { BookIcon, CandleIcon, PrayingHandsIcon, ChurchIcon, CrossIcon, HeartIcon } from '@/components/ui/TabIcons';
+import { PRIVACY_COPY } from '@/lib/privacy-copy';
 
 // Canon item icons (always gold), keyed by the semantic names lib/canon/today
 // emits for each rule item.
@@ -115,11 +119,12 @@ export default function CanonScreen() {
   const [ruleItems, setRuleItems] = useState<RuleItem[] | null>(null); // null = loading
   const [lockedKeys, setLockedKeys] = useState<Set<string>>(new Set()); // FOC-assigned item keys
   const [postponeFor, setPostponeFor] = useState<string | null>(null); // item key with open postpone options
+  const [loggingAttendance, setLoggingAttendance] = useState(false);   // service picker open
   // Count-per-week services: this week's tally + the effective targets, so a
   // tap can log/undo without a full (network-touching) reload.
   const [weekSvc, setWeekSvc] = useState<{ counts: Record<string, number>; loggedToday: Set<string> }>(
     { counts: {}, loggedToday: new Set() });
-  const [ruleCounts, setRuleCounts] = useState<Record<string, number>>({});
+  const [ruleCounts, setRuleCounts] = useState<Record<string, ServiceCount>>({});
   const svcBusy = useRef(false);
   const dayStripRef = useRef<ScrollView>(null);
   const dayStripPinned = useRef(false);
@@ -132,7 +137,10 @@ export default function CanonScreen() {
   // Count-committed services are scored per WEEK, onto that week's Saturday,
   // and a week that has closed is already scored — so attendance can only be
   // logged inside the current week.
-  const weekEditable = weekStartStr(selectedDate) === weekStartStr(new Date());
+  // Each counted service has its own cadence, so "is this day still open" is
+  // per-service. The note below is shown when any of them has already closed.
+  const countsEditable = Object.values(ruleCounts).every(
+    c => periodStart(c.freq, selectedDate) === periodStart(c.freq, new Date()));
 
   useEffect(() => {
     if (demoMode) {
@@ -162,27 +170,36 @@ export default function CanonScreen() {
     const now = new Date();
     const day = selectedDate;
     const isToday = isSameDay(day, now);
-    const sameWeek = weekStartStr(day) === weekStartStr(now);
-    const [postponed, serviceDone, loadedLog] = await Promise.all([
-      loadPostponements(), loadServiceDone(), loadServiceLog(),
+    // Whether the day being viewed still falls in a given service's current
+    // period — a past period is settled and must not be re-scored.
+    const inCurrentPeriod = (svcKey: string) => {
+      const cfg = overlay.rule.serviceCounts?.[svcKey];
+      return !cfg || periodStart(cfg.freq, day) === periodStart(cfg.freq, now);
+    };
+    const [postponed, serviceDone, loadedLog, adhoc] = await Promise.all([
+      loadPostponements(), loadServiceDone(), loadServiceLog(), loadAttendance(day),
     ]);
     // Services committed by count-per-week: stamp THIS week's targets (which is
     // also what makes a zero-attendance week count as a miss) — always the
     // current week, never a past one being back-filled — then read the selected
     // day's week for the "1 of 2 this week" labels.
     const svcLog = overlay.rule.servicesMode === 'counts'
-      ? await ensureWeek(overlay.rule.serviceCounts ?? {}, now)
+      ? await ensurePeriods(overlay.rule.serviceCounts ?? {}, now)
       : loadedLog;
     const weekServices = {
-      counts: weekCounts(svcLog, day),
-      loggedToday: new Set(SERVICES.filter(sv => loggedOn(svcLog, sv.key, day)).map(sv => sv.key)),
+      counts: periodCounts(svcLog, overlay.rule.serviceCounts ?? {}, day),
+      loggedToday: new Set(SERVICES.filter(sv => loggedOn(svcLog, sv.key, overlay.rule.serviceCounts?.[sv.key]?.freq ?? 'Weekly', day)).map(sv => sv.key)),
     };
     setWeekSvc(weekServices);
     setRuleCounts(overlay.rule.servicesMode === 'counts' ? (overlay.rule.serviceCounts ?? {}) : {});
     // A closed week's services are already scored, so those rows would be
     // inert — leave them off a day outside this week entirely.
-    const structured = todayItems(overlay.rule, day, postponed, serviceDone, weekServices)
-      .filter(it => sameWeek || !isWeeklyServiceKey(it.key));
+    const structured = todayItems(overlay.rule, day, postponed, serviceDone, weekServices, adhoc)
+      .filter(it => {
+        if (!isWeeklyServiceKey(it.key)) return true;
+        const sk = serviceKeyOf(it.key);
+        return !sk || inCurrentPeriod(sk);
+      });
     // Score any week that has fully elapsed (see finalizeWeeklyServices).
     finalizeWeeklyServices(svcLog, now);
     // Priest-added free-text components appear as read-only canon rows — on
@@ -217,13 +234,15 @@ export default function CanonScreen() {
     const checks = await loadChecks(day);
     // A count-committed service is "done" when the WEEK's target is met — the
     // attendance log decides that, never the daily check store.
-    if (sameWeek) {
-      for (const sv of SERVICES) {
-        const id = `rule_${weeklyServiceKey(sv.key)}`;
-        const target = overlay.rule.serviceCounts?.[sv.key] ?? 0;
-        target > 0 && (weekServices.counts[sv.key] ?? 0) >= target ? checks.add(id) : checks.delete(id);
-      }
+    for (const sv of SERVICES) {
+      if (!inCurrentPeriod(sv.key)) continue;
+      const id = `rule_${weeklyServiceKey(sv.key)}`;
+      const target = overlay.rule.serviceCounts?.[sv.key]?.n ?? 0;
+      target > 0 && (weekServices.counts[sv.key] ?? 0) >= target ? checks.add(id) : checks.delete(id);
     }
+    // An ad-hoc attendance is complete by definition — the row exists because
+    // the member logged that it happened — so it is always checked.
+    for (const it of items) if (it.adhoc) checks.add(`rule_${it.key}`);
     setRuleItems(items);
     setLockedKeys(locked);
     setChecked(checks);
@@ -231,7 +250,21 @@ export default function CanonScreen() {
     // member actually marks something on it — merely looking back at a day they
     // were away must not create a record, which would turn a day that simply
     // didn't count into a day of misses.
-    if (isToday) recordCanonDay(items, checks, day);
+    if (isToday) {
+      recordCanonDay(items, checks, day);
+      // Counts only, to the server, so a scheduled canon nudge has something
+      // true to read. Never which items — see 20260915010000 for why the
+      // finer-grained version is not on offer. Fire-and-forget: a missed sync
+      // means the server declines to nudge, which is the safe direction.
+      if (user && !demoMode) {
+        db.syncCanonDayState({
+          userId: user.id,
+          day: localDateStr(day),
+          dueCount: items.length,
+          doneCount: items.filter(it => checks.has(`rule_${it.key}`)).length,
+        });
+      }
+    }
 
     // Communion readiness measured against the effective confession frequency
     // (a priest-assigned frequency takes precedence while it's locked).
@@ -239,6 +272,16 @@ export default function CanonScreen() {
       : profile?.last_confession_at ? Math.floor((Date.now() - new Date(profile.last_confession_at).getTime()) / 86400000)
       : demoMode ? 47 : null;
     setReadiness(days == null ? null : { days, freqDays: confessionFrequencyDays(overlay.rule.confession), freqLabel: overlay.rule.confession });
+  }
+
+  // Log a service or communion the rule didn't ask for on this day. This is
+  // what makes every Spiritual Vital trackable regardless of what the member
+  // (or their FOC) happened to commit to — see lib/canon/attendance.ts.
+  async function logAdhoc(serviceKey: string) {
+    H.tap();
+    setLoggingAttendance(false);
+    await logAttendanceOn(serviceKey, selectedDate);
+    await loadCanon();
   }
 
   // Defer a Heart of Service item: it leaves today's list and returns on the
@@ -273,6 +316,19 @@ export default function CanonScreen() {
     const id = `rule_${item.key}`;
     const isServe = item.key.startsWith('serve_') || (item.key.startsWith('assigned_') && !!item.freq);
 
+    // Ad-hoc attendance: untapping removes the log entirely. Leaving an
+    // unchecked row behind would record it as due-and-missed, penalising the
+    // member for having logged something they were never asked to do.
+    if (item.adhoc) {
+      const sv = serviceKeyOf(item.key);
+      if (!sv) return;
+      H.tap();
+      setRuleItems(prev => (prev ?? []).filter(it => it.key !== item.key));
+      setChecked(prev => { const next = new Set(prev); next.delete(id); return next; });
+      unlogAttendanceOn(sv, selectedDate).then(loadCanon);
+      return;
+    }
+
     // A count-committed service isn't a daily check-off — it's an attendance
     // logged against this week's target. Tapping logs today, un-logs today if
     // already logged, or (once the target is met) undoes the most recent
@@ -282,7 +338,8 @@ export default function CanonScreen() {
       svcBusy.current = true;
       const serviceKey = item.key.slice('svcw_'.length);
       const logged = weekSvc.counts[serviceKey] ?? 0;
-      const target = ruleCounts[serviceKey] ?? 0;
+      const cfg = ruleCounts[serviceKey];
+      const target = cfg?.n ?? 0;
       const doneToday = weekSvc.loggedToday.has(serviceKey);
       const adding = !doneToday && logged < target;
       const next = Math.max(0, logged + (adding ? 1 : -1));
@@ -296,14 +353,15 @@ export default function CanonScreen() {
       });
       const svcName = SERVICES.find(s => s.key === serviceKey)?.name ?? serviceKey;
       setRuleItems(prev => (prev ?? []).map(it => it.key === item.key
-        ? { ...it, label: `Attend ${svcName} — ${next} of ${target} this week`, doneLabel: '✓ Complete for this week' }
+        ? { ...it, label: `${SERVICES.find(s => s.key === serviceKey)?.verb ?? 'Attend'} ${svcName} — ${next} of ${target} this ${periodNoun(cfg?.freq ?? 'Weekly')}`, doneLabel: `✓ Complete for this ${periodNoun(cfg?.freq ?? 'Weekly')}` }
         : it));
       setChecked(prev => {
         const set = new Set(prev);
         next >= target ? set.add(id) : set.delete(id);
         return set;
       });
-      (adding ? logAttendance(serviceKey, selectedDate) : unlogLatest(serviceKey, selectedDate))
+      const freq = cfg?.freq ?? 'Weekly';
+      (adding ? logAttendance(serviceKey, freq, selectedDate) : unlogLatest(serviceKey, freq, selectedDate))
         .finally(() => { svcBusy.current = false; });
       return;
     }
@@ -399,7 +457,7 @@ export default function CanonScreen() {
           {!viewingToday && (
             <Text style={styles.backfillNote}>
               Completing {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-              {weekEditable ? '' : ' · services counted by week are already settled for that week'}
+              {countsEditable ? '' : ' · counted services are already settled for that period'}
             </Text>
           )}
 
@@ -416,6 +474,21 @@ export default function CanonScreen() {
               <TouchableOpacity style={styles.setBtn} onPress={() => { H.tap(); router.push('/canon/rule'); }} activeOpacity={0.85}>
                 <Text style={styles.setBtnText}>Set my canon</Text>
               </TouchableOpacity>
+              <Text style={styles.emptyOr}>or</Text>
+              {/* Without a rule there are no rows at all, so this is the only
+                  way liturgy and communion can reach Spiritual Vitals. */}
+              <TouchableOpacity style={styles.logBtn} onPress={() => { H.tap(); setLoggingAttendance(true); }} activeOpacity={0.8}>
+                <Text style={styles.logBtnText}>＋  Log a service or communion</Text>
+              </TouchableOpacity>
+              {loggingAttendance && (
+                <View style={styles.logChips}>
+                  {SERVICES.map(sv => (
+                    <TouchableOpacity key={sv.key} style={styles.logChip} onPress={() => logAdhoc(sv.key)} activeOpacity={0.8}>
+                      <Text style={styles.logChipText}>{sv.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
           ) : (
             <>
@@ -448,7 +521,36 @@ export default function CanonScreen() {
                   </View>
                 );
               })}
-              <PrivacyNote text="Your spiritual canon stays private to you — it is never shared with anyone." />
+              {/* Anything in Spiritual Vitals has to be loggable here, even on a
+                  day the rule is silent about — an unscheduled liturgy, or
+                  communion received when no rule mentioned it. */}
+              {(() => {
+                const offer = SERVICES.filter(sv =>
+                  !items.some(it => serviceKeyOf(it.key) === sv.key));
+                if (!offer.length) return null;
+                return loggingAttendance ? (
+                  <View style={styles.logWrap}>
+                    <Text style={styles.logLabel}>
+                      {viewingToday ? 'What did you attend today?' : 'What did you attend that day?'}
+                    </Text>
+                    <View style={styles.logChips}>
+                      {offer.map(sv => (
+                        <TouchableOpacity key={sv.key} style={styles.logChip} onPress={() => logAdhoc(sv.key)} activeOpacity={0.8}>
+                          <Text style={styles.logChipText}>{sv.name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <TouchableOpacity onPress={() => { H.tap(); setLoggingAttendance(false); }} activeOpacity={0.7}>
+                      <Text style={styles.logCancel}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.logBtn} onPress={() => { H.tap(); setLoggingAttendance(true); }} activeOpacity={0.8}>
+                    <Text style={styles.logBtnText}>＋  Log a service or communion</Text>
+                  </TouchableOpacity>
+                );
+              })()}
+              <PrivacyNote text={PRIVACY_COPY.canon} />
             </>
           )}
         </Card>
@@ -511,6 +613,15 @@ const styles = lazyThemed(() => StyleSheet.create({
   dayChipLabel: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.muted, letterSpacing: 0.3 },
   dayChipDate: { fontFamily: fonts.cormorantMedium, fontSize: 17, color: colors.cream, marginTop: 1 },
   dayChipTextActive: { color: colors.goldLight },
+  logBtn: { alignSelf: 'flex-start' as any, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 9, borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed' as any, marginTop: 4, marginBottom: 14 },
+  logBtnText: { fontFamily: fonts.latoBold, fontSize: 12, letterSpacing: 0.3, color: colors.gold },
+  logWrap: { marginTop: 4, marginBottom: 14, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.goldDim },
+  logLabel: { fontFamily: fonts.latoBold, fontSize: 11, letterSpacing: 0.6, color: colors.cream, marginBottom: 10, textTransform: 'uppercase' as any },
+  logChips: { flexDirection: 'row', flexWrap: 'wrap' as any, gap: 8, marginBottom: 10 },
+  logChip: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.gold, backgroundColor: 'transparent' },
+  logChipText: { fontFamily: fonts.lato, fontSize: 12, color: colors.gold },
+  logCancel: { fontFamily: fonts.lato, fontSize: 12, color: colors.muted },
+  emptyOr: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 14, marginBottom: 10 },
   backfillNote: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, lineHeight: 16, marginBottom: 12, fontStyle: 'italic' },
 
   compItem: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: 'hidden' },

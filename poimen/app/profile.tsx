@@ -4,8 +4,10 @@ import {
   TextInput, ActivityIndicator, Alert, Platform, Modal, FlatList,
 } from 'react-native';
 import type { Church } from '@/lib/db';
+import { formatChurchAddress } from '@/lib/db/profiles';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import * as H from '@/lib/haptics';
 import { goBack } from '@/lib/nav';
 import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
@@ -20,6 +22,10 @@ import * as Updates from 'expo-updates';
 import { Avatar } from '@/components/ui/Avatar';
 import { confirmDestructive } from '@/lib/confirm';
 import { pickPhoto, uploadAvatarImage, removeAvatarImage, selfAvatarPath, cameraAvailable, PhotoSource } from '@/lib/avatar';
+import { PrivacyNote } from '@/components/ui/PrivacyNote';
+import { PRIVACY_COPY } from '@/lib/privacy-copy';
+import { seal, openContactSelf, openChildrenSelf, needsSealing } from '@/lib/pastoral-secure';
+import type { ContactData, ChildData, OpenedChild } from '@/lib/pastoral-secure';
 
 const LIFE_STAGES = ['single', 'engaged', 'married', 'widowed', 'divorced'] as const;
 type LifeStageType = typeof LIFE_STAGES[number];
@@ -103,6 +109,13 @@ export default function ProfileScreen() {
   const [churchId, setChurchId] = useState<string | null>(profile?.church_id ?? null);
   const [churches, setChurches] = useState<Church[]>([]);
   const [showChurchPicker, setShowChurchPicker] = useState(false);
+  const [churchQuery, setChurchQuery] = useState('');
+  const matchingChurches = React.useMemo(() => {
+    const q = churchQuery.trim().toLowerCase();
+    if (!q) return churches;
+    return churches.filter(c =>
+      `${c.name} ${formatChurchAddress(c)}`.toLowerCase().includes(q));
+  }, [churches, churchQuery]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [accountError, setAccountError] = useState('');
@@ -115,6 +128,9 @@ export default function ProfileScreen() {
   const [city, setCity] = useState('');
   const [stateVal, setStateVal] = useState('');
   const [zip, setZip] = useState('');
+  // The column has existed since the baseline schema with a 'US' default, but
+  // nothing ever set it — so a member outside the US had no way to say so.
+  const [country, setCountry] = useState('');
   const [savingContact, setSavingContact] = useState(false);
   const [savedContact, setSavedContact] = useState(false);
   const [contactError, setContactError] = useState('');
@@ -133,9 +149,13 @@ export default function ProfileScreen() {
     db.getChurches().then(setChurches);
   }, []);
 
+  // Re-runs when the Father of Confession changes, not only on sign-in: the
+  // link flow returns to this screen with the component already mounted, and
+  // the new priest cannot read contact details until resealPastoralData has
+  // sealed them to his key.
   useEffect(() => {
     if (user) loadMyInfo();
-  }, [user]);
+  }, [user, profile?.foc_id]);
 
   async function loadMyInfo() {
     const [contact, lifeProfile, childrenData] = await Promise.all([
@@ -143,8 +163,9 @@ export default function ProfileScreen() {
       db.getLifeProfile(user!.id),
       db.getChildren(user!.id),
     ]);
-    if (contact) {
-      const c = contact;
+    const openedContact = await openContactSelf(contact);
+    if (openedContact) {
+      const c = openedContact;
       setPhone(c.phone ?? '');
       setContactEmail(c.email ?? '');
       setAddressLine1(c.address_line1 ?? '');
@@ -152,14 +173,19 @@ export default function ProfileScreen() {
       setCity(c.city ?? '');
       setStateVal(c.state ?? '');
       setZip(c.zip ?? '');
+      setCountry(c.country ?? '');
     }
     if (lifeProfile) {
       setLifeStage((lifeProfile.life_stage as LifeStageType) ?? null);
       setSpouseName(lifeProfile.spouse_name ?? '');
     }
-    if (childrenData) {
-      setChildren(childrenData.map(c => ({ id: c.id, name: c.name, birth_year: c.birth_year })));
-    }
+    const openedChildren = await openChildrenSelf(childrenData ?? []);
+    setChildren(openedChildren.map(c => ({ id: c.id, name: c.name ?? '', birth_year: c.birth_year ?? 0 })));
+
+    // Backfill: seal anything still in plaintext, and re-seal for a new Father
+    // of Confession. Runs after the screen has its values, so a failure here
+    // never stops the member seeing their own details.
+    void resealPastoralData(openedContact, openedChildren, contact, childrenData ?? []);
   }
 
   async function handleSave() {
@@ -173,12 +199,68 @@ export default function ProfileScreen() {
     setTimeout(() => setSaved(false), 2000);
   }
 
+  // Who the FOC copy is sealed for. Null when there is no FOC, or when the
+  // priest has no public key yet — the row is still sealed to the member, and
+  // resealPastoralData picks it up once the key appears.
+  async function focSealTarget(): Promise<{ id: string; publicKey: string | null } | null> {
+    const focId = profile?.foc_id;
+    if (!focId) return null;
+    return { id: focId, publicKey: await db.getPublicKey(focId) };
+  }
+
+  // Seal rows left in plaintext by the pre-encryption app, and re-seal rows
+  // sealed to a previous Father of Confession. Only ever writes data we could
+  // already read, so a row we cannot open is left untouched rather than
+  // overwritten with blanks.
+  async function resealPastoralData(
+    openedContact: ContactData | null,
+    openedChildren: OpenedChild[],
+    contactRow: Record<string, unknown> | null,
+    childRows: Record<string, unknown>[],
+  ) {
+    if (!user) return;
+    try {
+      const focId = profile?.foc_id ?? null;
+      const target = await focSealTarget();
+
+      // Phase 1: adds the sealed copy and re-writes the plaintext unchanged.
+      // upsert replaces the whole row, so the plaintext has to be restated or
+      // it would be dropped — which is the build 17 breakage this avoids.
+      if (openedContact && needsSealing(contactRow, focId)) {
+        await db.upsertContact({
+          user_id: user.id,
+          ...openedContact,
+          ...(await seal<ContactData>(openedContact, target)),
+          updated_at: new Date().toISOString(),
+        });
+      }
+
+      // In place, row by row: a delete-then-insert that failed halfway would
+      // lose children the member never touched.
+      for (const c of openedChildren) {
+        const row = childRows.find(r => String(r.id) === c.id);
+        if (!row || !needsSealing(row, focId)) continue;
+        // An UPDATE touching only the sealed columns — name and birth_year
+        // are left exactly as they are for build 17.
+        await db.updateChildRow(c.id, {
+          ...(await seal<ChildData>({ name: c.name, birth_year: c.birth_year }, target)),
+          updated_at: new Date().toISOString(),
+        });
+      }
+    } catch {}
+  }
+
   async function handleSaveContact() {
     if (!user) return;
     setSavingContact(true);
     setContactError('');
-    const { error } = await db.upsertContact({
-      user_id: user.id,
+    // PHASE 1 of the encryption rollout — DUAL WRITE.
+    // Sealed payloads AND the original plaintext columns are both written,
+    // because build 17 is still in the field and reads only the plaintext.
+    // Nulling those columns now would blank a member's contact details for
+    // anyone who has not updated. Phase 2 (see the migration header) stops
+    // writing plaintext and clears it, once build 17 is gone.
+    const contactData: ContactData = {
       phone:         phone.trim()         || null,
       email:         contactEmail.trim()  || null,
       address_line1: addressLine1.trim()  || null,
@@ -186,7 +268,15 @@ export default function ProfileScreen() {
       city:          city.trim()          || null,
       state:         stateVal.trim()      || null,
       zip:           zip.trim()           || null,
-      updated_at:    new Date().toISOString(),
+      // Keep the column's 'US' default rather than writing null, so an address
+      // saved without a country still resolves on a map.
+      country:       country.trim().toUpperCase() || 'US',
+    };
+    const { error } = await db.upsertContact({
+      user_id: user.id,
+      ...contactData,                                     // phase 1: plaintext
+      ...(await seal<ContactData>(contactData, await focSealTarget())),
+      updated_at: new Date().toISOString(),
     });
     setSavingContact(false);
     if (error) { setContactError('Failed to save — please try again.'); return; }
@@ -209,13 +299,15 @@ export default function ProfileScreen() {
     // Replace children: delete all then re-insert current list
     await db.deleteChildren(user.id);
     if (children.length > 0) {
+      const focTarget = await focSealTarget();
       const { error: kidsErr } = await db.insertChildren(
-        children.map(c => ({
+        await Promise.all(children.map(async (c) => ({
           parent_id:  user!.id,
-          name:       c.name,
+          name:       c.name,              // phase 1: plaintext, for build 17
           birth_year: c.birth_year,
+          ...(await seal<ChildData>({ name: c.name, birth_year: c.birth_year }, focTarget)),
           updated_at: new Date().toISOString(),
-        }))
+        })))
       );
       if (kidsErr) { setSavingFamily(false); setFamilyError('Failed to save children — please try again.'); return; }
     }
@@ -326,11 +418,6 @@ export default function ProfileScreen() {
           <View style={styles.roleBadge}>
             <Text style={styles.roleBadgeText}>{profile?.role ?? 'congregant'}</Text>
           </View>
-          {profile?.requested_role === 'priest' && profile.role === 'congregant' && (
-            <View style={styles.pendingBadge}>
-              <Text style={styles.pendingBadgeText}>PRIEST VERIFICATION PENDING</Text>
-            </View>
-          )}
         </View>
 
         {/* ── Account Details ── */}
@@ -454,6 +541,15 @@ export default function ProfileScreen() {
                 maxLength={10}
               />
             </View>
+            <TextInput
+              style={[styles.input, { marginTop: 8 }]}
+              value={country}
+              onChangeText={setCountry}
+              placeholder="Country (US)"
+              placeholderTextColor={colors.faint}
+              autoCapitalize="characters"
+              maxLength={2}
+            />
           </View>
           {contactError ? <Text style={styles.fieldError}>{contactError}</Text> : null}
           <TouchableOpacity
@@ -588,11 +684,34 @@ export default function ProfileScreen() {
           </Text>
         </Card>
 
-        {/* ── Privacy ── */}
-        <Card title="Privacy" titleIcon="✦">
+        {/* ── Your data & privacy ── */}
+        <Card title={PRIVACY_COPY.settingsTitle} titleIcon="✦">
+          <Text style={styles.privacyText}>{PRIVACY_COPY.settingsSummary}</Text>
+          <TouchableOpacity onPress={() => router.push('/privacy')}>
+            <Text style={styles.privacyLink}>Read the full privacy policy →</Text>
+          </TouchableOpacity>
+        </Card>
+
+        {/* ── Reminders ── */}
+        <Card title="Reminders" titleIcon="◷">
           <Text style={styles.privacyText}>
-            Your confession notes never leave your device. Journal entries are private unless you choose to share. Prayer requests are visible only as you configure them. Spiritual vitals and contact info are shared with your Father of Confession only.
+            A nudge for your canon and your psalms, at a time you pick. Written by this phone
+            rather than sent to it — nothing about your rule leaves the device to make one happen.
           </Text>
+          <TouchableOpacity style={styles.feedbackBtn} onPress={() => { H.tap(); router.push('/reminders'); }} activeOpacity={0.85}>
+            <Text style={styles.feedbackBtnText}>Set up reminders</Text>
+          </TouchableOpacity>
+        </Card>
+
+        {/* ── Feedback ── */}
+        <Card title="Feedback" titleIcon="✎">
+          <Text style={styles.privacyText}>
+            Something broken, or an idea for the app? Tell us directly — it goes to the people who
+            build Nepsis, not to your Father of Confession or your church.
+          </Text>
+          <TouchableOpacity style={styles.feedbackBtn} onPress={() => { H.tap(); router.push('/feedback'); }} activeOpacity={0.85}>
+            <Text style={styles.feedbackBtnText}>Send feedback</Text>
+          </TouchableOpacity>
         </Card>
 
         {/* Invite code — shown to priests and servants */}
@@ -637,6 +756,7 @@ export default function ProfileScreen() {
                     thumbColor={profile?.vitals_consent === true ? colors.gold : colors.faint}
                   />
                 </View>
+                <PrivacyNote text={PRIVACY_COPY.vitals} />
               </>
             ) : (
               <TouchableOpacity
@@ -710,12 +830,24 @@ export default function ProfileScreen() {
       </ScrollView>
 
       {/* ── Church picker modal ── */}
+      {/* Matches on name and on the address exactly as shown beneath it, so
+          searching for what you can see always works — including a city, which
+          is how most people know their parish apart from a similarly named one. */}
       <Modal visible={showChurchPicker} transparent animationType="slide">
         <View style={styles.pickerOverlay}>
           <View style={styles.pickerCard}>
             <Text style={styles.pickerTitle}>Select Your Church</Text>
+            <TextInput
+              style={styles.pickerSearch}
+              value={churchQuery}
+              onChangeText={setChurchQuery}
+              placeholder="Search by name or city…"
+              placeholderTextColor={colors.faint}
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
             <FlatList
-              data={churches}
+              data={matchingChurches}
               keyExtractor={c => c.id}
               renderItem={({ item }) => (
                 <TouchableOpacity
@@ -723,6 +855,7 @@ export default function ProfileScreen() {
                   onPress={() => {
                     setChurchId(item.id);
                     setChurchName(item.name);
+                    setChurchQuery('');
                     setShowChurchPicker(false);
                   }}
                 >
@@ -730,14 +863,23 @@ export default function ProfileScreen() {
                     <Text style={[styles.pickerRowName, churchId === item.id && styles.pickerRowNameActive]}>
                       {item.name}
                     </Text>
-                    {item.address && <Text style={styles.pickerRowAddress}>{item.address}</Text>}
+                    {formatChurchAddress(item) ? (
+                      <Text style={styles.pickerRowAddress}>{formatChurchAddress(item)}</Text>
+                    ) : null}
                   </View>
                   {churchId === item.id && <Text style={styles.pickerCheck}>✓</Text>}
                 </TouchableOpacity>
               )}
               ItemSeparatorComponent={() => <View style={styles.pickerDivider} />}
+              ListEmptyComponent={
+                <Text style={styles.pickerEmpty}>
+                  {churches.length === 0
+                    ? 'No churches have been added yet.'
+                    : `No church matches “${churchQuery.trim()}”.`}
+                </Text>
+              }
             />
-            <TouchableOpacity style={styles.pickerCancel} onPress={() => setShowChurchPicker(false)}>
+            <TouchableOpacity style={styles.pickerCancel} onPress={() => { setChurchQuery(''); setShowChurchPicker(false); }}>
               <Text style={styles.pickerCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -774,11 +916,6 @@ const styles = lazyThemed(() => StyleSheet.create({
     borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4,
   },
   roleBadgeText: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold },
-  pendingBadge: {
-    marginTop: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 4, backgroundColor: colors.panel,
-  },
-  pendingBadgeText: { fontFamily: fonts.latoBold, fontSize: 8, letterSpacing: 1.2, color: colors.muted },
 
   sectionHint: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginBottom: 16, opacity: 0.8 },
 
@@ -823,6 +960,9 @@ const styles = lazyThemed(() => StyleSheet.create({
   saveBtnDisabled: { opacity: 0.5 },
   saveBtnText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.navy, letterSpacing: 1 },
 
+  feedbackBtn: { marginTop: 12, alignSelf: 'flex-start' as any, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 9, borderWidth: 1, borderColor: colors.gold },
+  feedbackBtnText: { fontFamily: fonts.latoBold, fontSize: 12, letterSpacing: 0.4, color: colors.gold },
+  privacyLink: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.gold, marginTop: 12 },
   privacyText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 20 },
 
   tutorialBtn: {
@@ -878,6 +1018,8 @@ const styles = lazyThemed(() => StyleSheet.create({
   pickerRowActive: { opacity: 1 },
   pickerRowName: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream },
   pickerRowNameActive: { color: colors.goldLight },
+  pickerSearch: { fontFamily: fonts.lato, fontSize: 14, color: colors.cream, borderWidth: 1, borderColor: colors.border, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10 },
+  pickerEmpty: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textAlign: 'center', paddingVertical: 24 },
   pickerRowAddress: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 2 },
   pickerCheck: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.gold },
   pickerDivider: { height: 1, backgroundColor: colors.border },

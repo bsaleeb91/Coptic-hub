@@ -19,9 +19,12 @@ import { loadRule, SERVICES } from '@/lib/canon/rule-store';
 import { todayItems, customDueToday, RuleItem, weeklyServiceKey } from '@/lib/canon/today';
 import { loadAssignedForMember, applyOverlay } from '@/lib/canon/assigned';
 import { loadTodayChecks } from '@/lib/canon/checks';
-import { loadPostponements, loadServiceDone } from '@/lib/canon/postpone';
-import { loadServiceLog, ensureWeek, weekCounts, loggedOn } from '@/lib/canon/service-log';
+import { loadPostponements, loadServiceDone, localDateStr } from '@/lib/canon/postpone';
+import { loadServiceLog, ensurePeriods, periodCounts, loggedOn } from '@/lib/canon/service-log';
 import { recordCanonDay, finalizeWeeklyServices, loadCanonHistory, computeVitals, loadVitalsEpoch, VitalStat } from '@/lib/canon/history';
+import { loadAttendance } from '@/lib/canon/attendance';
+import { shouldPromptSurvey } from '@/lib/survey/schedule';
+import { ensureFirstSeen, markPrompted } from '@/lib/survey/store';
 import { lastConfessionDate, loadConfessionDates, hydrateConfessionDatesFromCloud, daysSinceDate, confessionFrequencyDays } from '@/lib/confession/dates';
 import { VISIT_TYPE_KEYWORD } from '@/lib/scheduling/slots';
 import { currentFast } from '@/lib/canon/fasting';
@@ -31,6 +34,7 @@ import { upcomingCommemorations, gregorianToCoptic, commemorationOn } from '@/li
 import { firstGivenName, clergyDisplayName } from '@/lib/names';
 import Harp from '@/components/ui/Harp';
 import { CrossIcon, CandleIcon } from '@/components/ui/TabIcons';
+import { PRIVACY_COPY } from '@/lib/privacy-copy';
 
 const { width: SW } = Dimensions.get('window');
 const TILE_W = (SW - 48) / 2;
@@ -87,18 +91,34 @@ function getTodayCelebration(): string | null {
 // ── VitalRow — canon adherence over the trailing window ──────
 // Read-only: values are computed from My Spiritual Canon check-off history
 // (lib/canon/history.ts), not self-reported.
-function VitalRow({ label, value, text, last }: { label: string; value: number | null; text?: string; last: boolean }) {
-  return (
+// A vital your rule has never asked for reads as "—" forever, which looks like
+// something the app can't track rather than something you haven't chosen yet.
+// Every one of them IS configurable — the spiritual book, the services,
+// communion, diakonia — just several taps deep in the rule editor with nothing
+// pointing there. So an untracked row says so, and is the way to fix it.
+function VitalRow({ label, value, text, last, untracked, onPress }: {
+  label: string; value: number | null; text?: string; last: boolean;
+  untracked?: boolean; onPress?: () => void;
+}) {
+  const body = (
     <View style={[styles.vitalRow, !last && { marginBottom: 16 }]}>
-      <Text style={styles.vitalLabel}>{label}</Text>
-      <View style={styles.vitalTrack}>
-        <View style={[styles.vitalFill, { width: `${value ?? 0}%` as any }]} />
-      </View>
-      <Text style={[styles.vitalVal, text != null && { width: undefined, minWidth: 34 }]}>
-        {text ?? (value != null ? `${value}%` : '—')}
-      </Text>
+      <Text style={[styles.vitalLabel, untracked && styles.vitalLabelOff]}>{label}</Text>
+      {untracked ? (
+        <Text style={styles.vitalAdd}>Add to your canon  ›</Text>
+      ) : (
+        <>
+          <View style={styles.vitalTrack}>
+            <View style={[styles.vitalFill, { width: `${value ?? 0}%` as any }]} />
+          </View>
+          <Text style={[styles.vitalVal, text != null && { width: undefined, minWidth: 34 }]}>
+            {text ?? (value != null ? `${value}%` : '—')}
+          </Text>
+        </>
+      )}
     </View>
   );
+  if (!untracked || !onPress) return body;
+  return <TouchableOpacity onPress={onPress} activeOpacity={0.7}>{body}</TouchableOpacity>;
 }
 
 // ── Customize sheet ───────────────────────────────────────────
@@ -203,7 +223,31 @@ export default function DashboardScreen() {
   const [sections, setSections] = useState<SectionId[]>(DEFAULT_SECTIONS);
   const [customizing, setCustomizing] = useState(false);
   const [showVitalsConsent, setShowVitalsConsent] = useState(false);
+  const [showSurveyPrompt, setShowSurveyPrompt] = useState(false);
   const [settingConsent, setSettingConsent] = useState(false);
+
+  // The 5-day survey prompt. Held back while the vitals-consent modal is up:
+  // two asks stacked on a single open is one ask too many, and consent is the
+  // one that blocks real functionality.
+  useEffect(() => {
+    if (demoMode || showVitalsConsent) { setShowSurveyPrompt(false); return; }
+    let live = true;
+    (async () => {
+      // Seeded from today rather than the account's creation date: everyone,
+      // including members who have had the app since launch, gets 5 days with
+      // this build before being asked — an upgrade should not open onto a
+      // survey about a version they have not used yet.
+      const state = await ensureFirstSeen();
+      if (live) setShowSurveyPrompt(shouldPromptSurvey(state));
+    })();
+    return () => { live = false; };
+  }, [demoMode, showVitalsConsent]);
+
+  async function dismissSurveyPrompt() {
+    H.tap();
+    setShowSurveyPrompt(false);
+    await markPrompted();          // dismissing buys the same 5 days as answering
+  }
 
   // Auto-show vitals consent modal when congregant has an FOC but hasn't decided yet
   useEffect(() => {
@@ -260,24 +304,37 @@ export default function DashboardScreen() {
       // daily checks — mirror the Canon tab so the tile agrees with it.
       const nowDate = new Date();
       const svcLog = overlay.rule.servicesMode === 'counts'
-        ? await ensureWeek(overlay.rule.serviceCounts ?? {}, nowDate)
+        ? await ensurePeriods(overlay.rule.serviceCounts ?? {}, nowDate)
         : loadedLog;
       const weekServices = {
-        counts: weekCounts(svcLog, nowDate),
-        loggedToday: new Set(SERVICES.filter(sv => loggedOn(svcLog, sv.key, nowDate)).map(sv => sv.key)),
+        counts: periodCounts(svcLog, overlay.rule.serviceCounts ?? {}, nowDate),
+        loggedToday: new Set(SERVICES.filter(sv => loggedOn(svcLog, sv.key, overlay.rule.serviceCounts?.[sv.key]?.freq ?? 'Weekly', nowDate)).map(sv => sv.key)),
       };
       for (const sv of SERVICES) {
         const id = `rule_${weeklyServiceKey(sv.key)}`;
-        const target = overlay.rule.serviceCounts?.[sv.key] ?? 0;
+        const target = overlay.rule.serviceCounts?.[sv.key]?.n ?? 0;
         target > 0 && (weekServices.counts[sv.key] ?? 0) >= target ? checks.add(id) : checks.delete(id);
       }
-      const structured = todayItems(overlay.rule, nowDate, postponed, serviceDone, weekServices);
+      // Ad-hoc attendances count here too, or the Home tile's "canon today"
+      // tally would disagree with the Canon tab's.
+      const structured = todayItems(overlay.rule, nowDate, postponed, serviceDone, weekServices, await loadAttendance(nowDate));
       const customItems: RuleItem[] = overlay.customComponents
         .filter(c => customDueToday(c.frequency, c.days, new Date(), serviceDone, `assigned_${c.id}`, postponed))
         .map(c => ({ key: `assigned_${c.id}`, icon: 'quiet', label: c.text }));
       const items = [...structured, ...customItems];
+      for (const it of items) if (it.adhoc) checks.add(`rule_${it.key}`);
       const done = items.filter(it => checks.has(`rule_${it.key}`)).length;
       setCanonToday({ done, total: items.length });
+      // Mirrored here as well as on the Canon tab: this screen is opened far
+      // more often, and a nudge is only as honest as the last report it has.
+      if (user && !demoMode) {
+        db.syncCanonDayState({
+          userId: user.id,
+          day: localDateStr(new Date()),
+          dueCount: items.length,
+          doneCount: done,
+        });
+      }
       setConfFreqDays(confessionFrequencyDays(overlay.rule.confession));
       setLastConf(last);
       setFeasts(nextFeastRows()); // stays current across midnights
@@ -288,7 +345,13 @@ export default function DashboardScreen() {
       await finalizeWeeklyServices(svcLog, nowDate);
       const epoch = await loadVitalsEpoch();
       setVitalsEpoch(epoch);
-      const stats = computeVitals(await loadCanonHistory(), epoch);
+      // Confession has no canon check-off behind it — it is scored from the
+      // recorded dates against the rule's cadence, so the row shows a real
+      // number instead of a permanent "—".
+      const stats = computeVitals(await loadCanonHistory(), epoch, {
+        dates: await loadConfessionDates(),
+        freqDays: confessionFrequencyDays(overlay.rule.confession),
+      });
       setVitalStats(stats);
       if (user && !demoMode) {
         db.upsertAgentProgress({
@@ -583,6 +646,28 @@ export default function DashboardScreen() {
           <Text style={{ fontSize: 18, color: colors.gold }}>›</Text>
         </TouchableOpacity>
 
+        {/* Survey prompt — a dismissible strip, never a modal. It asks for a
+            favour, so it must not block the screen a member actually opened
+            the app for. Dismissing is one tap and buys 5 days of quiet. */}
+        {showSurveyPrompt && (
+          <View style={styles.surveyPrompt}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.surveyPromptTitle}>Five quick questions?</Text>
+              <Text style={styles.surveyPromptBody}>
+                Anonymous, about a minute — it decides what we build next.
+              </Text>
+            </View>
+            <View style={styles.surveyPromptBtns}>
+              <TouchableOpacity onPress={() => { H.tap(); setShowSurveyPrompt(false); router.push('/survey'); }} activeOpacity={0.85}>
+                <Text style={styles.surveyPromptGo}>Answer</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={dismissSurveyPrompt} hitSlop={8}>
+                <Text style={styles.surveyPromptSkip}>Not now</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Confession CTA banner — only if due or overdue */}
         {(confessionStatus === 'due' || confessionStatus === 'overdue') && (
           <TouchableOpacity
@@ -621,16 +706,23 @@ export default function DashboardScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-            {(vitalStats ?? []).map((s, i, rows) => (
-              <VitalRow
-                key={s.key}
-                label={s.key === 'confession' ? 'Confession (days since)' : s.label}
-                value={s.pct}
-                text={s.key === 'confession' ? (daysSinceConfession != null ? `${daysSinceConfession}d` : '—') : undefined}
-                last={i === rows.length - 1}
-              />
-            ))}
-            <PrivacyNote text="Computed from your canon check-offs. Visible only to you and your Father of Confession." />
+            {(vitalStats ?? []).map((s, i, rows) => {
+              // Confession is scored from recorded dates, not check-offs, so a
+              // due of 0 there means "not yet due", not "not in your rule".
+              const untracked = s.key !== 'confession' && s.due === 0;
+              return (
+                <VitalRow
+                  key={s.key}
+                  label={s.key === 'confession' ? 'Confession (days since)' : s.label}
+                  value={s.pct}
+                  text={s.key === 'confession' ? (daysSinceConfession != null ? `${daysSinceConfession}d` : '—') : undefined}
+                  last={i === rows.length - 1}
+                  untracked={untracked}
+                  onPress={() => router.push({ pathname: '/canon/rule', params: { focus: s.key } })}
+                />
+              );
+            })}
+            <PrivacyNote text={PRIVACY_COPY.vitals} />
           </View>
         )}
 
@@ -819,6 +911,12 @@ const styles = lazyThemed(() => StyleSheet.create({
   tileStatusText: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 0.5 },
 
   // Confession CTA banner
+  surveyPrompt: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.goldDim, marginBottom: 16 },
+  surveyPromptTitle: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream, marginBottom: 3 },
+  surveyPromptBody: { fontFamily: fonts.latoLight, fontSize: 11.5, color: colors.muted, lineHeight: 16 },
+  surveyPromptBtns: { alignItems: 'flex-end', gap: 8 },
+  surveyPromptGo: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.gold, letterSpacing: 0.3 },
+  surveyPromptSkip: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.faint },
   banner: {
     backgroundColor: 'rgba(201,168,76,0.07)', borderWidth: 1,
     borderColor: 'rgba(201,168,76,0.25)', borderRadius: 14, padding: 18,
@@ -842,6 +940,11 @@ const styles = lazyThemed(() => StyleSheet.create({
   vitalLabel: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, flex: 1 },
   vitalTrack: { width: 80, height: 18, justifyContent: 'center', flexShrink: 0 },
   vitalFill: { height: 4, backgroundColor: colors.gold, borderRadius: 4 },
+  vitalLabelOff: { color: colors.muted },
+  vitalAdd: {
+    fontFamily: fonts.latoBold, fontSize: 11, color: colors.gold,
+    letterSpacing: 0.3, flexShrink: 0,
+  },
   vitalVal: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream, width: 34, textAlign: 'right' },
 
   // Vitals nudge banner

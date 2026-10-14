@@ -6,8 +6,10 @@ import { goBack } from '@/lib/nav';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
+import type { Feedback, FeedbackStatus } from '@/lib/db/feedback';
+import type { SurveyRow } from '@/lib/db/survey';
 import * as db from '@/lib/db';
-import type { AdminSummary, MonthlyActivity, ChurchBreakdown, PriestRequest } from '@/lib/db';
+import type { AdminSummary, MonthlyActivity, ChurchBreakdown } from '@/lib/db';
 
 type ChartMetric = 'signups' | 'prayers' | 'confessions' | 'canon_completions' | 'journal_active';
 
@@ -66,13 +68,19 @@ export default function AdminScreen() {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [monthly, setMonthly] = useState<MonthlyActivity[]>([]);
   const [churches, setChurches] = useState<ChurchBreakdown[]>([]);
-  const [requests, setRequests] = useState<PriestRequest[] | null>([]);
-  const [requestError, setRequestError] = useState('');
-  const [actingId, setActingId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Feedback[]>([]);
+  const [feedbackFilter, setFeedbackFilter] = useState<'open' | 'all'>('open');
+  const [survey, setSurvey] = useState<SurveyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState<ChartMetric>('signups');
   const [newChurchName, setNewChurchName] = useState('');
-  const [newChurchAddress, setNewChurchAddress] = useState('');
+  // Structured, matching a member's address — so the picker can search on city
+  // and street, not just raw text.
+  const [newChurchLine1, setNewChurchLine1] = useState('');
+  const [newChurchLine2, setNewChurchLine2] = useState('');
+  const [newChurchCity, setNewChurchCity] = useState('');
+  const [newChurchState, setNewChurchState] = useState('');
+  const [newChurchZip, setNewChurchZip] = useState('');
   const [addingChurch, setAddingChurch] = useState(false);
   const [addChurchError, setAddChurchError] = useState('');
 
@@ -82,28 +90,26 @@ export default function AdminScreen() {
       db.getAdminSummary(),
       db.getMonthlyActivity(),
       db.getChurchBreakdown(),
-      db.getPriestRequests(),
-    ]).then(([s, m, c, r]) => {
+      db.getAllFeedback(),
+      db.getSurveyResults(),
+    ]).then(([s, m, c, f, sv]) => {
       setSummary(s);
       setMonthly(m);
       setChurches(c);
-      setRequests(r);
+      setFeedback(f);
+      setSurvey(sv);
       setLoading(false);
     });
   }, [profile]);
 
-  async function handleRequest(id: string, approve: boolean) {
-    setActingId(id);
-    setRequestError('');
-    const ok = approve ? await db.approvePriestRequest(id) : await db.denyPriestRequest(id);
-    if (ok) {
-      setRequests((prev) => (prev ?? []).filter((r) => r.id !== id));
-    } else {
-      setRequestError('That request could not be updated — it may have been handled in another session. The list has been refreshed.');
-      setRequests(await db.getPriestRequests());
-    }
-    setActingId(null);
+  // Move a report along: new → read → resolved. Optimistic, since the only
+  // failure mode is a lost RLS check and the list reloads on next open.
+  async function advanceFeedback(f: Feedback) {
+    const next: FeedbackStatus = f.status === 'new' ? 'read' : f.status === 'read' ? 'resolved' : 'new';
+    setFeedback(prev => prev.map(x => (x.id === f.id ? { ...x, status: next } : x)));
+    await db.setFeedbackStatus(f.id, next);
   }
+
 
   async function handleAddChurch() {
     if (!newChurchName.trim()) {
@@ -112,7 +118,13 @@ export default function AdminScreen() {
     }
     setAddingChurch(true);
     setAddChurchError('');
-    const church = await db.createChurch(newChurchName, newChurchAddress);
+    const church = await db.createChurch(newChurchName, {
+      address_line1: newChurchLine1,
+      address_line2: newChurchLine2,
+      city: newChurchCity,
+      state: newChurchState,
+      zip: newChurchZip,
+    });
     if (church) {
       setChurches((prev) => [
         ...prev,
@@ -125,7 +137,8 @@ export default function AdminScreen() {
         return a.church_name.localeCompare(b.church_name);
       }));
       setNewChurchName('');
-      setNewChurchAddress('');
+      setNewChurchLine1(''); setNewChurchLine2('');
+      setNewChurchCity(''); setNewChurchState(''); setNewChurchZip('');
     } else {
       setAddChurchError('Could not add that church — make sure your role is set to admin in Supabase.');
     }
@@ -177,49 +190,8 @@ export default function AdminScreen() {
         <Text style={styles.title}>Dashboard</Text>
 
         <TouchableOpacity style={styles.roadmapLink} onPress={() => router.push('/roadmap')}>
-          <Text style={styles.roadmapLinkText}>App Store Roadmap →</Text>
+          <Text style={styles.roadmapLinkText}>Product Roadmap →</Text>
         </TouchableOpacity>
-
-        {/* ── Priest requests — rendered regardless of stats health so a
-              broken summary RPC can never hide pending approvals ── */}
-        {!loading && (
-          <>
-            <Text style={[styles.sectionLabel, { marginTop: 8 }]}>PRIEST REQUESTS</Text>
-            {requestError ? <Text style={styles.requestErrorText}>{requestError}</Text> : null}
-            {requests === null ? (
-              <Text style={styles.emptyText}>Could not load priest requests.</Text>
-            ) : requests.length === 0 ? (
-              <Text style={styles.emptyText}>No pending requests.</Text>
-            ) : (
-              <Card title="" titleIcon="">
-                {requests.map((r) => (
-                  <View key={r.id} style={styles.requestRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.requestName}>{r.full_name ?? 'Unnamed'}</Text>
-                      <Text style={styles.requestMeta}>
-                        {r.email ?? '—'}{r.church_name ? ` · ${r.church_name}` : ''}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={[styles.reqBtn, styles.approveBtn, actingId !== null && { opacity: 0.5 }]}
-                      disabled={actingId !== null}
-                      onPress={() => handleRequest(r.id, true)}
-                    >
-                      <Text style={styles.approveText}>Approve</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.reqBtn, styles.denyBtn, actingId !== null && { opacity: 0.5 }]}
-                      disabled={actingId !== null}
-                      onPress={() => handleRequest(r.id, false)}
-                    >
-                      <Text style={styles.denyText}>Deny</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </Card>
-            )}
-          </>
-        )}
 
         {loading ? (
           <ActivityIndicator color={colors.gold} style={{ marginTop: 60 }} />
@@ -293,6 +265,122 @@ export default function AdminScreen() {
               )}
             </Card>
 
+            {/* ── Survey ── */}
+            {survey.length > 0 && (() => {
+              // Anonymous rows are only meaningful in aggregate, so this shows
+              // distributions rather than a list of individual submissions.
+              // Percentages are of those who ANSWERED that question, not of all
+              // responses — every question is skippable, and dividing by the
+              // wrong denominator would quietly understate every bar.
+              const dist = (key: keyof SurveyRow, opts: { v: string; label: string }[]) => {
+                const answered = survey.filter(r => r[key] != null);
+                return { answered: answered.length, rows: opts.map(o => ({
+                  label: o.label,
+                  n: answered.filter(r => r[key] === o.v).length,
+                  pct: answered.length ? Math.round(answered.filter(r => r[key] === o.v).length / answered.length * 100) : 0,
+                })) };
+              };
+              const blocks = [
+                { q: 'How often do you use Nepsis?', ...dist('frequency', [
+                  { v: 'daily', label: 'Daily' }, { v: 'weekly_several', label: 'Several times a week' },
+                  { v: 'weekly', label: 'About once a week' }, { v: 'rarely', label: 'Rarely' }]) },
+                { q: 'Canon kept more consistently?', ...dist('consistency', [
+                  { v: 'yes_clearly', label: 'Yes, noticeably' }, { v: 'a_little', label: 'A little' },
+                  { v: 'no_change', label: 'No change' }, { v: 'no_canon', label: "Doesn't use the canon" }]) },
+                { q: 'Would miss most', ...dist('most_missed', [
+                  { v: 'canon', label: 'Canon' }, { v: 'confession', label: 'Confession' },
+                  { v: 'psalms', label: 'Psalms' }, { v: 'prayer', label: 'Prayer' },
+                  { v: 'journal', label: 'Journal' }, { v: 'appointments', label: 'Appointments' }]) },
+              ];
+              const withholders = survey.filter(r => r.withholding === true);
+              const withholdAnswered = survey.filter(r => r.withholding != null).length;
+              const changes = survey.filter(r => (r.one_change ?? '').trim());
+              return (
+                <>
+                  <Text style={[styles.sectionLabel, { marginTop: 24 }]}>SURVEY · {survey.length} RESPONSES</Text>
+                  {blocks.map(b => (
+                    <Card key={b.q} title={b.q} titleIcon="◈">
+                      {b.rows.map(r => (
+                        <View key={r.label} style={styles.svRow}>
+                          <Text style={styles.svLabel}>{r.label}</Text>
+                          <View style={styles.svTrack}><View style={[styles.svFill, { width: `${r.pct}%` as any }]} /></View>
+                          <Text style={styles.svVal}>{r.pct}%</Text>
+                        </View>
+                      ))}
+                      <Text style={styles.svMeta}>{b.answered} answered</Text>
+                    </Card>
+                  ))}
+                  <Card title="Holding things back?" titleIcon="🔒">
+                    <Text style={styles.svBig}>
+                      {withholdAnswered ? Math.round(withholders.length / withholdAnswered * 100) : 0}%
+                    </Text>
+                    <Text style={styles.svMeta}>
+                      {withholders.length} of {withholdAnswered} say they avoid putting something in the app
+                    </Text>
+                    {withholders.filter(r => (r.withholding_detail ?? '').trim()).map(r => (
+                      <Text key={r.id} style={styles.svQuote}>“{r.withholding_detail}”</Text>
+                    ))}
+                  </Card>
+                  {changes.length > 0 && (
+                    <Card title={`One thing to change (${changes.length})`} flat>
+                      {changes.map(r => (
+                        <Text key={r.id} style={styles.svQuote}>“{r.one_change}”</Text>
+                      ))}
+                    </Card>
+                  )}
+                </>
+              );
+            })()}
+
+            {/* ── Feedback ── */}
+            {(() => {
+              const shown = feedbackFilter === 'open'
+                ? feedback.filter(f => f.status !== 'resolved')
+                : feedback;
+              const openCount = feedback.filter(f => f.status !== 'resolved').length;
+              return (
+                <>
+                  <View style={styles.feedbackHead}>
+                    <Text style={styles.sectionLabel}>FEEDBACK{openCount > 0 ? ` · ${openCount} OPEN` : ''}</Text>
+                    <TouchableOpacity onPress={() => setFeedbackFilter(p => (p === 'open' ? 'all' : 'open'))}>
+                      <Text style={styles.feedbackToggle}>
+                        {feedbackFilter === 'open' ? 'Show resolved' : 'Hide resolved'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {shown.length === 0 ? (
+                    <Text style={styles.emptyText}>
+                      {feedback.length === 0 ? 'No feedback yet.' : 'Nothing open — all resolved.'}
+                    </Text>
+                  ) : shown.map(f => (
+                    <Card key={f.id} title="" titleIcon="">
+                      <View style={styles.fbHead}>
+                        <Text style={styles.fbCat}>{f.category.toUpperCase()}</Text>
+                        {/* Tap cycles new → read → resolved. */}
+                        <TouchableOpacity onPress={() => advanceFeedback(f)} activeOpacity={0.7}>
+                          <Text style={[
+                            styles.fbStatus,
+                            f.status === 'new' && { color: colors.gold },
+                            f.status === 'resolved' && { color: colors.green },
+                          ]}>{f.status.toUpperCase()} ▸</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={styles.fbMsg}>{f.message}</Text>
+                      <Text style={styles.fbMeta}>
+                        {[
+                          f.role ?? 'unknown role',
+                          f.platform,
+                          f.app_version ? `v${f.app_version}` : null,
+                          new Date(f.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                          f.user_id ? null : 'account deleted',
+                        ].filter(Boolean).join(' · ')}
+                      </Text>
+                    </Card>
+                  ))}
+                </>
+              );
+            })()}
+
             {/* ── Churches ── */}
             <Text style={[styles.sectionLabel, { marginTop: 24 }]}>CHURCHES</Text>
             <Card title="" titleIcon="">
@@ -305,11 +393,45 @@ export default function AdminScreen() {
               />
               <TextInput
                 style={[styles.addChurchInput, { marginTop: 8 }]}
-                value={newChurchAddress}
-                onChangeText={setNewChurchAddress}
-                placeholder="Address (optional)"
+                value={newChurchLine1}
+                onChangeText={setNewChurchLine1}
+                placeholder="Street address (optional)"
                 placeholderTextColor={colors.faint}
               />
+              <TextInput
+                style={[styles.addChurchInput, { marginTop: 8 }]}
+                value={newChurchLine2}
+                onChangeText={setNewChurchLine2}
+                placeholder="Suite, building, etc. (optional)"
+                placeholderTextColor={colors.faint}
+              />
+              <View style={styles.churchAddrRow}>
+                <TextInput
+                  style={[styles.addChurchInput, { flex: 2 }]}
+                  value={newChurchCity}
+                  onChangeText={setNewChurchCity}
+                  placeholder="City"
+                  placeholderTextColor={colors.faint}
+                />
+                <TextInput
+                  style={[styles.addChurchInput, { flex: 1 }]}
+                  value={newChurchState}
+                  onChangeText={setNewChurchState}
+                  placeholder="ST"
+                  placeholderTextColor={colors.faint}
+                  autoCapitalize="characters"
+                  maxLength={2}
+                />
+                <TextInput
+                  style={[styles.addChurchInput, { flex: 1 }]}
+                  value={newChurchZip}
+                  onChangeText={setNewChurchZip}
+                  placeholder="ZIP"
+                  placeholderTextColor={colors.faint}
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
+              </View>
               {addChurchError ? <Text style={styles.requestErrorText}>{addChurchError}</Text> : null}
               <TouchableOpacity
                 style={[styles.addChurchBtn, addingChurch && { opacity: 0.5 }]}
@@ -383,6 +505,22 @@ const styles = lazyThemed(() => StyleSheet.create({
 
   backBtn: { marginBottom: 20 },
   backText: { fontFamily: fonts.lato, fontSize: 13, color: colors.gold },
+  svRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  svLabel: { fontFamily: fonts.lato, fontSize: 12, color: colors.textSecond, width: 130 },
+  svTrack: { flex: 1, height: 4, backgroundColor: 'rgba(201,168,76,0.15)', borderRadius: 2, overflow: 'hidden' },
+  svFill: { height: '100%' as any, backgroundColor: colors.gold, borderRadius: 2 },
+  svVal: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.muted, width: 34, textAlign: 'right' },
+  svMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.faint, marginTop: 6 },
+  svBig: { fontFamily: fonts.cormorantMedium, fontSize: 34, color: colors.gold },
+  svQuote: { fontFamily: fonts.lato, fontSize: 13, color: colors.cream, lineHeight: 20, marginTop: 10, fontStyle: 'italic' as any },
+  feedbackHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 24 },
+  feedbackToggle: { fontFamily: fonts.lato, fontSize: 11, color: colors.gold },
+  fbHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  fbCat: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.2, color: colors.muted },
+  fbStatus: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1, color: colors.muted },
+  fbMsg: { fontFamily: fonts.lato, fontSize: 13, color: colors.cream, lineHeight: 20 },
+  fbMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.faint, marginTop: 8 },
+  churchAddrRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   roadmapLink: { marginBottom: 24, alignSelf: 'flex-start' as any, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.goldDim },
   roadmapLinkText: { fontFamily: fonts.latoBold, fontSize: 12, letterSpacing: 0.5, color: colors.gold },
   eyebrow: { fontFamily: fonts.latoBold, fontSize: 9, letterSpacing: 2.5, color: colors.gold, marginBottom: 6 },
@@ -391,15 +529,7 @@ const styles = lazyThemed(() => StyleSheet.create({
   errorText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.red, marginTop: 20, lineHeight: 20 },
   emptyText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, marginTop: 8 },
 
-  requestRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
   requestErrorText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.red, marginBottom: 8, lineHeight: 17 },
-  requestName: { fontFamily: fonts.cormorantMedium, fontSize: 16, color: colors.cream },
-  requestMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 2 },
-  reqBtn: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
-  approveBtn: { borderColor: colors.green },
-  denyBtn: { borderColor: colors.border },
-  approveText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.green },
-  denyText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.red },
 
   gateTitle: { fontFamily: fonts.cormorantMedium, fontSize: 22, color: colors.cream, marginBottom: 8 },
   gateSub: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textAlign: 'center' },

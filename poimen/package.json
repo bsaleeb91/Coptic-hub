@@ -9,7 +9,11 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test \"lib/**/*.test.ts\"",
-    "build": "expo export --platform web"
+    "build": "expo export --platform web",
+    "gen:roadmap": "node scripts/gen-roadmap.mjs",
+    "prestart": "node scripts/gen-roadmap.mjs",
+    "prebuild": "node scripts/gen-roadmap.mjs",
+    "pretypecheck": "node scripts/gen-roadmap.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/cormorant-garamond": "^0.2.2",
@@ -27,6 +31,7 @@
     "expo-image-picker": "~17.0.11",
     "expo-linking": "~8.0.11",
     "expo-local-authentication": "~17.0.8",
+    "expo-notifications": "~0.32.17",
     "expo-router": "~6.0.23",
     "expo-secure-store": "~15.0.8",
     "expo-splash-screen": "~31.0.13",

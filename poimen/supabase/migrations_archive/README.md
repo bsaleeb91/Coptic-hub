@@ -1,15 +1,15 @@
 # Archived migrations (superseded, reconciled 2026-07-22)
 
-These are pre-baseline migration files that were carried over from before Poimen's
+These are pre-baseline migration files that were carried over from before Nepsis's
 schema was squashed. **They do not describe the live database** and must not be
 replayed. They are kept only as a historical record of intent.
 
 ## What happened
 
-Poimen's own migration history diverged from production (RLS was rewritten by hand in
+Nepsis's own migration history diverged from production (RLS was rewritten by hand in
 the Supabase dashboard) and was squashed into a single verified baseline on 2026-07-13
 — see the fuller account in `Coptic-hub/poimen/supabase/migrations_archive/README.md`
-(same repo family, main Poimen branch). This merge branch (`Poimen-nepsis-merge`) still
+(same repo family, main Nepsis branch). This merge branch (`Nepsis-nepsis-merge`) still
 had the old, pre-squash migration files sitting alongside genuinely new ones written
 after the baseline. On 2026-07-22 those two were reconciled:
 

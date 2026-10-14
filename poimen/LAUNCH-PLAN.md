@@ -1,4 +1,4 @@
-# Poimen — Launch Plan
+# Nepsis — Launch Plan
 
 Work through these in order before Capacitor build and App Store submission.
 

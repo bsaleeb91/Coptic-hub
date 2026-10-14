@@ -1,5 +1,5 @@
 // components/ui/TabIcons.tsx
-// Poimen's monochrome line-icon set, drawn to match the Harp's stroke style
+// Nepsis's monochrome line-icon set, drawn to match the Harp's stroke style
 // (rounded caps, ~6/100 stroke weight). Unlike emoji, every icon takes a
 // color prop: the tab bar tints them muted at rest / gold when active, and
 // in-screen icons (Home tiles, Confession modules, Canon checklist) render

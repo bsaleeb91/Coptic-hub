@@ -14,6 +14,9 @@ export interface Profile {
   foc_consent_at: string | null;
   invite_code: string | null;
   vitals_consent: boolean | null;
+  // Separate from vitals_consent on purpose: that one is about a priest, this
+  // one is about classmates. See 20260907030000_psalm_leaderboard.sql.
+  psalm_leaderboard_consent: boolean | null;
   last_confession_at: string | null;
   last_seen_at: string | null;
 }
@@ -21,14 +24,37 @@ export interface Profile {
 export interface Church {
   id: string;
   name: string;
+  // Legacy free-text address, kept for rows entered before the structured
+  // fields existed. Readers fall back to it — see formatChurchAddress.
   address: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  country: string | null;
   created_at: string;
+}
+
+const CHURCH_COLS =
+  'id, name, address, address_line1, address_line2, city, state, zip, country, created_at';
+
+// One line per address, whichever shape the row is in. Structured fields win;
+// a row that predates them falls back to its free text. Used for display and
+// for the picker's search, so what you see is what you can search on.
+export function formatChurchAddress(c: Partial<Church> | null | undefined): string {
+  if (!c) return '';
+  const street = [c.address_line1, c.address_line2].filter(Boolean).join(', ');
+  const locality = [c.city, c.state, c.zip].filter(Boolean).join(', ');
+  const structured = [street, locality, c.country && c.country !== 'US' ? c.country : null]
+    .filter(Boolean).join(' · ');
+  return structured || (c.address ?? '');
 }
 
 export async function getProfile(userId: string): Promise<Profile | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, church_name, church_id, role, requested_role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, last_confession_at, last_seen_at')
+    .select('id, full_name, church_name, church_id, role, requested_role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, psalm_leaderboard_consent, last_confession_at, last_seen_at')
     .eq('id', userId)
     .single();
   return data ?? null;
@@ -44,18 +70,30 @@ export async function touchLastSeen(userId: string): Promise<void> {
 export async function getChurches(): Promise<Church[]> {
   const { data } = await supabase
     .from('churches')
-    .select('id, name, address, created_at')
+    .select(CHURCH_COLS)
     .order('name');
   return data ?? [];
 }
 
 // RLS restricts inserts to admins (is_admin()); a non-admin caller gets
 // back an error here rather than a row.
-export async function createChurch(name: string, address: string): Promise<Church | null> {
+export async function createChurch(
+  name: string,
+  parts: Partial<Pick<Church, 'address_line1' | 'address_line2' | 'city' | 'state' | 'zip' | 'country'>> = {},
+): Promise<Church | null> {
+  const trim = (v: string | null | undefined) => (v ?? '').trim() || null;
   const { data, error } = await supabase
     .from('churches')
-    .insert({ name: name.trim(), address: address.trim() || null })
-    .select('id, name, address, created_at')
+    .insert({
+      name: name.trim(),
+      address_line1: trim(parts.address_line1),
+      address_line2: trim(parts.address_line2),
+      city:          trim(parts.city),
+      state:         trim(parts.state)?.toUpperCase() ?? null,
+      zip:           trim(parts.zip),
+      country:       trim(parts.country)?.toUpperCase() ?? 'US',
+    })
+    .select(CHURCH_COLS)
     .single();
   if (error) return null;
   return data;
@@ -192,16 +230,26 @@ export async function saveKeyBackup(userId: string, backup: string): Promise<voi
   await supabase.from('profiles').update({ key_backup: backup }).eq('id', userId);
 }
 
-export async function getKeyBackup(userId: string): Promise<string | null> {
-  const { data } = await supabase.from('profiles').select('key_backup').eq('id', userId).single();
-  return (data as any)?.key_backup ?? null;
+// Always the signed-in user's own backup. key_backup is not selectable through
+// the API (20261013020000) — anyone could read a priest's row and brute-force
+// the PIN offline — so the RPC is the only way to it. userId is kept so callers
+// don't change; the function reads auth.uid() regardless.
+//
+// Throws when the read fails. null must mean "this user has no backup": the
+// caller answers that by minting a new keypair and saving its backup over the
+// stored one, so a network error read as null would orphan everything the old
+// key sealed.
+export async function getKeyBackup(_userId: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('get_my_key_backup');
+  if (error) throw new Error(`Couldn't read key backup: ${error.message}`);
+  return (data as string | null) ?? null;
 }
 
 // All profiles — admin use only.
 export async function getAllProfiles(): Promise<Profile[]> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, church_name, church_id, role, requested_role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, last_confession_at, last_seen_at')
+    .select('id, full_name, church_name, church_id, role, requested_role, avatar_url, foc_id, servant_id, foc_consent_at, invite_code, vitals_consent, psalm_leaderboard_consent, last_confession_at, last_seen_at')
     .order('role')
     .order('full_name');
   return data ?? [];

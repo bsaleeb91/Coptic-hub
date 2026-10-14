@@ -1,6 +1,6 @@
 // Pastoral contact, life-stage profile, children, encounter records, and notes.
 import { supabase } from '../supabase';
-import { encryptNote, decryptNote } from '../crypto';
+import { encryptNote, decryptNote, rewrapLegacyNote, needsRewrap } from '../crypto';
 
 export interface PastoralNote {
   id: string;
@@ -33,12 +33,14 @@ export async function upsertLifeProfile(row: Record<string, any>): Promise<{ err
   return { error: error?.message ?? null };
 }
 
+// Rows are returned unopened and UNSORTED: birth_year now lives inside the
+// sealed payload, so the database cannot order on it. openChildrenSelf /
+// openChildrenForFoc sort by birth year once the rows are decrypted.
 export async function getChildren(parentId: string): Promise<any[]> {
   const { data } = await supabase
     .from('pastoral_children')
     .select('*')
-    .eq('parent_id', parentId)
-    .order('birth_year', { ascending: true });
+    .eq('parent_id', parentId);
   return data ?? [];
 }
 
@@ -48,6 +50,17 @@ export async function deleteChildren(parentId: string): Promise<void> {
 
 export async function insertChildren(rows: Record<string, any>[]): Promise<{ error: string | null }> {
   const { error } = await supabase.from('pastoral_children').insert(rows);
+  return { error: error?.message ?? null };
+}
+
+// Seal an existing child row in place, keeping its id.
+//
+// The backfill uses this rather than the delete-then-insert the edit flow uses:
+// there the member is looking at the list and can retype it, but a backfill
+// that deleted the rows and then failed to insert would destroy children the
+// member never touched. An in-place update cannot lose anything.
+export async function updateChildRow(id: string, fields: Record<string, any>): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('pastoral_children').update(fields).eq('id', id);
   return { error: error?.message ?? null };
 }
 
@@ -137,6 +150,74 @@ export async function deletePastoralNote(noteId: string): Promise<{ error: strin
     .delete()
     .eq('id', noteId);
   return { error: error?.message ?? null };
+}
+
+// ── Legacy note migration ────────────────────────────────────
+// Notes written before 2026-09 were sealed with a device-local key that was
+// never backed up (see lib/crypto.ts). The rows live in Supabase and outlive
+// the device, so a priest changing phones was left with ciphertext nothing
+// could open. This re-wraps their own rows under the recoverable keypair while
+// a device that still holds the old key is signed in.
+//
+// Non-destructive by construction: a row is written ONLY when we decrypted it
+// here. Anything we cannot read is counted and left byte-for-byte alone, so a
+// second device (or a later run) can still rescue it. Nothing is ever deleted.
+
+export interface LegacyMigrationResult {
+  scanned: number;      // legacy rows found
+  rewrapped: number;    // successfully re-encrypted under the keypair
+  unreadable: number;   // legacy rows this device holds no key for — left as-is
+  failed: number;       // decrypted fine, but the write back failed
+}
+
+const EMPTY_RESULT: LegacyMigrationResult = { scanned: 0, rewrapped: 0, unreadable: 0, failed: 0 };
+
+// Re-wrap one table's legacy column. Shared by both note tables, which differ
+// only in table name, owner column, and which column holds the ciphertext.
+async function rewrapTable(
+  table: string,
+  ownerColumn: string,
+  ownerId: string,
+  bodyColumn: string,
+): Promise<LegacyMigrationResult> {
+  // select('*') rather than a `id, ${bodyColumn}` template: the typed select
+  // parser cannot read a runtime-built column list and rejects it outright.
+  const { data, error } = await supabase
+    .from(table)
+    .select('*')
+    .eq(ownerColumn, ownerId);
+  if (error || !data) return EMPTY_RESULT;
+
+  const result: LegacyMigrationResult = { ...EMPTY_RESULT };
+  for (const row of data) {
+    const body: string = row[bodyColumn];
+    if (!needsRewrap(body)) continue;
+    result.scanned++;
+    const rewrapped = await rewrapLegacyNote(body);
+    if (rewrapped === null) { result.unreadable++; continue; }
+    const { error: writeError } = await supabase
+      .from(table)
+      .update({ [bodyColumn]: rewrapped })
+      .eq('id', row.id);
+    if (writeError) result.failed++; else result.rewrapped++;
+  }
+  return result;
+}
+
+const addResults = (a: LegacyMigrationResult, b: LegacyMigrationResult): LegacyMigrationResult => ({
+  scanned: a.scanned + b.scanned,
+  rewrapped: a.rewrapped + b.rewrapped,
+  unreadable: a.unreadable + b.unreadable,
+  failed: a.failed + b.failed,
+});
+
+// Re-wrap every legacy note this user authored, across both note tables.
+export async function migrateLegacyPastoralNotes(userId: string): Promise<LegacyMigrationResult> {
+  const notes = await rewrapTable('pastoral_notes', 'author_id', userId, 'body');
+  const privateNotes = await rewrapTable(
+    'pastoral_encounter_private_notes', 'priest_id', userId, 'private_note',
+  );
+  return addResults(notes, privateNotes);
 }
 
 // ── Pastoral encounters ──────────────────────────────────────

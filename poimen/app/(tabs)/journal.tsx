@@ -11,7 +11,12 @@ import { Card } from '@/components/ui/Card';
 import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
 import { DrawerMenuButton } from '@/components/ui/DrawerMenuButton';
-import { JournalEntry, getJournalEntries, saveJournalEntries } from '@/lib/journal';
+import {
+  JournalEntry, getJournalEntries, saveJournalEntries,
+  Blessing, getBlessings, saveBlessings, migrateBlessingFlags,
+} from '@/lib/journal';
+import { PrivacyNote } from '@/components/ui/PrivacyNote';
+import { PRIVACY_COPY } from '@/lib/privacy-copy';
 
 // Spiritual practices/disciplines were removed from this tab — daily practices
 // live on the Canon tab (assigned canon + personal rule). This tab is now
@@ -22,6 +27,15 @@ const DEMO_ENTRIES: JournalEntry[] = [
   { id: 'e2', created_at: '2026-05-30', title: 'Gratitude', reflection: 'Reflecting on God\'s faithfulness with the baby\'s health. Psalm 116 kept coming to mind.', scripture: 'Psalm 116:7 — Return to your rest, O my soul' },
   { id: 'e3', created_at: '2026-05-22', title: 'After confession', reflection: 'Feeling lighter. Beginning the 40-day Psalm plan. Starting with Psalm 50.' },
 ];
+
+const DEMO_BLESSINGS: Blessing[] = [
+  { id: 'b1', created_at: '2026-06-02', text: 'The baby slept through the night for the first time — and so did we.' },
+  { id: 'b2', created_at: '2026-05-18', text: 'Abouna called just to check in, the day I most needed it.' },
+  { id: 'b3', created_at: '2026-04-27', text: 'The job offer came through after months of waiting. Glory to God.' },
+];
+
+// Kept short on the page; the full list unfolds on request.
+const BLESSINGS_PREVIEW = 5;
 
 function fmtDate(iso: string, long = false): string {
   // Date-only strings ("2026-06-04") parse as UTC midnight and can display as
@@ -43,11 +57,8 @@ function EntryRow({ entry, onPress }: {
         <Text style={styles.entryDate}>{fmtDate(entry.created_at)}</Text>
         <Text style={styles.entryTitle}>{entry.title}</Text>
         <Text style={styles.entryPreview} numberOfLines={2}>{entry.reflection}</Text>
-        {(entry.isBlessing || entry.flaggedForConfession) && (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-            {entry.isBlessing && <Text style={styles.entryBlessingBadge}>✨ Blessing</Text>}
-            {entry.flaggedForConfession && <Text style={styles.entryFlagBadge}>📌 For your next confession</Text>}
-          </View>
+        {entry.flaggedForConfession && (
+          <Text style={styles.entryFlagBadge}>📌 For your next confession</Text>
         )}
       </View>
       <Text style={styles.entryChevron}>›</Text>
@@ -77,12 +88,18 @@ export default function JournalScreen() {
   const [scripture, setScripture] = useState('');
   const [prayerIntention, setPrayerIntention] = useState('');
   const [flagForConfession, setFlagForConfession] = useState(false);
-  const [markBlessing, setMarkBlessing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'blessings'>('all');
+
+  // Blessings — their own dated list, kept in their own row so the entries
+  // payload is untouched by them.
+  const [blessings, setBlessings] = useState<Blessing[]>([]);
+  const [blessingText, setBlessingText] = useState('');
+  const [savingBlessing, setSavingBlessing] = useState(false);
+  const [showAllBlessings, setShowAllBlessings] = useState(false);
 
   useEffect(() => {
     if (demoMode) {
       setEntries(DEMO_ENTRIES);
+      setBlessings(DEMO_BLESSINGS);
     } else {
       load();
     }
@@ -91,8 +108,40 @@ export default function JournalScreen() {
   async function load() {
     if (!user) return;
     setLoading(true);
-    setEntries(await getJournalEntries(user.id));
+    // Anything still carrying the old per-entry blessing flag is moved into
+    // the list first, so nobody opens this tab to find their blessings gone.
+    const carried = await migrateBlessingFlags(user.id);
+    const [entryList, blessingList] = await Promise.all([
+      getJournalEntries(user.id),
+      carried ? Promise.resolve(carried) : getBlessings(user.id),
+    ]);
+    setEntries(entryList);
+    setBlessings(blessingList);
     setLoading(false);
+  }
+
+  async function persistBlessings(next: Blessing[]) {
+    if (!user || demoMode) return;
+    await saveBlessings(user.id, next);
+  }
+
+  async function addBlessing() {
+    const text = blessingText.trim();
+    if (!text || savingBlessing) return;
+    setSavingBlessing(true);
+    const updated = [{ id: Date.now().toString(), created_at: new Date().toISOString(), text }, ...blessings];
+    setBlessings(updated);
+    await persistBlessings(updated);
+    setBlessingText('');
+    setSavingBlessing(false);
+  }
+
+  function deleteBlessing(id: string) {
+    confirmDestructive('Remove blessing', 'Remove this from your blessings?', 'Remove', () => {
+      const updated = blessings.filter(b => b.id !== id);
+      setBlessings(updated);
+      persistBlessings(updated);
+    });
   }
 
   async function saveEntries(newEntries: JournalEntry[]) {
@@ -111,12 +160,11 @@ export default function JournalScreen() {
       scripture: scripture.trim(),
       prayer_intention: prayerIntention.trim(),
       flaggedForConfession: flagForConfession,
-      isBlessing: markBlessing,
     };
     const updated = [entry, ...entries];
     setEntries(updated);
     await saveEntries(updated);
-    setEntryTitle(''); setReflection(''); setScripture(''); setPrayerIntention(''); setFlagForConfession(false); setMarkBlessing(false);
+    setEntryTitle(''); setReflection(''); setScripture(''); setPrayerIntention(''); setFlagForConfession(false);
     setSavingEntry(false);
   }
 
@@ -131,13 +179,6 @@ export default function JournalScreen() {
 
   function toggleConfessionFlag(id: string) {
     const updated = entries.map(e => e.id === id ? { ...e, flaggedForConfession: !e.flaggedForConfession } : e);
-    setEntries(updated);
-    saveEntries(updated);
-    setViewEntry(v => v && v.id === id ? updated.find(e => e.id === id) ?? v : v);
-  }
-
-  function toggleBlessing(id: string) {
-    const updated = entries.map(e => e.id === id ? { ...e, isBlessing: !e.isBlessing } : e);
     setEntries(updated);
     saveEntries(updated);
     setViewEntry(v => v && v.id === id ? updated.find(e => e.id === id) ?? v : v);
@@ -162,17 +203,7 @@ export default function JournalScreen() {
           <Text style={styles.detailTitle}>{viewEntry.title}</Text>
 
           <TouchableOpacity
-            style={[styles.confessionFlagChip, viewEntry.isBlessing && styles.blessingChipActive]}
-            onPress={() => toggleBlessing(viewEntry.id)}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.confessionFlagChipText, viewEntry.isBlessing && styles.blessingChipTextActive]}>
-              {viewEntry.isBlessing ? '✨  Marked as a blessing — tap to remove' : '✨  Mark as a blessing / answered prayer'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.confessionFlagChip, { marginTop: 10 }, viewEntry.flaggedForConfession && styles.confessionFlagChipActive]}
+            style={[styles.confessionFlagChip, viewEntry.flaggedForConfession && styles.confessionFlagChipActive]}
             onPress={() => toggleConfessionFlag(viewEntry.id)}
             activeOpacity={0.8}
           >
@@ -227,16 +258,6 @@ export default function JournalScreen() {
           <TextInput style={[styles.textarea, { minHeight: 56 }]} multiline placeholder="What are you bringing to God in prayer today?" placeholderTextColor={colors.faint} value={prayerIntention} onChangeText={setPrayerIntention} />
           <TouchableOpacity
             style={[styles.checkboxRow, { marginTop: 14 }]}
-            onPress={() => setMarkBlessing(v => !v)}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.checkbox, markBlessing && styles.checkboxCheckedBlessing]}>
-              {markBlessing && <Text style={styles.checkboxTick}>✓</Text>}
-            </View>
-            <Text style={styles.checkboxLabel}>✨  This is a blessing — something wonderful God is doing</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.checkboxRow, { marginTop: 10 }]}
             onPress={() => setFlagForConfession(v => !v)}
             activeOpacity={0.8}
           >
@@ -252,26 +273,11 @@ export default function JournalScreen() {
           >
             {savingEntry ? <ActivityIndicator color={colors.navy} /> : <Text style={styles.btnGoldFullText}>SAVE ENTRY</Text>}
           </TouchableOpacity>
+          <PrivacyNote text={PRIVACY_COPY.journal} />
         </Card>
 
         {/* Past Entries */}
         <Card title={`Past Entries (${entries.length})`} flat>
-          {entries.length > 0 && (
-            <View style={styles.filterRow}>
-              {([
-                { value: 'all' as const, label: 'All' },
-                { value: 'blessings' as const, label: '✨ Blessings' },
-              ]).map(opt => {
-                const active = filter === opt.value;
-                return (
-                  <TouchableOpacity key={opt.value} onPress={() => setFilter(opt.value)}
-                    style={[styles.filterChip, active && styles.filterChipActive]}>
-                    <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{opt.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
           {loading ? (
             <ActivityIndicator color={colors.gold} style={{ paddingVertical: 20 }} />
           ) : entries.length === 0 ? (
@@ -281,19 +287,67 @@ export default function JournalScreen() {
               <Text style={styles.emptyBody}>Your saved entries will appear here.</Text>
             </View>
           ) : (
-            (filter === 'blessings' ? entries.filter(e => e.isBlessing) : entries).length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyIcon}>✨</Text>
-                <Text style={styles.emptyTitle}>No blessings marked yet</Text>
-                <Text style={styles.emptyBody}>Mark an entry as a blessing to see it here.</Text>
-              </View>
-            ) : (filter === 'blessings' ? entries.filter(e => e.isBlessing) : entries).map(entry => (
+            entries.map(entry => (
               <EntryRow
                 key={entry.id}
                 entry={entry}
                 onPress={() => setViewEntry(entry)}
               />
             ))
+          )}
+        </Card>
+
+        {/* Blessings — a running record of what God has done, to be read back
+            later. Newest first; only the latest few show until unfolded. */}
+        <Card title={`Blessings${blessings.length ? ` (${blessings.length})` : ''}`} titleIcon="✧">
+          <Text style={styles.blessingIntro}>
+            Write down what God has done — an answered prayer, a kindness, a door that opened.
+            In a harder season, come back and read them.
+          </Text>
+          <TextInput
+            style={[styles.textarea, { minHeight: 64 }]}
+            multiline
+            placeholder="e.g. Mom's surgery went well — thank You, Lord."
+            placeholderTextColor={colors.faint}
+            value={blessingText}
+            onChangeText={setBlessingText}
+          />
+          <TouchableOpacity
+            style={[styles.btnGoldFull, (!blessingText.trim() || savingBlessing) && styles.btnDisabled]}
+            onPress={addBlessing}
+            disabled={!blessingText.trim() || savingBlessing}
+          >
+            {savingBlessing ? <ActivityIndicator color={colors.navy} /> : <Text style={styles.btnGoldFullText}>ADD BLESSING</Text>}
+          </TouchableOpacity>
+
+          {loading ? null : blessings.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>✧</Text>
+              <Text style={styles.emptyTitle}>Nothing recorded yet</Text>
+              <Text style={styles.emptyBody}>Every blessing you add stays here to be read again.</Text>
+            </View>
+          ) : (
+            <View style={{ marginTop: 16 }}>
+              {(showAllBlessings ? blessings : blessings.slice(0, BLESSINGS_PREVIEW)).map(b => (
+                <View key={b.id} style={styles.blessingRow}>
+                  <Text style={styles.blessingMark}>✧</Text>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.blessingDate}>{fmtDate(b.created_at)}</Text>
+                    <Text style={styles.blessingText}>{b.text}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => deleteBlessing(b.id)} hitSlop={10}>
+                    <Text style={styles.blessingRemove}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {blessings.length > BLESSINGS_PREVIEW && (
+                <TouchableOpacity onPress={() => setShowAllBlessings(v => !v)} hitSlop={6}>
+                  <Text style={styles.promptExpand}>
+                    {showAllBlessings ? 'Show fewer ▴' : `Show all ${blessings.length} blessings ▾`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           )}
         </Card>
 
@@ -372,22 +426,23 @@ const styles = lazyThemed(() => StyleSheet.create({
   entryPreview: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18 },
   entryChevron: { fontSize: 18, color: colors.gold, paddingHorizontal: 4 },
   entryFlagBadge: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.gold, marginTop: 4 },
-  entryBlessingBadge: { fontFamily: fonts.latoBold, fontSize: 10, color: colors.green, marginTop: 4 },
 
   checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   checkboxChecked: { backgroundColor: colors.gold, borderColor: colors.gold },
-  checkboxCheckedBlessing: { backgroundColor: colors.green, borderColor: colors.green },
   checkboxTick: { color: colors.navy, fontSize: 12, fontFamily: fonts.latoBold },
   checkboxLabel: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.cream, flex: 1 },
 
-  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.border },
-  filterChipActive: { borderColor: colors.green, backgroundColor: colors.greenBg },
-  filterChipText: { fontFamily: fonts.latoBold, fontSize: 11, color: colors.muted },
-  filterChipTextActive: { color: colors.green },
 
   divider: { height: 1, backgroundColor: colors.border },
+
+  // Blessings
+  blessingIntro: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, lineHeight: 18, marginBottom: 12 },
+  blessingRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  blessingMark: { fontSize: 14, color: colors.gold, marginTop: 2 },
+  blessingDate: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.7, marginBottom: 3 },
+  blessingText: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.cream, lineHeight: 19 },
+  blessingRemove: { fontSize: 15, color: colors.muted, paddingHorizontal: 2 },
 
   emptyState: { alignItems: 'center', paddingVertical: 20, gap: 6 },
   emptyIcon: { fontSize: 28, color: colors.muted, opacity: 0.4 },
@@ -414,8 +469,6 @@ const styles = lazyThemed(() => StyleSheet.create({
   confessionFlagChipActive: { borderColor: colors.gold, backgroundColor: colors.goldDim },
   confessionFlagChipText: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.muted },
   confessionFlagChipTextActive: { color: colors.goldLight },
-  blessingChipActive: { borderColor: colors.green, backgroundColor: colors.greenBg },
-  blessingChipTextActive: { color: colors.green },
   detailLabel: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.gold, opacity: 0.8, marginBottom: 8, marginTop: 4 },
   detailBody: { fontFamily: fonts.latoLight, fontSize: 15, color: colors.cream, lineHeight: 24, marginBottom: 20 },
   detailScriptureCard: { backgroundColor: 'rgba(201,168,76,0.06)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)', borderRadius: 10, padding: 14, marginBottom: 20 },

@@ -1,5 +1,5 @@
 // agent_progress is a per-user key/value store keyed by (user_id, agent_slug).
-// Poimen uses it for spiritual vitals, journal disciplines/entries, and the
+// Nepsis uses it for spiritual vitals, journal disciplines/entries, and the
 // priest/servant private pastoral notes.
 import { supabase } from '../supabase';
 

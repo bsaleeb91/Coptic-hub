@@ -8,16 +8,20 @@
 // Per-user-scoped storage (see lib/storage.ts) — keeps one account's spiritual
 // data from bleeding into another's on a shared device.
 import { userStorage as AsyncStorage } from '@/lib/storage';
-import { RuleItem, isWeeklyServiceKey, weeklyServiceKey } from './today';
-import { ServiceLog, unfinalizedWeeks, markFinalized } from './service-log';
+import { RuleItem } from './today';
+import { isWeeklyServiceKey, weeklyServiceKey } from './keys';
+import { ServiceLog, unfinalizedPeriods, markFinalized, type ElapsedPeriod } from './service-log';
+import { periodEnd } from './periods';
 import { localDateStr } from './postpone';
 
 const KEY = 'poimen.canon.history';
 const EPOCH_KEY = 'poimen.canon.vitalsEpoch';
 const KEEP_DAYS = 366; // longitudinal — keep a year of records
 
-export interface DayRecord { due: string[]; done: string[]; }
-export type CanonHistory = Record<string, DayRecord>; // local YYYY-MM-DD → record
+// The scoring itself lives in vitals.ts (no storage, so it can be tested);
+// re-exported here so existing call sites keep one import.
+export { VITAL_CATEGORIES, computeVitals, type VitalStat, type ConfessionInput, type DayRecord, type CanonHistory } from './vitals';
+import type { CanonHistory, DayRecord } from './vitals';
 
 export async function loadCanonHistory(): Promise<CanonHistory> {
   try {
@@ -56,88 +60,45 @@ export async function recordCanonDay(items: RuleItem[], checked: Set<string>, da
   } catch {}
 }
 
-// Score count-committed services for every week that has fully elapsed, so
-// "attended 1 of 2" reads as 50% for that week rather than penalizing the days
-// in between. The result is written under the week's Saturday, repeating each
-// service key `target` times in `due` and `attended` times in `done` — the same
-// shape computeVitals already counts.
+// Score count-committed services for every PERIOD that has fully elapsed, so
+// "attended 1 of 2" reads as 50% for that period rather than penalizing the
+// days in between. The result is written on the period's last day, repeating
+// each service key `target` times in `due` and `attended` times in `done` —
+// the same shape computeVitals already counts.
 //
-// Each week is scored against the targets STORED WITH THAT WEEK (see
-// service-log.ensureWeek), never against the rule's current values, so:
-//   • a week the member attended nothing still counts as a miss (the week
-//     exists because ensureWeek wrote its targets),
-//   • changing a target, or leaving counts mode entirely, can't rescore or
-//     strand past weeks.
-// Weeks are marked finalized so this is idempotent across app focuses.
+// Each period is scored against the target and frequency STORED WITH THAT
+// PERIOD (see service-log.ensurePeriods), never against the rule's current
+// values, so:
+//   • a period the member attended nothing in still counts as a miss (the
+//     period exists because ensurePeriods wrote its target),
+//   • changing a target or cadence, or leaving counts mode entirely, can't
+//     rescore or strand past periods.
+// Periods are marked finalized so this is idempotent across app focuses.
 export async function finalizeWeeklyServices(log: ServiceLog, now = new Date()): Promise<void> {
   try {
-    const weeks = unfinalizedWeeks(log, now);
-    if (!weeks.length) return;
+    const periods = unfinalizedPeriods(log, now);
+    if (!periods.length) return;
 
     const map = await loadCanonHistory();
     const cutoff = localDateStr(new Date(now.getTime() - KEEP_DAYS * 86400000));
-    const scored: string[] = [];
+    const scored: ElapsedPeriod[] = [];
 
-    for (const week of weeks) {
-      const satDate = new Date(`${week}T12:00:00`);
-      satDate.setDate(satDate.getDate() + 6);
-      const sat = localDateStr(satDate);
-      scored.push(week);
-      if (sat < cutoff) continue;                     // older than history keeps
-      const rec: DayRecord = map[sat] ?? { due: [], done: [] };
-      for (const [svKey, target] of Object.entries(log[week].targets)) {
-        const key = weeklyServiceKey(svKey);
-        const attended = Math.min((log[week].attended?.[svKey] ?? []).length, target);
-        for (let i = 0; i < target; i++) rec.due.push(key);
-        for (let i = 0; i < attended; i++) rec.done.push(key);
-      }
-      map[sat] = rec;
+    for (const p of periods) {
+      scored.push(p);
+      const last = periodEnd(p.freq, p.start);
+      if (last < cutoff) continue;                    // older than history keeps
+      const rec: DayRecord = map[last] ?? { due: [], done: [] };
+      const key = weeklyServiceKey(p.serviceKey);
+      const done = Math.min(p.done, p.target);
+      for (let i = 0; i < p.target; i++) rec.due.push(key);
+      for (let i = 0; i < done; i++) rec.done.push(key);
+      map[last] = rec;
     }
 
     for (const k of Object.keys(map)) if (k < cutoff) delete map[k];
     await AsyncStorage.setItem(KEY, JSON.stringify(map));
     await markFinalized(scored);
   } catch {}
-}
-
-// The vitals categories, mapped from canon item keys. `key` doubles as the
-// agent_progress 'vitals' payload field (the original five keys keep their
-// meaning for FOC dashboards). Every category always renders — the card is a
-// longitudinal picture — showing "—" where nothing was ever due. Fasting only
-// accrues on actual fasting days (Wed/Fri outside the Holy Fifty + church
-// fasting seasons); Confession has no tracking yet and reads "—" until we
-// decide how to measure it.
-export const VITAL_CATEGORIES: {
-  key: string; label: string; match: (k: string) => boolean;
-}[] = [
-  { key: 'prayer',     label: 'Daily Prayer (Agpeya + Prostrations)', match: (k) => k.startsWith('hour_') || k === 'prostrations' },
-  { key: 'quiet',      label: 'Quiet Time',            match: (k) => k === 'quiet' },
-  { key: 'scripture',  label: 'Scripture Reading',     match: (k) => k === 'bible' },
-  { key: 'book',       label: 'Spiritual Book',        match: (k) => k === 'book' },
-  { key: 'liturgy',    label: 'Liturgical Services',   match: (k) => k.startsWith('svc_') || isWeeklyServiceKey(k) },
-  { key: 'fasting',    label: 'Fasting',               match: (k) => k === 'fast' },
-  { key: 'service',    label: 'Service / Diakonia',    match: (k) => k.startsWith('serve_') },
-  { key: 'confession', label: 'Confession',            match: () => false },
-];
-
-export interface VitalStat {
-  key: string; label: string; due: number; done: number; pct: number | null;
-}
-
-// Adherence per category across recorded history, optionally from a reset
-// epoch (the user can reset vitals after confession — tracking then reads
-// "since that date"). pct stays null where nothing in the window was due.
-export function computeVitals(history: CanonHistory, since?: string | null): VitalStat[] {
-  const stats: VitalStat[] = VITAL_CATEGORIES.map(c => ({ key: c.key, label: c.label, due: 0, done: 0, pct: null }));
-  for (const [date, rec] of Object.entries(history)) {
-    if (since && date < since) continue;
-    VITAL_CATEGORIES.forEach((c, i) => {
-      stats[i].due += (rec?.due ?? []).filter(c.match).length;
-      stats[i].done += (rec?.done ?? []).filter(c.match).length;
-    });
-  }
-  for (const s of stats) if (s.due > 0) s.pct = Math.round((s.done / s.due) * 100);
-  return stats;
 }
 
 // ─── Vitals epoch (reset point) ───────────────────────────────────────────────

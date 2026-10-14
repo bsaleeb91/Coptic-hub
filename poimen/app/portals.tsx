@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { goBack } from '@/lib/nav';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
+import { APP_NAME_UPPER } from '@/lib/brand';
 import { useSession } from '@/lib/auth';
 
 const PORTALS = lazyThemed(() => [
@@ -48,7 +49,7 @@ export default function PortalsScreen() {
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 
-        <Text style={styles.eyebrow}>POIMEN</Text>
+        <Text style={styles.eyebrow}>{APP_NAME_UPPER}</Text>
         <Text style={styles.title}>Portals</Text>
         <Text style={styles.subtitle}>All three views of the pastoral care system.</Text>
 
