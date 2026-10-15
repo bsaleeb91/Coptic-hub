@@ -350,6 +350,7 @@ function RootLayoutNav() {
         <Stack.Screen name="reset-password" />
         <Stack.Screen name="auth-callback" />
         <Stack.Screen name="link-to-foc" />
+        <Stack.Screen name="delete-account" />
         <Stack.Screen name="reminders" />
       </Stack>
       {/* Land back where you left off after the app is reclaimed in the

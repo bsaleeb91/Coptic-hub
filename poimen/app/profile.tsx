@@ -827,6 +827,12 @@ export default function ProfileScreen() {
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
 
+        {!demoMode && (
+          <TouchableOpacity style={styles.deleteAccountLink} onPress={() => router.push('/delete-account')}>
+            <Text style={styles.deleteAccountText}>Delete my account</Text>
+          </TouchableOpacity>
+        )}
+
       </ScrollView>
 
       {/* ── Church picker modal ── */}
@@ -998,6 +1004,8 @@ const styles = lazyThemed(() => StyleSheet.create({
     borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 4,
   },
   signOutText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.red, letterSpacing: 0.5 },
+  deleteAccountLink: { alignItems: 'center', paddingVertical: 14 },
+  deleteAccountText: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, textDecorationLine: 'underline' },
 
   churchPicker: {
     flexDirection: 'row', alignItems: 'center',

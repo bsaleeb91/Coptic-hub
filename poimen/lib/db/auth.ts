@@ -77,3 +77,20 @@ export async function updatePassword(password: string): Promise<{ error: string 
 export async function signOut(): Promise<void> {
   await supabase.auth.signOut();
 }
+
+// Delete the signed-in user's own account (supabase/functions/delete-account).
+// The function deletes whoever the session belongs to; nothing here names a user.
+export async function deleteMyAccount(): Promise<{ error: string | null }> {
+  const { data, error } = await supabase.functions.invoke('delete-account', { body: { confirm: 'DELETE' } });
+  if (error) {
+    let message = "Your account couldn't be deleted. Check your connection and try again.";
+    try { const body = await (error as any).context?.json?.(); if (body?.error) message = body.error; } catch {}
+    return { error: message };
+  }
+  return { error: data?.deleted ? null : "Your account couldn't be deleted. Please try again." };
+}
+
+// After deletion the session's user no longer exists, so skip the server call.
+export async function signOutLocally(): Promise<void> {
+  try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
+}

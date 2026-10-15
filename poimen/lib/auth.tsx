@@ -21,8 +21,9 @@ function parseAuthCallbackParams(url: string): Record<string, string> {
 import {
   hasLocalKeypair, getPublicKeyBase64, getOrCreateBoxKeypair,
   saveBoxKeypair, encryptKeypairWithPIN, decryptKeypairWithPIN,
-  createAndSaveFreshKeypair, isLegacyPinBackup, MIN_PIN_LENGTH,
+  createAndSaveFreshKeypair, isLegacyPinBackup, MIN_PIN_LENGTH, forgetLocalKeypair,
 } from './crypto';
+import { clearUserStorage } from './storage';
 import { runLegacyNotesMigration } from './crypto-migration';
 import { encodeBase64 } from 'tweetnacl-util';
 
@@ -43,6 +44,7 @@ type AuthContextType = {
   signInWithMagicLink: (email: string) => Promise<{ error: string | null }>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<{ error: string | null }>;
   completePINSetup: (pin: string) => Promise<void>;
   completePINRecovery: (pin: string) => Promise<boolean>;
   startFreshKeypair: () => Promise<void>;
@@ -218,6 +220,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await db.signOut();
   }
 
+  // Deletes the account on the server, then everything of it on this device:
+  // its local data, and the keypair (useless now, and the key to what it sealed).
+  async function deleteAccount(): Promise<{ error: string | null }> {
+    const userId = session?.user?.id;
+    if (!userId) return { error: 'Sign in again, then try deleting your account.' };
+    const { error } = await db.deleteMyAccount();
+    if (error) return { error };
+    await clearUserStorage(userId).catch(() => {});
+    await forgetLocalKeypair();
+    await db.signOutLocally();
+    return { error: null };
+  }
+
   return (
     <AuthContext.Provider value={{
       session,
@@ -232,6 +247,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithMagicLink,
       resetPassword,
       signOut,
+      deleteAccount,
       completePINSetup,
       completePINRecovery,
       startFreshKeypair,

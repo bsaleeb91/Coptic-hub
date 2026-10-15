@@ -96,6 +96,15 @@ async function saveBoxKeypair(kp: nacl.BoxKeyPair): Promise<void> {
   await SecureStore.setItemAsync(KEYPAIR_ID, encoded);
 }
 
+// Remove this device's copy of the keypair. Only for an account that has been
+// deleted: for any live account this is the key to everything it sealed.
+export async function forgetLocalKeypair(): Promise<void> {
+  try {
+    if (Platform.OS === 'web') { localStorage.removeItem(KEYPAIR_ID); return; }
+    await SecureStore.deleteItemAsync(KEYPAIR_ID);
+  } catch {}
+}
+
 export async function getOrCreateBoxKeypair(): Promise<nacl.BoxKeyPair> {
   const existing = await loadBoxKeypair();
   if (existing) return existing;

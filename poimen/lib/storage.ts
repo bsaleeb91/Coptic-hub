@@ -43,6 +43,13 @@ export function setStorageScope(next: string | null): boolean {
   return true;
 }
 
+// Remove every on-device key belonging to one account (after it is deleted).
+export async function clearUserStorage(userId: string): Promise<void> {
+  const prefix = `u:${userId}:`;
+  const keys = (await AsyncStorage.getAllKeys()).filter(k => k.startsWith(prefix));
+  if (keys.length) await AsyncStorage.multiRemove(keys);
+}
+
 export function getStorageScope(): string {
   return scope;
 }
