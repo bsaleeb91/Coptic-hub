@@ -109,3 +109,26 @@ never on everyday unlocks, so a few seconds of cost is affordable.
 - `eas update` must be built from code whose native fingerprint matches the
   installed build (`npx expo-updates fingerprint:generate --platform ios`).
   1.0.0 and 1.1.0 need separate updates from their own code.
+
+## Status at end of 2026-10-14 (branch `feat/encrypt-journal`, worktree `Coptic-hub-pinkdf`)
+Applied in Supabase / deployed:
+- [x] Access-rule lockdown (`20261014020000`) — verified with the anon key.
+- [x] Journal guard trigger (`20261014030000`) — verified enabled.
+- [x] Invite-code RPCs (`20261014040000`) and account-deletion FK changes
+      (`20261014050000`) — verified (4 functions, 4 FKs SET NULL).
+- [x] `delete-account` Edge Function — deployed via dashboard; anon key gets 401.
+
+Built on the branch, NOT shipped (one OTA + web deploy carries all of it):
+- Slow PIN (Argon2id `pinbak2:`), 8-char PINs, warning + "I wrote it down".
+- Journal + blessings sealed to the member's key; empty-journal wipe bug fixed.
+- Invite-code join through the server (direct foc_id writes still allowed
+  until 1.0.0 retires — then add the enforcement trigger).
+- Delete my account (Profile → Delete my account; type DELETE).
+
+Next session:
+- [ ] `eas update --branch production` from this worktree (its `.env` is now
+      present — check before every publish). Reaches all TestFlight testers.
+- [ ] Phone test: PIN setup time (< ~5 s), journal opens, invite join, delete a
+      throwaway account.
+- [ ] Web deploy (forced Vercel build + alias), merge into `nepsis-main`, then
+      push `nepsis-main` (the pitch page claims the journal is encrypted).
