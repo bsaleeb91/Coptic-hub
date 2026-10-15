@@ -99,31 +99,24 @@ export async function createChurch(
   return data;
 }
 
-export async function getProfileByInviteCode(
+// Invite codes are checked on the server (20261014040000_join_by_invite_code):
+// the lookup only names the code's owner for the confirm screen, and the join
+// is what sets foc_id / servant_id. Both count wrong codes toward a per-hour
+// limit, whose message comes back as the error.
+export async function lookupInviteCode(
   code: string,
-): Promise<{ id: string; full_name: string | null; church_name: string | null; role: string } | null> {
-  const { data } = await supabase
-    .from('profiles')
-    .select('id, full_name, church_name, role')
-    .eq('invite_code', code.trim().toUpperCase())
-    .single();
-  return data ?? null;
+): Promise<{ profile: { id: string; full_name: string | null; church_name: string | null; role: string } | null; error: string | null }> {
+  const { data, error } = await supabase.rpc('lookup_invite_code', { p_code: code });
+  if (error) return { profile: null, error: error.message };
+  return { profile: Array.isArray(data) && data.length ? data[0] : null, error: null };
 }
 
-export async function linkToFOC(userId: string, priestId: string): Promise<{ error: string | null }> {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ foc_id: priestId })
-    .eq('id', userId);
-  return { error: error?.message ?? null };
-}
-
-export async function linkToServant(userId: string, servantId: string): Promise<{ error: string | null }> {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ servant_id: servantId })
-    .eq('id', userId);
-  return { error: error?.message ?? null };
+export async function joinByInviteCode(
+  code: string, kind: 'foc' | 'servant',
+): Promise<{ joined: { id: string; full_name: string | null } | null; error: string | null }> {
+  const { data, error } = await supabase.rpc('join_by_invite_code', { p_code: code, p_kind: kind });
+  if (error) return { joined: null, error: error.message };
+  return { joined: Array.isArray(data) && data.length ? data[0] : null, error: null };
 }
 
 export async function unlinkFOC(userId: string): Promise<{ error: string | null }> {

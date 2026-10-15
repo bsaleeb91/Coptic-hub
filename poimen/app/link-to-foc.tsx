@@ -32,8 +32,10 @@ export default function LinkToFocScreen() {
     setLoading(true);
     setError('');
     setFound(null);
-    const profile = await db.getProfileByInviteCode(code);
-    if (!profile) {
+    const { profile, error: lookupError } = await db.lookupInviteCode(code);
+    if (lookupError) {
+      setError(lookupError);
+    } else if (!profile) {
       setError('No one found with that code. Check the code and try again.');
     } else if (!expectedRole.includes(profile.role)) {
       setError(`That code belongs to a ${profile.role}, not a ${roleLabel}.`);
@@ -46,16 +48,14 @@ export default function LinkToFocScreen() {
   async function handleConfirm() {
     if (!found || !user) return;
     setLoading(true);
-    const { error: linkError } = isFOC
-      ? await db.linkToFOC(user.id, found.id)
-      : await db.linkToServant(user.id, found.id);
+    // The server checks the code again and sets the link (and, for a Father of
+    // Confession, the consent time) itself.
+    const { joined, error: linkError } = await db.joinByInviteCode(code, isFOC ? 'foc' : 'servant');
     if (linkError) {
       setError(linkError);
+    } else if (!joined) {
+      setError('That code no longer matches. Check it and try again.');
     } else {
-      if (isFOC) {
-        const { error: consentError } = await db.setFocConsent(user.id);
-        if (consentError) { setError(consentError); setLoading(false); return; }
-      }
       await refreshProfile();
       setLinked(true);
     }
