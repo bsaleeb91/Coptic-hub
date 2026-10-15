@@ -67,8 +67,19 @@ notes go, and hardening the PIN. Tick items off as they land.
 - [ ] Release branch includes all of the above (a new binary replaces OTAs).
 
 ## Optional cleanup
-- [ ] Review other SELECT policies for over-broad columns (`invite_code`,
-      contact/family tables).
+- [x] Policy review 2026-10-14 — found three gaps; migration
+      `20261014020000_lock_down_profiles_encounters_canons.sql` closes two
+      (PGlite-tested, 19/19):
+      - not-signed-in users could list every priest/servant/admin (name,
+        church, invite code, last seen) → discoverable policy now signed-in only
+      - any user could write an encounter or canon into anyone's history →
+        writes must target the writer's own flock/students; rows can't be
+        repointed after creation
+- [ ] **Apply that migration in Supabase** (SQL editor), then re-check.
+- [ ] Invite code isn't enforced server-side: joining a flock is a plain update
+      of one's own `foc_id`. Needs a `join_flock(code)` RPC + app change.
+- [ ] Still open: contact/family tables; priests' `last_seen_at` /
+      `last_confession_at` visible to any signed-in user.
 - [ ] Delete the leftover folder `C:\Users\17165\Coptic-hub-webmerge`.
 - [ ] Remove branch `fix/key-backup-exposure` / `feat/private-encounter-notes`
       and the `Coptic-hub-keyfix` worktree once merged and shipped.
