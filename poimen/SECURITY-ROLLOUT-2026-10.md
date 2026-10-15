@@ -75,7 +75,8 @@ notes go, and hardening the PIN. Tick items off as they land.
       - any user could write an encounter or canon into anyone's history →
         writes must target the writer's own flock/students; rows can't be
         repointed after creation
-- [ ] **Apply that migration in Supabase** (SQL editor), then re-check.
+- [x] **Applied in Supabase** 2026-10-14. Verified with the anon key: signed out,
+      `profiles` returns no rows (priests included); `churches` still public.
 - [ ] Invite code isn't enforced server-side: joining a flock is a plain update
       of one's own `foc_id`. Needs a `join_flock(code)` RPC + app change.
 - [ ] Still open: contact/family tables; priests' `last_seen_at` /
