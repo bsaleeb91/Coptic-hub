@@ -216,6 +216,34 @@ export async function encryptForSelf(plaintext: string): Promise<string> {
   return encryptForRecipient(plaintext, encodeBase64(kp.publicKey));
 }
 
+// Seal and open data only this account can read (the journal), WITHOUT ever
+// minting a keypair. On a device still waiting for PIN recovery there is no
+// keypair yet; creating one here would seal data to a key that recovery is
+// about to replace. Both return null when there is no key, or (open) when the
+// value won't open with this one — the caller treats that as "locked".
+export async function sealForSelf(plaintext: string): Promise<string | null> {
+  const kp = await loadBoxKeypair();
+  if (!kp) return null;
+  const nonce = nacl.randomBytes(nacl.box.nonceLength);
+  const ciphertext = nacl.box(decodeUTF8(plaintext), nonce, kp.publicKey, kp.secretKey);
+  const combined = new Uint8Array(nonce.length + ciphertext.length);
+  combined.set(nonce);
+  combined.set(ciphertext, nonce.length);
+  return BOX_PREFIX + encodeBase64(combined);
+}
+
+export async function openForSelf(value: string): Promise<string | null> {
+  if (classifyCiphertext(value) !== 'box') return null;
+  try {
+    const kp = await loadBoxKeypair();
+    if (!kp) return null;
+    const combined = decodeBase64(value.slice(BOX_PREFIX.length));
+    const nonce = combined.slice(0, nacl.box.nonceLength);
+    const plaintext = nacl.box.open(combined.slice(nacl.box.nonceLength), nonce, kp.publicKey, kp.secretKey);
+    return plaintext ? encodeUTF8(plaintext) : null;
+  } catch { return null; }
+}
+
 // Open a box1: value, or null if it won't open. Callers choose their own
 // failure text, so a note that can't be read says so in the note's own words
 // rather than borrowing the prayer wording.

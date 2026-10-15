@@ -12,7 +12,7 @@ import { useSession } from '@/lib/auth';
 import { useDemoMode } from '@/lib/demo';
 import { DrawerMenuButton } from '@/components/ui/DrawerMenuButton';
 import {
-  JournalEntry, getJournalEntries, saveJournalEntries,
+  JournalEntry, getJournalEntries, saveJournalEntries, JournalUnavailableError,
   Blessing, getBlessings, saveBlessings, migrateBlessingFlags,
 } from '@/lib/journal';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
@@ -94,6 +94,10 @@ export default function JournalScreen() {
   const [blessings, setBlessings] = useState<Blessing[]>([]);
   const [blessingText, setBlessingText] = useState('');
   const [savingBlessing, setSavingBlessing] = useState(false);
+  // Set when the journal couldn't be opened. Saving is off until it can be:
+  // writing on top of a journal we couldn't read would replace it.
+  const [unavailable, setUnavailable] = useState<'locked' | 'offline' | null>(null);
+  const [saveError, setSaveError] = useState(false);
   const [showAllBlessings, setShowAllBlessings] = useState(false);
 
   useEffect(() => {
@@ -108,21 +112,26 @@ export default function JournalScreen() {
   async function load() {
     if (!user) return;
     setLoading(true);
-    // Anything still carrying the old per-entry blessing flag is moved into
-    // the list first, so nobody opens this tab to find their blessings gone.
-    const carried = await migrateBlessingFlags(user.id);
-    const [entryList, blessingList] = await Promise.all([
-      getJournalEntries(user.id),
-      carried ? Promise.resolve(carried) : getBlessings(user.id),
-    ]);
-    setEntries(entryList);
-    setBlessings(blessingList);
+    setUnavailable(null);
+    try {
+      // Anything still carrying the old per-entry blessing flag is moved into
+      // the list first, so nobody opens this tab to find their blessings gone.
+      const carried = await migrateBlessingFlags(user.id);
+      const [entryList, blessingList] = await Promise.all([
+        getJournalEntries(user.id),
+        carried ? Promise.resolve(carried) : getBlessings(user.id),
+      ]);
+      setEntries(entryList);
+      setBlessings(blessingList);
+    } catch (e) {
+      setUnavailable(e instanceof JournalUnavailableError ? e.reason : 'offline');
+    }
     setLoading(false);
   }
 
   async function persistBlessings(next: Blessing[]) {
-    if (!user || demoMode) return;
-    await saveBlessings(user.id, next);
+    if (!user || demoMode || unavailable) return;
+    try { await saveBlessings(user.id, next); setSaveError(false); } catch { setSaveError(true); }
   }
 
   async function addBlessing() {
@@ -145,8 +154,8 @@ export default function JournalScreen() {
   }
 
   async function saveEntries(newEntries: JournalEntry[]) {
-    if (!user || demoMode) return;
-    await saveJournalEntries(user.id, newEntries);
+    if (!user || demoMode || unavailable) return;
+    try { await saveJournalEntries(user.id, newEntries); setSaveError(false); } catch { setSaveError(true); }
   }
 
   async function saveEntry() {
@@ -246,6 +255,24 @@ export default function JournalScreen() {
         </View>
         <Text style={styles.pageSubtitle}>Reflections, prompts, and growth</Text>
 
+        {unavailable && (
+          <Card title={unavailable === 'locked' ? 'Your journal is locked' : "Couldn't load your journal"} titleIcon="🔒">
+            <Text style={styles.emptyBody}>
+              {unavailable === 'locked'
+                ? 'Your journal is encrypted with your key, which is not on this device yet. Restore it with your Recovery PIN to open your entries. Saving is paused so nothing replaces them.'
+                : 'Check your connection and try again. Saving is paused so nothing replaces your entries.'}
+            </Text>
+            <TouchableOpacity style={[styles.btnGoldFull, { marginTop: 12 }]} onPress={load}>
+              <Text style={styles.btnGoldFullText}>TRY AGAIN</Text>
+            </TouchableOpacity>
+          </Card>
+        )}
+        {saveError && !unavailable && (
+          <Text style={[styles.emptyBody, { color: colors.red, marginBottom: 8 }]}>
+            Your last change couldn't be saved. Check your connection — it is still on this screen.
+          </Text>
+        )}
+
         {/* Today's Entry */}
         <Card title="Today's Entry" titleIcon="✦" action={<Text style={styles.dateLabel}>{todayStr}</Text>}>
           <Text style={styles.formLabel}>TITLE (optional)</Text>
@@ -267,9 +294,9 @@ export default function JournalScreen() {
             <Text style={styles.checkboxLabel}>📌  Bring this up with Abouna at my next confession</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.btnGoldFull, (!reflection.trim() || savingEntry) && styles.btnDisabled]}
+            style={[styles.btnGoldFull, (!reflection.trim() || savingEntry || !!unavailable) && styles.btnDisabled]}
             onPress={saveEntry}
-            disabled={!reflection.trim() || savingEntry}
+            disabled={!reflection.trim() || savingEntry || !!unavailable}
           >
             {savingEntry ? <ActivityIndicator color={colors.navy} /> : <Text style={styles.btnGoldFullText}>SAVE ENTRY</Text>}
           </TouchableOpacity>
@@ -313,9 +340,9 @@ export default function JournalScreen() {
             onChangeText={setBlessingText}
           />
           <TouchableOpacity
-            style={[styles.btnGoldFull, (!blessingText.trim() || savingBlessing) && styles.btnDisabled]}
+            style={[styles.btnGoldFull, (!blessingText.trim() || savingBlessing || !!unavailable) && styles.btnDisabled]}
             onPress={addBlessing}
-            disabled={!blessingText.trim() || savingBlessing}
+            disabled={!blessingText.trim() || savingBlessing || !!unavailable}
           >
             {savingBlessing ? <ActivityIndicator color={colors.navy} /> : <Text style={styles.btnGoldFullText}>ADD BLESSING</Text>}
           </TouchableOpacity>

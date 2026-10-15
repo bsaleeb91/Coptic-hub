@@ -3,7 +3,58 @@
 // 'journal-entries'), so the Confession module can read entries flagged
 // "bring this up with Abouna" and clear those flags without duplicating the
 // entry shape or the slug string.
-import * as db from '@/lib/db';
+//
+// Both journal rows are sealed to the member's own keypair — payload
+// { sealed: 'box1:…' } — so the server holds nothing readable. Rows written
+// before that ({ entries } / { blessings } in the clear) still read, and are
+// resealed the first time they are read on a device that has the key.
+import { supabase } from '@/lib/supabase';
+import { sealForSelf, openForSelf } from '@/lib/crypto';
+
+// The key that opens the journal isn't on this device (PIN recovery pending, or
+// the account started fresh), or the journal couldn't be fetched. Callers must
+// not save on top of a journal they couldn't read — that would replace it.
+export class JournalUnavailableError extends Error {
+  constructor(public reason: 'locked' | 'offline') {
+    super(reason === 'locked' ? 'journal locked' : 'journal could not be loaded');
+  }
+}
+
+// Not db.getAgentProgress: it returns null for a failed request as well as for
+// a missing row, and reading a network error as "empty journal" is how the next
+// save would wipe it.
+async function readList<T>(userId: string, slug: string, field: string): Promise<T[]> {
+  const { data, error } = await supabase
+    .from('agent_progress')
+    .select('payload')
+    .eq('user_id', userId)
+    .eq('agent_slug', slug)
+    .maybeSingle();
+  if (error) throw new JournalUnavailableError('offline');
+  const payload = data?.payload;
+  if (!payload) return [];
+  if (typeof payload.sealed === 'string') {
+    const json = await openForSelf(payload.sealed);
+    if (json === null) throw new JournalUnavailableError('locked');
+    const list = JSON.parse(json)?.[field];
+    return Array.isArray(list) ? list : [];
+  }
+  const list: T[] = Array.isArray(payload[field]) ? payload[field] : [];
+  // Legacy plaintext row: seal it now so the readable copy doesn't linger on
+  // the server. Best effort — without a key it stays as it is until one exists.
+  if (list.length) await writeList(userId, slug, field, list).catch(() => {});
+  return list;
+}
+
+async function writeList<T>(userId: string, slug: string, field: string, list: T[]): Promise<void> {
+  const sealed = await sealForSelf(JSON.stringify({ [field]: list }));
+  if (sealed === null) throw new JournalUnavailableError('locked');
+  const { error } = await supabase.from('agent_progress').upsert(
+    { user_id: userId, agent_slug: slug, payload: { sealed }, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id,agent_slug' },
+  );
+  if (error) throw new Error(error.message);
+}
 
 export interface JournalEntry {
   id: string;
@@ -26,19 +77,23 @@ export interface JournalEntry {
 const SLUG = 'journal-entries';
 
 export async function getJournalEntries(userId: string): Promise<JournalEntry[]> {
-  const data = await db.getAgentProgress(userId, SLUG);
-  return data?.entries ?? [];
+  return readList<JournalEntry>(userId, SLUG, 'entries');
 }
 
 export async function saveJournalEntries(userId: string, entries: JournalEntry[]): Promise<void> {
-  await db.upsertAgentProgress({ user_id: userId, agent_slug: SLUG, payload: { entries }, updated_at: new Date().toISOString() });
+  await writeList(userId, SLUG, 'entries', entries);
 }
 
 // Entries currently flagged to bring up with the Father of Confession —
-// surfaced in the Confession module's in-session notes.
+// surfaced in the Confession module's in-session notes. A journal that can't
+// be opened contributes nothing rather than breaking the Confession screen.
 export async function getFlaggedForConfession(userId: string): Promise<JournalEntry[]> {
-  const entries = await getJournalEntries(userId);
-  return entries.filter(e => e.flaggedForConfession);
+  try {
+    const entries = await getJournalEntries(userId);
+    return entries.filter(e => e.flaggedForConfession);
+  } catch {
+    return [];
+  }
 }
 
 // Un-flag every currently-flagged entry. The entries themselves are kept —
@@ -46,7 +101,12 @@ export async function getFlaggedForConfession(userId: string): Promise<JournalEn
 // module's "Delete my confession notes" action so a flag doesn't linger
 // forever once it's been brought up.
 export async function clearConfessionFlags(userId: string): Promise<void> {
-  const entries = await getJournalEntries(userId);
+  let entries: JournalEntry[];
+  try {
+    entries = await getJournalEntries(userId);
+  } catch {
+    return;
+  }
   if (!entries.some(e => e.flaggedForConfession)) return;
   await saveJournalEntries(userId, entries.map(e => e.flaggedForConfession ? { ...e, flaggedForConfession: false } : e));
 }
@@ -68,12 +128,11 @@ export interface Blessing {
 const BLESSINGS_SLUG = 'journal-blessings';
 
 export async function getBlessings(userId: string): Promise<Blessing[]> {
-  const data = await db.getAgentProgress(userId, BLESSINGS_SLUG);
-  return Array.isArray(data?.blessings) ? data.blessings : [];
+  return readList<Blessing>(userId, BLESSINGS_SLUG, 'blessings');
 }
 
 export async function saveBlessings(userId: string, blessings: Blessing[]): Promise<void> {
-  await db.upsertAgentProgress({ user_id: userId, agent_slug: BLESSINGS_SLUG, payload: { blessings }, updated_at: new Date().toISOString() });
+  await writeList(userId, BLESSINGS_SLUG, 'blessings', blessings);
 }
 
 // Carry across anything marked with the old isBlessing flag, then clear it.

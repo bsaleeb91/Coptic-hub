@@ -22,7 +22,9 @@
 //                        ciphertext only. (app/(tabs)/prayer.tsx)
 //   pastoral notes       Sealed to the author's keypair before upload; only
 //                        the author can open them. (lib/db/pastoral.ts)
-//   journal entries      Stored in agent_progress as plain text today.
+//   journal entries      Sealed to the member's own keypair before upload
+//   + blessings          (agent_progress { sealed }); the server holds
+//                        ciphertext only. (lib/journal.ts, 2026-10-14)
 //   canon + vitals       WHICH items were checked stays on device. Adherence
 //                        percentages reach the FOC only after consent. Since
 //                        2026-09-16, a member who switches the canon reminder
@@ -59,11 +61,12 @@ export const PRIVACY_COPY = {
     'The words of your request are encrypted before they leave this device, for the people you ' +
     'pick and no one else. We store them but cannot read them.',
 
-  // Journal tab. Plain text on the server today — say so rather than imply
-  // the encryption the confession journal gets.
+  // Journal tab. Sealed to the member's own key since 2026-10-14. Flagging
+  // only copies an entry into the member's own confession notes.
   journal:
-    'Journal entries are stored on our servers and are not yet encrypted. Your Father of ' +
-    'Confession sees an entry only if you flag it for confession.',
+    'Your journal and blessings are encrypted on this device before they are saved, so no one ' +
+    'else can read them — not your Father of Confession, and not us. Flagging an entry only ' +
+    'adds it to your own confession notes.',
 
   // Vitals sharing consent.
   vitals:
@@ -95,8 +98,9 @@ export const PRIVACY_COPY = {
   settingsTitle: 'Your data & privacy',
   settingsSummary:
     'On this device only: your confession examination and journal. ' +
-    'Encrypted before upload: prayer request bodies, and the notes your priest writes. ' +
-    'Stored as written: your name, church, journal entries, confession dates, and anything you ' +
+    'Encrypted before upload: prayer request bodies, your journal and blessings, and the notes ' +
+    'your priest writes. ' +
+    'Stored as written: your name, church, confession dates, and anything you ' +
     'enter for visitation — phone, address, and family details. ' +
     'Only if you switch notifications on: a code for this device, your time zone, the hour you ' +
     'picked, and — for the canon reminder — daily totals of what was due and done.',
