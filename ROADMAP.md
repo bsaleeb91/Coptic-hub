@@ -23,19 +23,11 @@ Open questions to settle first:
     for lookup, or deliberately left in the clear.
   - Migration path for existing rows now that the app is live.
 
-**Say plainly, in more than one place, what is private and what stays on the device.**
-Today this copy exists on the Confession tab ("Private — encrypted and kept on
-this device") and as a single `PrivacyNote` on the Canon tab. It should be
-visible wherever someone is deciding whether to enter something personal:
-  - Onboarding — one screen on what is stored locally vs. synced, before the
-    first entry is made
-  - Settings — a standing "Your data & privacy" section, readable at any time
-  - Sign-up — at the point of account creation
-  - Inline on Prayer, Journal, and the vitals-sharing consent flow, matching the
-    treatment Confession already gets
-  Copy should be specific rather than reassuring: name what is encrypted, name
-  what leaves the device, and name who can see it (Father of Confession,
-  servant, admin) for each kind of entry.
+**Show the privacy summary during onboarding.**
+The rest of "say plainly what is private" shipped (see Shipped 2026-10-14).
+`PRIVACY_COPY.onboarding` / `onboardingTitle` are written in
+`lib/privacy-copy.ts` but no screen shows them: add the step to the first-run
+tutorial, before the first entry is made.
 
 **Sort churches by distance in the picker.**
 The picker searches by name and city (2026-09-07), and `churches` now carries
@@ -62,7 +54,7 @@ they are, rather than alphabetically. What is still missing:
 requests, overview, health, a six-month activity chart, survey results,
 feedback, churches — with no navigation between them and no way to find
 anything specific. Two of today's additions made that worse rather than
-better, and item 8 will delete one section outright.
+better.
   - Sections become tabs or an index rather than one 600-line scroll. Feedback
     and survey are read regularly; churches and health are consulted rarely.
   - Individual survey responses, not only distributions. A row already ties all
@@ -74,8 +66,6 @@ better, and item 8 will delete one section outright.
   - A member view: search by name, church or email, see roles and FOC links,
     and fix a wrong link without going to the Supabase dashboard. Currently
     there is no way to look up one person from inside the app.
-  - Remove the priest-request queue once item 8 lands, rather than leaving a
-    section that never fills.
   - Feedback and survey both grow without bound and are read newest-first;
     neither paginates today. `getAllFeedback` caps at 100 and
     `getSurveyResults` at 500, which are silent ceilings, not paging.
@@ -147,11 +137,54 @@ in, instead of every member finding the app on their own. Open questions first:
   - What happens to invitations nobody accepts: expiry, and a way for the priest
     to see and withdraw them.
 
+**Enforce the invite code on the server.**
+Joining a flock (or a servant's class) is a plain update of the member's own
+`foc_id` / `servant_id`; the six-character code is only checked in the app, and
+priest ids are readable by any signed-in user. A stranger can therefore attach
+to any priest's flock — see his appointment types and availability, request
+appointments, appear on his roster.
+  - `join_flock(code)` / `join_class(code)` security-definer RPCs that look the
+    code up and set the link, so the code never has to be readable.
+  - Then stop members writing `foc_id` / `servant_id` directly (a trigger or
+    column grant), and switch `link-to-foc.tsx` and the servant join to the RPCs.
+  - Old builds that update the column directly break at that point — ship the
+    app change first, enforce after 1.0.0 retires.
+
+**Delete my account.**
+There is no way to delete an account from inside the app (Apple requires one
+for apps with sign-up). Deletion has to remove the profile and everything keyed
+to it — agent_progress, prayer requests, canons, completions, encounters where
+they are the member, pastoral notes they wrote, push tokens, photos — and the
+auth user, which needs the service role (an Edge Function).
+  - Decide what a priest keeps when a member deletes: encounter rows and his
+    own private notes about them, or nothing.
+  - A priest deleting his account orphans his flock's FOC links — say so in the
+    confirmation.
+  - Confirm with the password or a fresh sign-in, and make it final (no grace
+    period) unless there is a reason for one.
+
+**Pitch page: what a priest needs before saying yes.**
+  - "Up and running in an afternoon" — download, share the invite code, members
+    choose him.
+  - A short priest FAQ: can the bishop or the church see my notes; what if I
+    lose my phone; can the people who run Nepsis read anything.
+  - One or two real quotes from priests using it, with permission.
+  - Cost, and what happens to a parish's data if it stops using Nepsis.
+
 ## Shipped
 
 Kept here so a finished item is not queued again. Outside the "Next Up" block
 on purpose: scripts/gen-roadmap.mjs stops at the next top-level heading, so
 none of this reaches the in-app roadmap.
+
+### Shipped 2026-10-14
+
+**Say plainly, in more than one place, what is private and what stays on the device.**
+All wording lives in `lib/privacy-copy.ts` and is shown on sign-up
+(`sign-in.tsx`), in Settings → "Your data & privacy" (`profile.tsx`), inline on
+Prayer, Journal and Canon, and in the vitals-sharing consent. Each names what
+is encrypted, what leaves the device, and who can see it. Onboarding is the one
+place still missing — queued separately.
 
 ### Shipped 2026-09-15
 
