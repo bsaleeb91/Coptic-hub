@@ -37,23 +37,6 @@ visible wherever someone is deciding whether to enter something personal:
   what leaves the device, and name who can see it (Father of Confession,
   servant, admin) for each kind of entry.
 
-**Remove the priest approval process.**
-Sign-up currently records `profiles.requested_role = 'priest'`, leaves the
-account as a congregant, and waits for an admin to run `approve_priest_request`
-from the web admin dashboard (`20260719050000_signup_role_selection.sql`,
-`app/admin.tsx`). It's cumbersome and blocks real priests from using the app on
-the day they install it.
-  Worth deciding deliberately, since the priest role is not cosmetic — it grants
-  visibility into congregants' Spiritual Vitals, confession history, and
-  pastoral notes, and the current gate is the only thing standing between
-  self-declaration and that access. Options, cheapest first:
-  - Grant priest at sign-up, but require a congregant to explicitly link to a
-    Father of Confession before any of their data is visible (the FOC link flow
-    in `link-to-foc.tsx` already exists and is congregant-initiated) — the
-    consent gate moves from the admin to the person whose data it is
-  - Church-issued invite code at sign-up, no admin round-trip
-  - Keep approval only for the admin role, drop it for priest
-
 **Sort churches by distance in the picker.**
 The picker searches by name and city (2026-09-07), and `churches` now carries
 structured `address_line1 / city / state / zip / country` instead of one free
@@ -209,6 +192,20 @@ tab works" link on the hub.
   - Copy rule held throughout: the tab prepares someone for the sacrament and
     never stands in for it, and the one thing that does leave the phone (the
     date) is named alongside the things that do not.
+
+### Shipped 2026-09-13
+
+**Remove the priest approval process.**
+Took the first option: a priest is a priest from sign-up, and the consent gate
+moved from the admin to the member — none of a congregant's data is visible to
+a priest until the congregant links to him as Father of Confession.
+  - Commit `fd8fb3e` and `supabase/migrations/20260913010000_remove_priest_approval.sql`;
+    the SQL was applied in prod by hand, ahead of the code (confirmed
+    2026-10-08: a new priest's row read `role = 'priest'` immediately).
+  - Reached `nepsis-main` with the build 21 merge (`92970c1`). The `/admin`
+    priest-request queue and the sign-in "pending verification" copy are gone.
+  - Invite codes still work: `on_profile_ensure_invite_code` runs on insert, so
+    a profile created straight into `role = 'priest'` still gets its code.
 
 ### Shipped 2026-09-07
 

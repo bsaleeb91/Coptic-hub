@@ -36,16 +36,6 @@ export const PHASES: RoadmapPhase[] = [
       },
       {
         "id": "queued-2026-09-07-3",
-        "label": "Remove the priest approval process",
-        "note": "Sign-up currently records profiles.requested_role = 'priest', leaves the account as a congregant, and waits for an admin to run approve_priest_request from the web admin dashboard (20260719050000_signup_role_selection.sql, app/admin.tsx). It's cumbersome and blocks real priests from using the app on the day they install it. Worth deciding deliberately, since the priest role is not cosmetic — it grants visibility into congregants' Spiritual Vitals, confession history, and pastoral notes, and the current gate is the only thing standing between self-declaration and that access. Options, cheapest first",
-        "detail": [
-          "Grant priest at sign-up, but require a congregant to explicitly link to a Father of Confession before any of their data is visible (the FOC link flow in link-to-foc.tsx already exists and is congregant-initiated) — the consent gate moves from the admin to the person whose data it is",
-          "Church-issued invite code at sign-up, no admin round-trip",
-          "Keep approval only for the admin role, drop it for priest"
-        ]
-      },
-      {
-        "id": "queued-2026-09-07-4",
         "label": "Sort churches by distance in the picker",
         "note": "The picker searches by name and city (2026-09-07), and churches now carries structured address_line1 / city / state / zip / country instead of one free text blob — which is the prerequisite for ordering parishes by how far away they are, rather than alphabetically. What is still missing",
         "detail": [
@@ -57,7 +47,7 @@ export const PHASES: RoadmapPhase[] = [
         ]
       },
       {
-        "id": "queued-2026-09-07-5",
+        "id": "queued-2026-09-07-4",
         "label": "Rework the admin view",
         "note": "app/admin.tsx has grown to seven sections on one scrolling page — priest requests, overview, health, a six-month activity chart, survey results, feedback, churches — with no navigation between them and no way to find anything specific. Two of today's additions made that worse rather than better, and item 8 will delete one section outright",
         "detail": [
@@ -71,7 +61,7 @@ export const PHASES: RoadmapPhase[] = [
         ]
       },
       {
-        "id": "queued-2026-09-07-6",
+        "id": "queued-2026-09-07-5",
         "label": "Connecting with friends (v2 or v3)",
         "note": "The psalm leaderboard is scoped to a servant's class, which is the right first circle — the members already know each other and a servant is accountable for it. Friends is a different shape: a self-chosen graph that crosses class and parish boundaries, and it cannot simply reuse the class query",
         "detail": [
