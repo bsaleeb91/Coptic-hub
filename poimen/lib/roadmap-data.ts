@@ -83,5 +83,37 @@ export const PHASES: RoadmapPhase[] = [
         ]
       }
     ]
+  },
+  {
+    "id": "queued-2026-10-14",
+    "title": "Queued 2026-10-14",
+    "items": [
+      {
+        "id": "queued-2026-10-14-1",
+        "label": "Require a church at sign-up",
+        "note": "handle_new_user inserts only id, full_name and role, and church_id is written in exactly one place — the church picker on the Profile screen (app/profile.tsx). So every account starts unassigned and most stay that way; get_church_breakdown had to grow an \"unassigned\" row to make the per-church counts add up. Move the choice into sign-up",
+        "detail": [
+          "Reuse the existing church picker (name/city search) as a sign-up step, for every role, before the account is created.",
+          "A \"My church isn't listed\" path that still lets the person in — a request to add the parish, kept unassigned until an admin adds it — rather than a dead end that loses the sign-up.",
+          "Send the choice through sign-up metadata so handle_new_user writes church_id in the same transaction, instead of a second update after.",
+          "Existing unassigned accounts: a one-time \"Choose your church\" prompt on next launch, skippable, rather than blocking the app.",
+          "Decide whether a priest's church is fixed or editable, and whether a member's church must match their Father of Confession's (probably not — members visit, move, and keep their FOC)."
+        ]
+      },
+      {
+        "id": "queued-2026-10-14-2",
+        "label": "Import congregants from a CSV",
+        "note": "Let a priest (or an admin, on a church's behalf) bring an existing parish list in, instead of every member finding the app on their own. Open questions first",
+        "detail": [
+          "An import cannot create accounts — a member needs their own sign-in and their own encryption key. What it creates is a pending invitation per row: name, email and/or phone, church, and the priest as their future FOC.",
+          "Consent. The FOC link must stay member-initiated (it gates what the priest can see). An imported row should pre-fill the link for the member to *accept* on first sign-in, never attach them silently.",
+          "Delivery: invitation email via a server-side function (needs the service role, so it can't run from the app), a shareable per-person code, or both.",
+          "Format and validation: a fixed template with required columns, a preview of what will be created, and duplicate detection against existing accounts and earlier imports (same email, or same name + phone).",
+          "Data minimisation: import only what sign-up needs. Addresses, birthdays and family details belong to the member to enter (and are encrypted in the app), not to a spreadsheet uploaded in plaintext.",
+          "Children and family members on the parish list — whether they become their own invitations or are left for the parent to add.",
+          "What happens to invitations nobody accepts: expiry, and a way for the priest to see and withdraw them."
+        ]
+      }
+    ]
   }
 ];
