@@ -21,12 +21,14 @@ function parseAuthCallbackParams(url: string): Record<string, string> {
 import {
   hasLocalKeypair, getPublicKeyBase64, getOrCreateBoxKeypair,
   saveBoxKeypair, encryptKeypairWithPIN, decryptKeypairWithPIN,
-  createAndSaveFreshKeypair,
+  createAndSaveFreshKeypair, isLegacyPinBackup, MIN_PIN_LENGTH,
 } from './crypto';
 import { runLegacyNotesMigration } from './crypto-migration';
 import { encodeBase64 } from 'tweetnacl-util';
 
-type PINAction = 'setup' | 'recover' | null;
+// 'upgrade': the key is on this device but its backup is sealed the old,
+// fast-to-crack way (pinbak1) — ask for a new, longer PIN to reseal it.
+type PINAction = 'setup' | 'recover' | 'upgrade' | null;
 
 type AuthContextType = {
   session: AuthSession | null;
@@ -110,11 +112,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const hasKP = await hasLocalKeypair();
     if (hasKP) {
       const existingPubKey = await db.getPublicKey(userId);
+      const localPubKey = await getPublicKeyBase64();
       if (!existingPubKey) {
-        const pk = await getPublicKeyBase64();
-        await db.upsertPublicKey(userId, pk);
+        await db.upsertPublicKey(userId, localPubKey);
       }
       if (!backup) setPinAction('setup');
+      // Only reseal a backup of THIS key. If the account's key was replaced on
+      // another device, overwriting its backup from here would orphan it.
+      else if (isLegacyPinBackup(backup) && existingPubKey === localPubKey) setPinAction('upgrade');
       settleLegacyNotes(userId);
     } else {
       if (backup) {
@@ -145,7 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const userId = session?.user?.id;
     if (!userId) return;
     const kp = await getOrCreateBoxKeypair();
-    const backup = encryptKeypairWithPIN(pin, kp);
+    const backup = await encryptKeypairWithPIN(pin, kp);
     await db.saveKeyBackup(userId, backup);
     await db.upsertPublicKey(userId, encodeBase64(kp.publicKey));
     setPinAction(null);
@@ -153,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function completePINRecovery(pin: string): Promise<boolean> {
     if (!pendingBackup) return false;
-    const kp = decryptKeypairWithPIN(pin, pendingBackup);
+    const kp = await decryptKeypairWithPIN(pin, pendingBackup);
     if (!kp) return false;
     await saveBoxKeypair(kp);
     const userId = session?.user?.id;
@@ -161,8 +166,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await db.upsertPublicKey(userId, encodeBase64(kp.publicKey));
       settleLegacyNotes(userId);   // keypair is now settled — safe to re-wrap
     }
-    setPinAction(null);
+    const legacy = isLegacyPinBackup(pendingBackup);
     setPendingBackup(null);
+    if (legacy && pin.length >= MIN_PIN_LENGTH && userId) {
+      // Long enough already — reseal with the slow derivation, same PIN.
+      await db.saveKeyBackup(userId, await encryptKeypairWithPIN(pin, kp));
+      setPinAction(null);
+    } else {
+      setPinAction(legacy ? 'upgrade' : null);
+    }
     return true;
   }
 

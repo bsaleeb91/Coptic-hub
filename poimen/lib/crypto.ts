@@ -12,6 +12,7 @@
 // like everything else; the legacy key is kept read-only to migrate what it
 // wrote (see migrateLegacyNotes callers) and is never created again.
 import nacl from 'tweetnacl';
+import { argon2idAsync } from '@noble/hashes/argon2';
 import { encodeBase64, decodeBase64, encodeUTF8, decodeUTF8 } from 'tweetnacl-util';
 import * as SecureStore from 'expo-secure-store';
 import * as ExpoCrypto from 'expo-crypto';
@@ -116,41 +117,77 @@ export async function createAndSaveFreshKeypair(): Promise<nacl.BoxKeyPair> {
 }
 
 // ── PIN-protected keypair backup ──────────────────────────────
-// Key derivation: SHA-512(UTF8(pin) ++ salt), first 32 bytes → secretbox key.
-// Not as strong as PBKDF2 but acceptable for this threat model (lost device, not DB breach).
-// Format: "pinbak1:" + base64(salt[16] + nonce[24] + secretbox_ciphertext)
-const PIN_BACKUP_PREFIX = 'pinbak1:';
+// The PIN never leaves the device; only the sealed backup is stored. Anyone
+// holding a backup (a database breach, or the project owner) can still guess
+// PINs offline, so the derivation is deliberately slow and memory-hard, and
+// new PINs must be MIN_PIN_LENGTH characters. It only runs at PIN setup and on
+// recovery, never on everyday unlocks, so a few seconds is acceptable.
+//
+// "pinbak2:" + base64(m[u32 LE, KiB] + t[u8] + p[u8] + salt[16] + nonce[24] + box)
+//   Argon2id. The parameters travel with the backup, so the cost can be raised
+//   later without a new format; old backups keep opening with their own.
+// "pinbak1:" + base64(salt[16] + nonce[24] + box)
+//   Legacy: a single SHA-512(pin ++ salt). Read-only — a 6-digit pinbak1 PIN
+//   falls in seconds. Rewrapped as pinbak2 at the next PIN entry.
+const PIN_BACKUP_PREFIX_V1 = 'pinbak1:';
+const PIN_BACKUP_PREFIX = 'pinbak2:';
+export const MIN_PIN_LENGTH = 8;
 
-export function encryptKeypairWithPIN(pin: string, kp: nacl.BoxKeyPair): string {
-  const salt = nacl.randomBytes(16);
+// ~3 s in un-JITted JS on a laptop core (node --jitless); ~0.1 s in a browser.
+const ARGON2_PARAMS = { m: 8192, t: 1, p: 1 };
+const ARGON2_HEADER = 6;
+
+async function deriveArgon2Key(pin: string, salt: Uint8Array, params: { m: number; t: number; p: number }) {
+  // asyncTick yields to the event loop so the spinner keeps turning.
+  return argon2idAsync(decodeUTF8(pin.normalize('NFKC')), salt, { ...params, dkLen: nacl.secretbox.keyLength, asyncTick: 50 });
+}
+
+function deriveSha512Key(pin: string, salt: Uint8Array) {
   const pinBytes = decodeUTF8(pin);
   const material = new Uint8Array(pinBytes.length + salt.length);
   material.set(pinBytes);
   material.set(salt, pinBytes.length);
-  const pinKey = nacl.hash(material).slice(0, nacl.secretbox.keyLength);
+  return nacl.hash(material).slice(0, nacl.secretbox.keyLength);
+}
+
+export function isLegacyPinBackup(backup: string): boolean {
+  return backup.startsWith(PIN_BACKUP_PREFIX_V1);
+}
+
+export async function encryptKeypairWithPIN(pin: string, kp: nacl.BoxKeyPair): Promise<string> {
+  const salt = nacl.randomBytes(16);
+  const pinKey = await deriveArgon2Key(pin, salt, ARGON2_PARAMS);
   const payload = new Uint8Array(64);
   payload.set(kp.secretKey);
   payload.set(kp.publicKey, 32);
   const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
   const box = nacl.secretbox(payload, nonce, pinKey);
-  const result = new Uint8Array(16 + nonce.length + box.length);
-  result.set(salt);
-  result.set(nonce, 16);
-  result.set(box, 16 + nonce.length);
+  const result = new Uint8Array(ARGON2_HEADER + 16 + nonce.length + box.length);
+  new DataView(result.buffer).setUint32(0, ARGON2_PARAMS.m, true);
+  result[4] = ARGON2_PARAMS.t;
+  result[5] = ARGON2_PARAMS.p;
+  result.set(salt, ARGON2_HEADER);
+  result.set(nonce, ARGON2_HEADER + 16);
+  result.set(box, ARGON2_HEADER + 16 + nonce.length);
   return PIN_BACKUP_PREFIX + encodeBase64(result);
 }
 
-export function decryptKeypairWithPIN(pin: string, backup: string): nacl.BoxKeyPair | null {
-  if (!backup.startsWith(PIN_BACKUP_PREFIX)) return null;
-  const bytes = decodeBase64(backup.slice(PIN_BACKUP_PREFIX.length));
-  const salt = bytes.slice(0, 16);
+export async function decryptKeypairWithPIN(pin: string, backup: string): Promise<nacl.BoxKeyPair | null> {
+  let bytes: Uint8Array;
+  let pinKey: Uint8Array;
+  if (backup.startsWith(PIN_BACKUP_PREFIX)) {
+    const all = decodeBase64(backup.slice(PIN_BACKUP_PREFIX.length));
+    const params = { m: new DataView(all.buffer, all.byteOffset).getUint32(0, true), t: all[4], p: all[5] };
+    bytes = all.slice(ARGON2_HEADER);
+    pinKey = await deriveArgon2Key(pin, bytes.slice(0, 16), params);
+  } else if (backup.startsWith(PIN_BACKUP_PREFIX_V1)) {
+    bytes = decodeBase64(backup.slice(PIN_BACKUP_PREFIX_V1.length));
+    pinKey = deriveSha512Key(pin, bytes.slice(0, 16));
+  } else {
+    return null;
+  }
   const nonce = bytes.slice(16, 16 + nacl.secretbox.nonceLength);
   const box = bytes.slice(16 + nacl.secretbox.nonceLength);
-  const pinBytes = decodeUTF8(pin);
-  const material = new Uint8Array(pinBytes.length + salt.length);
-  material.set(pinBytes);
-  material.set(salt, pinBytes.length);
-  const pinKey = nacl.hash(material).slice(0, nacl.secretbox.keyLength);
   const payload = nacl.secretbox.open(box, nonce, pinKey);
   if (!payload) return null;
   return { secretKey: payload.slice(0, 32), publicKey: payload.slice(32, 64) };

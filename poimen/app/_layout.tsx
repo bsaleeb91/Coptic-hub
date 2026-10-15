@@ -25,7 +25,8 @@ import { supabase } from '@/lib/supabase';
 import { TutorialProvider } from '@/lib/tutorial-context';
 import RouteMemory from '@/components/RouteMemory';
 import ReminderSync from '@/components/ReminderSync';
-import { Modal, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView } from 'react-native';
+import { Modal, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
+import { MIN_PIN_LENGTH } from '@/lib/crypto';
 import { colors, fonts, applyTheme, loadThemeMode, lazyThemed, ThemeMode } from '@/lib/theme';
 import { isBiometricAvailable, loadFaceIdLockEnabled, authenticateWithBiometrics, onFaceIdLockChange } from '@/lib/biometrics';
 import type { AuthSession } from '@/lib/db';
@@ -138,29 +139,46 @@ function PINModal() {
   const { pinAction, completePINSetup, completePINRecovery, startFreshKeypair, skipPINSetup } = useSession();
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
+  const [wroteItDown, setWroteItDown] = useState(false);
   const [error, setError] = useState('');
   const [working, setWorking] = useState(false);
 
-  const isSetup = pinAction === 'setup';
+  // 'upgrade' sets a new PIN exactly like 'setup'; only the wording differs.
+  const isNew = pinAction === 'setup' || pinAction === 'upgrade';
+
+  function reset() {
+    setPin(''); setConfirmPin(''); setWroteItDown(false); setError(''); setWorking(false);
+  }
 
   async function handleSubmit() {
     setError('');
-    if (pin.length < 4) { setError('PIN must be at least 4 characters.'); return; }
-    if (isSetup && pin !== confirmPin) { setError('PINs do not match.'); return; }
-    setWorking(true);
-    if (isSetup) {
-      await completePINSetup(pin);
-    } else {
-      const ok = await completePINRecovery(pin);
-      if (!ok) { setError('Incorrect PIN. Try again.'); setWorking(false); return; }
+    if (isNew) {
+      if (pin.length < MIN_PIN_LENGTH) { setError(`PIN must be at least ${MIN_PIN_LENGTH} characters.`); return; }
+      if (pin !== confirmPin) { setError('PINs do not match.'); return; }
+      if (!wroteItDown) { setError('Please write your PIN down first, then tick the box.'); return; }
+    } else if (!pin) {
+      setError('Enter your PIN.'); return;
     }
-    setPin(''); setConfirmPin(''); setWorking(false);
+    // Sealing and unsealing are deliberately slow (a few seconds).
+    setWorking(true);
+    try {
+      if (isNew) {
+        await completePINSetup(pin);
+      } else {
+        const ok = await completePINRecovery(pin);
+        if (!ok) { setError('Incorrect PIN. Try again.'); setWorking(false); return; }
+      }
+      reset();
+    } catch {
+      setError('Something went wrong saving your PIN. Check your connection and try again.');
+      setWorking(false);
+    }
   }
 
   async function handleForgotPIN() {
     setWorking(true);
     await startFreshKeypair();
-    setPin(''); setConfirmPin(''); setError(''); setWorking(false);
+    reset();
   }
 
   return (
@@ -168,23 +186,35 @@ function PINModal() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={pinStyles.overlay}>
         <View style={pinStyles.card}>
           <Text style={pinStyles.cross}>✝︎</Text>
-          <Text style={pinStyles.title}>{isSetup ? 'Set a Recovery PIN' : 'Enter Your Recovery PIN'}</Text>
+          <Text style={pinStyles.title}>
+            {pinAction === 'setup' ? 'Set a Recovery PIN'
+              : pinAction === 'upgrade' ? 'Strengthen Your Recovery PIN'
+              : 'Enter Your Recovery PIN'}
+          </Text>
           <Text style={pinStyles.body}>
-            {isSetup
-              ? 'If you switch devices, this PIN restores the key that opens your prayer requests, pastoral notes, and confession journal. There is no other way back in — keep it somewhere safe.'
+            {pinAction === 'setup'
+              ? 'If you switch devices, this PIN restores the key that opens your prayer requests, pastoral notes, and confession journal.'
+              : pinAction === 'upgrade'
+              ? 'Nepsis now protects your recovery key more strongly. Choose a new PIN of at least 8 characters — a short phrase works well. Your current PIN will stop working.'
               : 'Your encryption key is not on this device. Enter your PIN to restore it — without it, this device cannot open your prayer requests, notes, or confession journal.'}
           </Text>
+          {isNew && (
+            <Text style={pinStyles.warning}>
+              This PIN cannot be recovered or reset — not by your church, and not by Nepsis. If you lose it, everything it protects is gone for good. Write it down and keep it somewhere safe.
+            </Text>
+          )}
           <TextInput
             style={pinStyles.input}
-            placeholder="PIN"
+            placeholder={isNew ? `PIN (at least ${MIN_PIN_LENGTH} characters)` : 'PIN'}
             placeholderTextColor={colors.faint}
             value={pin}
             onChangeText={t => { setPin(t); setError(''); }}
             secureTextEntry
             keyboardType="default"
             autoFocus
+            editable={!working}
           />
-          {isSetup && (
+          {isNew && (
             <TextInput
               style={pinStyles.input}
               placeholder="Confirm PIN"
@@ -193,7 +223,20 @@ function PINModal() {
               onChangeText={t => { setConfirmPin(t); setError(''); }}
               secureTextEntry
               keyboardType="default"
+              editable={!working}
             />
+          )}
+          {isNew && (
+            <TouchableOpacity
+              style={pinStyles.check}
+              onPress={() => { setWroteItDown(v => !v); setError(''); }}
+              disabled={working}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: wroteItDown }}
+            >
+              <Text style={pinStyles.checkBox}>{wroteItDown ? '☑' : '☐'}</Text>
+              <Text style={pinStyles.checkText}>I have written my PIN down and stored it somewhere safe.</Text>
+            </TouchableOpacity>
           )}
           {error ? <Text style={pinStyles.error}>{error}</Text> : null}
           <TouchableOpacity
@@ -201,14 +244,16 @@ function PINModal() {
             onPress={handleSubmit}
             disabled={working}
           >
-            <Text style={pinStyles.btnText}>{working ? '…' : isSetup ? 'SAVE PIN' : 'RESTORE'}</Text>
+            {working
+              ? <View style={pinStyles.workingRow}><ActivityIndicator color={colors.navy} /><Text style={pinStyles.btnText}>{isNew ? 'SECURING YOUR KEY…' : 'UNLOCKING…'}</Text></View>
+              : <Text style={pinStyles.btnText}>{isNew ? 'SAVE PIN' : 'RESTORE'}</Text>}
           </TouchableOpacity>
-          {isSetup && (
-            <TouchableOpacity onPress={skipPINSetup} style={pinStyles.skip}>
-              <Text style={pinStyles.skipText}>Skip for now</Text>
+          {isNew && (
+            <TouchableOpacity onPress={skipPINSetup} style={pinStyles.skip} disabled={working}>
+              <Text style={pinStyles.skipText}>{pinAction === 'upgrade' ? 'Remind me next time' : 'Skip for now'}</Text>
             </TouchableOpacity>
           )}
-          {!isSetup && (
+          {!isNew && (
             <TouchableOpacity onPress={handleForgotPIN} style={pinStyles.skip} disabled={working}>
               <Text style={pinStyles.skipText}>I forgot my PIN — start fresh (prayer requests, pastoral notes, and your confession journal from before will be unreadable)</Text>
             </TouchableOpacity>
@@ -227,6 +272,11 @@ const pinStyles = lazyThemed(() => StyleSheet.create({
   body: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18 },
   input: { width: '100%', backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.cream, fontFamily: fonts.latoLight, fontSize: 15, padding: 14 },
   error: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.red, textAlign: 'center' },
+  warning: { fontFamily: fonts.latoBold, fontSize: 12, color: colors.cream, textAlign: 'center', lineHeight: 18 },
+  check: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, width: '100%' },
+  checkBox: { fontSize: 18, color: colors.gold, lineHeight: 20 },
+  checkText: { flex: 1, fontFamily: fonts.latoLight, fontSize: 12, color: colors.cream, lineHeight: 18 },
+  workingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   btn: { backgroundColor: colors.gold, borderRadius: 10, paddingVertical: 14, width: '100%', alignItems: 'center' },
   btnText: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.navy, letterSpacing: 1 },
   skip: { marginTop: 4 },

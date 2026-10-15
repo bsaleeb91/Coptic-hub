@@ -58,13 +58,29 @@ notes go, and hardening the PIN. Tick items off as they land.
       with both: the backup-history trigger (applied) makes an overwrite
       recoverable, and 1.1.0 is submitted to the App Store.
 
-## Next App Store release (1.1.x)
-- [ ] Slow PIN key derivation — new `pinbak2:` format (Argon2/PBKDF2, pure JS,
-      tuned to ~0.5 s on an older iPhone).
-- [ ] Stronger PIN rule for new PINs (≥ 6 characters or a passphrase).
-- [ ] One-time "re-enter your PIN" prompt to rewrap existing `pinbak1:` backups.
-- [ ] Teach 1.0.0 to read `pinbak2:` (small OTA), or wait for 1.0.0 to retire.
-- [ ] Release branch includes all of the above (a new binary replaces OTAs).
+## Slow PIN key derivation — built, not shipped (branch `feat/slow-pin-kdf`)
+The PIN only runs at setup and on recovery (new phone, reinstall, new browser),
+never on everyday unlocks, so a few seconds of cost is affordable.
+- [x] New `pinbak2:` format: Argon2id via `@noble/hashes` (pure JS), 8 MiB,
+      t=1 — about 3 s with no JIT on a laptop core, ~0.1 s in a browser.
+      The parameters are stored in each backup, so the cost can be raised later.
+- [x] New PINs must be at least 8 characters.
+- [x] Setup warns the PIN can't be recovered by anyone, and requires ticking
+      "I have written my PIN down" before saving.
+- [x] Existing `pinbak1:` users: a one-time "Strengthen Your Recovery PIN"
+      prompt (skippable, returns next launch) — only when this device holds the
+      same key as the backup. Recovering with an old PIN of 8+ characters
+      reseals silently; a shorter one leads straight into the prompt.
+- [x] Old `pinbak1:` backups still open. Round-trip tested; iOS (Hermes) and web
+      bundles build.
+- [x] Native fingerprint unchanged (`811dbdc…` = builds 21/22) → ships as an
+      OTA to 1.1.0, no new App Store build needed.
+- [ ] Time it on a real (ideally older) iPhone; lower `m` if setup takes > ~5 s.
+- [ ] Deploy: web (forced Vercel build + alias) and OTA to 1.1.0 together — both
+      must be able to read `pinbak2:` before anyone writes one.
+- Known gap: App Store 1.0.0 can't read `pinbak2:` and can't get OTAs. A 1.0.0
+      user whose backup was resealed on another device can't restore on 1.0.0;
+      the backup-history trigger keeps the old copy if they "start fresh".
 
 ## Optional cleanup
 - [ ] Review other SELECT policies for over-broad columns (`invite_code`,
