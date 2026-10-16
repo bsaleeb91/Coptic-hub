@@ -331,7 +331,9 @@ function RootLayoutNav() {
     // App Store Connect "Privacy Policy URL" and prospective users reading it
     // before signing up must be able to reach it while signed out.
     const onPrivacy = segments[0] === 'privacy';
-    if (!session && !onSignIn && !onAuthCallback && !onPrivacy) return <Redirect href="/sign-in" />;
+    // support likewise: it is the App Store "Support URL" (Guideline 1.5).
+    const onSupport = segments[0] === 'support';
+    if (!session && !onSignIn && !onAuthCallback && !onPrivacy && !onSupport) return <Redirect href="/sign-in" />;
     if (session && onSignIn) return <Redirect href="/(tabs)" />;
   }
 
