@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { APP_NAME, APP_NAME_UPPER } from '@/lib/brand';
 
-const LAST_UPDATED = 'September 16, 2026';
+const LAST_UPDATED = 'October 16, 2026';
 const CONTACT_EMAIL = 'bsaleeb@gmail.com';
 const BUNDLE_ID = 'com.coptic.poimen';
 
@@ -81,7 +81,7 @@ export default function PrivacyScreen() {
         <Section title="Your Choices and Rights">
           <Bullet>You may revoke FOC consent at any time from your Profile screen. This immediately removes your FOC's access to your wellness data.</Bullet>
           <Bullet>You may turn any notification off at any time from Reminders in your Profile. Switching the last one off removes that device's code from our servers.</Bullet>
-          <Bullet>You may update or delete your account by contacting us at the email below.</Bullet>
+          <Bullet>You may delete your account at any time in the app, from Profile → Delete my account. Deletion is immediate and cannot be undone. Your Father of Confession keeps his own records of your encounters and his notes about you, no longer linked to any account. If you can no longer sign in, email us at the address below and we will delete it for you.</Bullet>
           <Bullet>You may request a copy of your data at any time.</Bullet>
         </Section>
 
