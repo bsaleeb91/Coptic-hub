@@ -127,5 +127,46 @@ export const PHASES: RoadmapPhase[] = [
         ]
       }
     ]
+  },
+  {
+    "id": "queued-2026-10-20",
+    "title": "Queued 2026-10-20",
+    "items": [
+      {
+        "id": "queued-2026-10-20-1",
+        "label": "Provide EU trader status so Nepsis can be sold in the EU",
+        "note": "All 27 EU countries show \"Trader Status Not Provided\" in App Store Connect (Digital Services Act), so the app is not available anywhere in the EU. It is a form under Business in App Store Connect, not an app change",
+        "detail": [
+          "Declaring as a trader publishes an address, phone and email on the App Store product page — decide which address and phone are acceptable to show before filling it in."
+        ]
+      },
+      {
+        "id": "queued-2026-10-20-2",
+        "label": "Hide priests' activity timestamps from other users",
+        "note": "last_seen_at and last_confession_at on a priest's profile row are readable by any signed-in user (the profiles column grants from 2026-10-13 kept them)",
+        "detail": [
+          "Drop them from the authenticated column grant, and serve what a member genuinely needs (if anything) through a security-definer RPC scoped to their own FOC.",
+          "Check which screens read them before revoking, and that old builds degrade rather than fail."
+        ]
+      },
+      {
+        "id": "queued-2026-10-20-3",
+        "label": "Review access rules on the contact and family tables",
+        "note": "The 2026-10-14 policy review covered profiles, encounters and canons but not pastoral_contacts and the family tables. Contact/family details are still dual-written (sealed payload plus a plaintext copy) until build 17 retires",
+        "detail": [
+          "Confirm every policy is own-row or own-flock only, with a PGlite test like the earlier lockdown.",
+          "Once 1.0.0 (build 17) is retired, stop the plaintext copy and clear it."
+        ]
+      },
+      {
+        "id": "queued-2026-10-20-4",
+        "label": "Tidy up after the October security rollout",
+        "detail": [
+          "Delete the Coptic-hub-webmerge and Coptic-hub-keyfix worktree folders.",
+          "Remove merged branches (fix/key-backup-exposure, feat/private-encounter-notes, feat/slow-pin-kdf, feat/encrypt-journal).",
+          "Commit the remaining notes in poimen/SECURITY-ROLLOUT-2026-10.md."
+        ]
+      }
+    ]
   }
 ];

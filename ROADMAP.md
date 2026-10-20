@@ -171,6 +171,39 @@ auth user, which needs the service role (an Edge Function).
   - One or two real quotes from priests using it, with permission.
   - Cost, and what happens to a parish's data if it stops using Nepsis.
 
+### Queued 2026-10-20
+
+**Provide EU trader status so Nepsis can be sold in the EU.**
+All 27 EU countries show "Trader Status Not Provided" in App Store Connect
+(Digital Services Act), so the app is not available anywhere in the EU. It is
+a form under Business in App Store Connect, not an app change.
+  - Declaring as a trader publishes an address, phone and email on the App
+    Store product page — decide which address and phone are acceptable to show
+    before filling it in.
+
+**Hide priests' activity timestamps from other users.**
+`last_seen_at` and `last_confession_at` on a priest's profile row are readable
+by any signed-in user (the profiles column grants from 2026-10-13 kept them).
+  - Drop them from the `authenticated` column grant, and serve what a member
+    genuinely needs (if anything) through a security-definer RPC scoped to
+    their own FOC.
+  - Check which screens read them before revoking, and that old builds degrade
+    rather than fail.
+
+**Review access rules on the contact and family tables.**
+The 2026-10-14 policy review covered profiles, encounters and canons but not
+`pastoral_contacts` and the family tables. Contact/family details are still
+dual-written (sealed payload plus a plaintext copy) until build 17 retires.
+  - Confirm every policy is own-row or own-flock only, with a PGlite test like
+    the earlier lockdown.
+  - Once 1.0.0 (build 17) is retired, stop the plaintext copy and clear it.
+
+**Tidy up after the October security rollout.**
+  - Delete the `Coptic-hub-webmerge` and `Coptic-hub-keyfix` worktree folders.
+  - Remove merged branches (`fix/key-backup-exposure`,
+    `feat/private-encounter-notes`, `feat/slow-pin-kdf`, `feat/encrypt-journal`).
+  - Commit the remaining notes in `poimen/SECURITY-ROLLOUT-2026-10.md`.
+
 ## Shipped
 
 Kept here so a finished item is not queued again. Outside the "Next Up" block

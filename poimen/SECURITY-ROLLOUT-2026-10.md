@@ -132,3 +132,7 @@ Next session:
       throwaway account.
 - [ ] Web deploy (forced Vercel build + alias), merge into `nepsis-main`, then
       push `nepsis-main` (the pitch page claims the journal is encrypted).
+
+## 2026-10-20
+- [x] Build 23 phone test: PIN setup < 5 s, journal survives restart, account deletion works (screen-recorded).
+- [x] ASC: build 23 attached, Review Notes + reply + video, RESUBMITTED 2026-10-20 2:10 PM (Waiting for Review).
