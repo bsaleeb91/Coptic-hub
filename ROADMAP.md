@@ -104,6 +104,11 @@ written in exactly one place — the church picker on the Profile screen
 counts add up. Move the choice into sign-up:
   - Reuse the existing church picker (name/city search) as a sign-up step, for
     every role, before the account is created.
+  - Show each church's full address (street, city, state, zip) in the sign-up
+    list and on the confirmation, not only the name — some parishes have two
+    locations under the same name (STSA: Leesburg and Arlington), and the
+    address is the only way to tell them apart. The Profile screen should show
+    at least the city next to the chosen church for the same reason.
   - A "My church isn't listed" path that still lets the person in — a request to
     add the parish, kept unassigned until an admin adds it — rather than a dead
     end that loses the sign-up.

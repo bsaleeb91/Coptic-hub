@@ -76,6 +76,7 @@ export const PHASES: RoadmapPhase[] = [
         "note": "handle_new_user inserts only id, full_name and role, and church_id is written in exactly one place — the church picker on the Profile screen (app/profile.tsx). So every account starts unassigned and most stay that way; get_church_breakdown had to grow an \"unassigned\" row to make the per-church counts add up. Move the choice into sign-up",
         "detail": [
           "Reuse the existing church picker (name/city search) as a sign-up step, for every role, before the account is created.",
+          "Show each church's full address (street, city, state, zip) in the sign-up list and on the confirmation, not only the name — some parishes have two locations under the same name (STSA: Leesburg and Arlington), and the address is the only way to tell them apart. The Profile screen should show at least the city next to the chosen church for the same reason.",
           "A \"My church isn't listed\" path that still lets the person in — a request to add the parish, kept unassigned until an admin adds it — rather than a dead end that loses the sign-up.",
           "Send the choice through sign-up metadata so handle_new_user writes church_id in the same transaction, instead of a second update after.",
           "Existing unassigned accounts: a one-time \"Choose your church\" prompt on next launch, skippable, rather than blocking the app.",
