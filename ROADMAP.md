@@ -155,19 +155,6 @@ appointments, appear on his roster.
   - Old builds that update the column directly break at that point — ship the
     app change first, enforce after 1.0.0 retires.
 
-**Delete my account.**
-There is no way to delete an account from inside the app (Apple requires one
-for apps with sign-up). Deletion has to remove the profile and everything keyed
-to it — agent_progress, prayer requests, canons, completions, encounters where
-they are the member, pastoral notes they wrote, push tokens, photos — and the
-auth user, which needs the service role (an Edge Function).
-  - Decide what a priest keeps when a member deletes: encounter rows and his
-    own private notes about them, or nothing.
-  - A priest deleting his account orphans his flock's FOC links — say so in the
-    confirmation.
-  - Confirm with the password or a fresh sign-in, and make it final (no grace
-    period) unless there is a reason for one.
-
 **Pitch page: what a priest needs before saying yes.**
   - "Up and running in an afternoon" — download, share the invite code, members
     choose him.
@@ -177,6 +164,21 @@ auth user, which needs the service role (an Edge Function).
   - Cost, and what happens to a parish's data if it stops using Nepsis.
 
 ### Queued 2026-10-20
+
+**Give each account its own encryption key on the phone.**
+*(Built 2026-10-21, not yet deployed — no build includes it yet.)* Every account signed in on a
+device shared one key slot, so deleting one account erased the key another
+account still needed — after the deletion test, the main account asked for its
+Recovery PIN. A second account on a shared family phone also reused the first
+account's key.
+  - Each account now keeps its key in its own slot; deleting an account clears
+    only its own.
+  - Existing installs: the old shared key is copied to an account only if its
+    public key matches that account's profile, and the shared copy is left for
+    any other account that still needs it.
+  - Test on a phone before submitting: update over the current build without
+    being asked for the PIN; two accounts on one phone; delete one and the
+    other still opens its journal.
 
 **Provide EU trader status so Nepsis can be sold in the EU.**
 All 27 EU countries show "Trader Status Not Provided" in App Store Connect
@@ -214,6 +216,14 @@ dual-written (sealed payload plus a plaintext copy) until build 17 retires.
 Kept here so a finished item is not queued again. Outside the "Next Up" block
 on purpose: scripts/gen-roadmap.mjs stops at the next top-level heading, so
 none of this reaches the in-app roadmap.
+
+### Shipped 2026-10-21
+
+**Delete my account.**
+Settings → Delete account (`app/delete-account.tsx`) removes the profile, the
+data keyed to it, and the auth user through an Edge Function, then clears the
+account's on-device data. Shipped in 1.1.0 (build 23), approved by Apple
+2026-10-21 after the 2026-10-16 rejection under guideline 5.1.1(v).
 
 ### Shipped 2026-10-14
 

@@ -109,16 +109,6 @@ export const PHASES: RoadmapPhase[] = [
       },
       {
         "id": "queued-2026-10-14-4",
-        "label": "Delete my account",
-        "note": "There is no way to delete an account from inside the app (Apple requires one for apps with sign-up). Deletion has to remove the profile and everything keyed to it — agent_progress, prayer requests, canons, completions, encounters where they are the member, pastoral notes they wrote, push tokens, photos — and the auth user, which needs the service role (an Edge Function)",
-        "detail": [
-          "Decide what a priest keeps when a member deletes: encounter rows and his own private notes about them, or nothing.",
-          "A priest deleting his account orphans his flock's FOC links — say so in the confirmation.",
-          "Confirm with the password or a fresh sign-in, and make it final (no grace period) unless there is a reason for one."
-        ]
-      },
-      {
-        "id": "queued-2026-10-14-5",
         "label": "Pitch page: what a priest needs before saying yes",
         "detail": [
           "\"Up and running in an afternoon\" — download, share the invite code, members choose him.",
@@ -135,6 +125,16 @@ export const PHASES: RoadmapPhase[] = [
     "items": [
       {
         "id": "queued-2026-10-20-1",
+        "label": "Give each account its own encryption key on the phone",
+        "note": "*(Built 2026-10-21, not yet deployed — no build includes it yet.)* Every account signed in on a device shared one key slot, so deleting one account erased the key another account still needed — after the deletion test, the main account asked for its Recovery PIN. A second account on a shared family phone also reused the first account's key",
+        "detail": [
+          "Each account now keeps its key in its own slot; deleting an account clears only its own.",
+          "Existing installs: the old shared key is copied to an account only if its public key matches that account's profile, and the shared copy is left for any other account that still needs it.",
+          "Test on a phone before submitting: update over the current build without being asked for the PIN; two accounts on one phone; delete one and the other still opens its journal."
+        ]
+      },
+      {
+        "id": "queued-2026-10-20-2",
         "label": "Provide EU trader status so Nepsis can be sold in the EU",
         "note": "All 27 EU countries show \"Trader Status Not Provided\" in App Store Connect (Digital Services Act), so the app is not available anywhere in the EU. It is a form under Business in App Store Connect, not an app change",
         "detail": [
@@ -142,7 +142,7 @@ export const PHASES: RoadmapPhase[] = [
         ]
       },
       {
-        "id": "queued-2026-10-20-2",
+        "id": "queued-2026-10-20-3",
         "label": "Hide priests' activity timestamps from other users",
         "note": "last_seen_at and last_confession_at on a priest's profile row are readable by any signed-in user (the profiles column grants from 2026-10-13 kept them)",
         "detail": [
@@ -151,7 +151,7 @@ export const PHASES: RoadmapPhase[] = [
         ]
       },
       {
-        "id": "queued-2026-10-20-3",
+        "id": "queued-2026-10-20-4",
         "label": "Review access rules on the contact and family tables",
         "note": "The 2026-10-14 policy review covered profiles, encounters and canons but not pastoral_contacts and the family tables. Contact/family details are still dual-written (sealed payload plus a plaintext copy) until build 17 retires",
         "detail": [
@@ -160,7 +160,7 @@ export const PHASES: RoadmapPhase[] = [
         ]
       },
       {
-        "id": "queued-2026-10-20-4",
+        "id": "queued-2026-10-20-5",
         "label": "Tidy up after the October security rollout",
         "detail": [
           "Delete the Coptic-hub-webmerge and Coptic-hub-keyfix worktree folders.",

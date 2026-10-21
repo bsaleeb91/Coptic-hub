@@ -17,7 +17,7 @@ import { encodeBase64, decodeBase64, encodeUTF8, decodeUTF8 } from 'tweetnacl-ut
 import * as SecureStore from 'expo-secure-store';
 import * as ExpoCrypto from 'expo-crypto';
 import { Platform } from 'react-native';
-import { classifyCiphertext, BOX_PREFIX, LEGACY_NOTE_PREFIX } from './crypto-format';
+import { classifyCiphertext, BOX_PREFIX, LEGACY_NOTE_PREFIX, keypairSlot, SHARED_KEYPAIR_SLOT } from './crypto-format';
 
 export { classifyCiphertext, needsRewrap } from './crypto-format';
 
@@ -32,7 +32,6 @@ if (typeof (globalThis as any).crypto?.getRandomValues !== 'function') {
 }
 
 const LEGACY_KEY_ID = 'poimen_notes_key_v1';
-const KEYPAIR_ID = 'poimen_box_keypair_v1';
 
 // Legacy device-local notes key: LOAD ONLY. Deliberately has no save/create
 // counterpart — minting a new one would produce fresh unrecoverable ciphertext,
@@ -78,31 +77,72 @@ export async function clearLegacyNotesKey(): Promise<void> {
 
 // ── Asymmetric box (prayer bodies) ───────────────────────────
 
-async function loadBoxKeypair(): Promise<nacl.BoxKeyPair | null> {
+// The account whose keypair the functions below use. Set by auth on every
+// session change, before any screen can encrypt. With nobody signed in (demo,
+// sign-in screen) a throwaway in-memory keypair stands in, so nothing is ever
+// written to a slot no account owns.
+let keyOwner: string | null = null;
+let ephemeral: nacl.BoxKeyPair | null = null;
+
+export function setKeyOwner(userId: string | null): void {
+  if (userId !== keyOwner) ephemeral = null;
+  keyOwner = userId;
+}
+
+async function readSlot(slot: string): Promise<nacl.BoxKeyPair | null> {
   const stored = Platform.OS === 'web'
-    ? localStorage.getItem(KEYPAIR_ID)
-    : await SecureStore.getItemAsync(KEYPAIR_ID);
+    ? localStorage.getItem(slot)
+    : await SecureStore.getItemAsync(slot);
   if (!stored) return null;
   const bytes = decodeBase64(stored);
   return { secretKey: bytes.slice(0, 32), publicKey: bytes.slice(32, 64) };
 }
 
-async function saveBoxKeypair(kp: nacl.BoxKeyPair): Promise<void> {
+async function writeSlot(slot: string, kp: nacl.BoxKeyPair): Promise<void> {
   const combined = new Uint8Array(64);
   combined.set(kp.secretKey);
   combined.set(kp.publicKey, 32);
   const encoded = encodeBase64(combined);
-  if (Platform.OS === 'web') { localStorage.setItem(KEYPAIR_ID, encoded); return; }
-  await SecureStore.setItemAsync(KEYPAIR_ID, encoded);
+  if (Platform.OS === 'web') { localStorage.setItem(slot, encoded); return; }
+  await SecureStore.setItemAsync(slot, encoded);
 }
 
-// Remove this device's copy of the keypair. Only for an account that has been
-// deleted: for any live account this is the key to everything it sealed.
-export async function forgetLocalKeypair(): Promise<void> {
+async function clearSlot(slot: string): Promise<void> {
+  if (Platform.OS === 'web') { localStorage.removeItem(slot); return; }
+  await SecureStore.deleteItemAsync(slot);
+}
+
+async function loadBoxKeypair(): Promise<nacl.BoxKeyPair | null> {
+  if (!keyOwner) return ephemeral;
+  return readSlot(keypairSlot(keyOwner));
+}
+
+async function saveBoxKeypair(kp: nacl.BoxKeyPair): Promise<void> {
+  if (!keyOwner) { ephemeral = kp; return; }
+  await writeSlot(keypairSlot(keyOwner), kp);
+}
+
+// Installs from before per-account slots kept the key in one shared slot.
+// Copy it into this account's slot only if it IS this account's key (its
+// public key matches the one on the profile). The shared copy stays, because
+// another account on this device may hold the same key.
+export async function claimSharedKeypair(expectedPublicKeyB64: string): Promise<boolean> {
+  if (!keyOwner) return false;
   try {
-    if (Platform.OS === 'web') { localStorage.removeItem(KEYPAIR_ID); return; }
-    await SecureStore.deleteItemAsync(KEYPAIR_ID);
-  } catch {}
+    const shared = await readSlot(SHARED_KEYPAIR_SLOT);
+    if (!shared || encodeBase64(shared.publicKey) !== expectedPublicKeyB64) return false;
+    await writeSlot(keypairSlot(keyOwner), shared);
+    return true;
+  } catch { return false; }
+}
+
+// Remove this account's copy of the keypair. Only for an account that has
+// been deleted: for any live account this is the key to everything it sealed.
+// Other accounts' slots, and the old shared slot (which another account on
+// this device may not have claimed yet), are never touched.
+export async function forgetLocalKeypair(): Promise<void> {
+  if (!keyOwner) { ephemeral = null; return; }
+  try { await clearSlot(keypairSlot(keyOwner)); } catch {}
 }
 
 export async function getOrCreateBoxKeypair(): Promise<nacl.BoxKeyPair> {

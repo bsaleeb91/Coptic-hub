@@ -37,3 +37,16 @@ export function classifyCiphertext(value: unknown): CipherScheme {
 export function needsRewrap(value: unknown): boolean {
   return classifyCiphertext(value) === 'legacy';
 }
+
+// Where the keypair lives on the device. Every account used to share one slot,
+// so signing a second account in on the same phone reused the first account's
+// key, and deleting either account erased the key the other still needed.
+// Each account now has its own slot; the shared one is only read, to hand an
+// existing key to the account it belongs to (see claimSharedKeypair).
+export const SHARED_KEYPAIR_SLOT = 'poimen_box_keypair_v1';
+
+// SecureStore keys allow only letters, digits, ".", "-" and "_".
+export function keypairSlot(userId: string): string {
+  if (!/^[A-Za-z0-9_-]+$/.test(userId)) throw new Error('Invalid user id for keypair slot');
+  return `${SHARED_KEYPAIR_SLOT}.${userId}`;
+}

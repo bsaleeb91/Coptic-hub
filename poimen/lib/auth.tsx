@@ -22,6 +22,7 @@ import {
   hasLocalKeypair, getPublicKeyBase64, getOrCreateBoxKeypair,
   saveBoxKeypair, encryptKeypairWithPIN, decryptKeypairWithPIN,
   createAndSaveFreshKeypair, isLegacyPinBackup, MIN_PIN_LENGTH, forgetLocalKeypair,
+  setKeyOwner, claimSharedKeypair,
 } from './crypto';
 import { clearUserStorage } from './storage';
 import { runLegacyNotesMigration } from './crypto-migration';
@@ -80,13 +81,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // The keypair slot follows the account, so point it at this session's
+    // user before anything renders that could encrypt or decrypt.
     db.getSession().then((session) => {
+      setKeyOwner(session?.user?.id ?? null);
       setSession(session);
       if (session) fetchProfile(session.user.id);
       else setLoading(false);
     }).catch(() => setLoading(false));
 
     const subscription = db.onAuthChange((session) => {
+      setKeyOwner(session?.user?.id ?? null);
       setSession(session);
       if (session) fetchProfile(session.user.id);
       else { setProfile(null); setLoading(false); setPinAction(null); }
@@ -111,7 +116,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       return;
     }
-    const hasKP = await hasLocalKeypair();
+    let hasKP = await hasLocalKeypair();
+    if (!hasKP) {
+      // An install from before per-account slots may still hold this
+      // account's key in the old shared slot.
+      const profileKey = await db.getPublicKey(userId);
+      if (profileKey) hasKP = await claimSharedKeypair(profileKey);
+    }
     if (hasKP) {
       const existingPubKey = await db.getPublicKey(userId);
       const localPubKey = await getPublicKeyBase64();
