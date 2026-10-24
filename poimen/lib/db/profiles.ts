@@ -33,11 +33,15 @@ export interface Church {
   state: string | null;
   zip: string | null;
   country: string | null;
+  // Set when an admin adds the church (lib/geocode.ts); null if the address
+  // could not be found. Used only to order the picker by distance.
+  latitude: number | null;
+  longitude: number | null;
   created_at: string;
 }
 
 const CHURCH_COLS =
-  'id, name, address, address_line1, address_line2, city, state, zip, country, created_at';
+  'id, name, address, address_line1, address_line2, city, state, zip, country, latitude, longitude, created_at';
 
 // One line per address, whichever shape the row is in. Structured fields win;
 // a row that predates them falls back to its free text. Used for display and
@@ -80,6 +84,7 @@ export async function getChurches(): Promise<Church[]> {
 export async function createChurch(
   name: string,
   parts: Partial<Pick<Church, 'address_line1' | 'address_line2' | 'city' | 'state' | 'zip' | 'country'>> = {},
+  coords: { latitude: number; longitude: number } | null = null,
 ): Promise<Church | null> {
   const trim = (v: string | null | undefined) => (v ?? '').trim() || null;
   const { data, error } = await supabase
@@ -92,6 +97,8 @@ export async function createChurch(
       state:         trim(parts.state)?.toUpperCase() ?? null,
       zip:           trim(parts.zip),
       country:       trim(parts.country)?.toUpperCase() ?? 'US',
+      latitude:      coords?.latitude ?? null,
+      longitude:     coords?.longitude ?? null,
     })
     .select(CHURCH_COLS)
     .single();

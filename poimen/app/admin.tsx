@@ -12,6 +12,7 @@ import * as db from '@/lib/db';
 import type { AdminSummary, MonthlyActivity, ChurchBreakdown } from '@/lib/db';
 import { FEEDBACK_PAGE_SIZE } from '@/lib/db/feedback';
 import { toCsv, downloadCsv } from '@/lib/csv';
+import { geocodeAddress } from '@/lib/geocode';
 
 // Chart ranges in months; null = all time.
 const CHART_RANGES: { months: number | null; label: string }[] = [
@@ -129,6 +130,7 @@ export default function AdminScreen() {
   const [newChurchZip, setNewChurchZip] = useState('');
   const [addingChurch, setAddingChurch] = useState(false);
   const [addChurchError, setAddChurchError] = useState('');
+  const [addChurchNote, setAddChurchNote] = useState('');
 
   useEffect(() => {
     if (!profile || profile.role !== 'admin') return;
@@ -226,13 +228,21 @@ export default function AdminScreen() {
     }
     setAddingChurch(true);
     setAddChurchError('');
-    const church = await db.createChurch(newChurchName, {
+    setAddChurchNote('');
+    const parts = {
       address_line1: newChurchLine1,
       address_line2: newChurchLine2,
       city: newChurchCity,
       state: newChurchState,
       zip: newChurchZip,
-    });
+    };
+    // Coordinates let members' pickers put the nearest churches first. A
+    // failed lookup still saves the church; it just sorts after placed ones.
+    const coords = await geocodeAddress(parts);
+    const church = await db.createChurch(newChurchName, parts, coords);
+    if (church && !coords) {
+      setAddChurchNote(`Added — but “${church.name}” could not be found on the map, so it will appear after nearby churches when members sort by distance.`);
+    }
     if (church) {
       setChurches((prev) => [
         ...prev,
@@ -636,6 +646,7 @@ export default function AdminScreen() {
                 />
               </View>
               {addChurchError ? <Text style={styles.requestErrorText}>{addChurchError}</Text> : null}
+              {addChurchNote ? <Text style={styles.churchNote}>{addChurchNote}</Text> : null}
               <TouchableOpacity
                 style={[styles.addChurchBtn, addingChurch && { opacity: 0.5 }]}
                 disabled={addingChurch}

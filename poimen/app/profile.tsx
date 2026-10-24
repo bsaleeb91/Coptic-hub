@@ -24,6 +24,8 @@ import { confirmDestructive } from '@/lib/confirm';
 import { pickPhoto, uploadAvatarImage, removeAvatarImage, selfAvatarPath, cameraAvailable, PhotoSource } from '@/lib/avatar';
 import { PrivacyNote } from '@/components/ui/PrivacyNote';
 import { PRIVACY_COPY } from '@/lib/privacy-copy';
+import { sortByDistance, type LatLng } from '@/lib/geo';
+import { getApproxLocation } from '@/lib/location';
 import { seal, openContactSelf, openChildrenSelf, needsSealing } from '@/lib/pastoral-secure';
 import type { ContactData, ChildData, OpenedChild } from '@/lib/pastoral-secure';
 
@@ -110,12 +112,29 @@ export default function ProfileScreen() {
   const [churches, setChurches] = useState<Church[]>([]);
   const [showChurchPicker, setShowChurchPicker] = useState(false);
   const [churchQuery, setChurchQuery] = useState('');
+  // "Sort by nearest" is optional and only reorders: declining location
+  // leaves the usual alphabetical list, with nothing lost.
+  const [here, setHere] = useState<LatLng | null>(null);
+  const [nearStatus, setNearStatus] = useState<'idle' | 'locating' | 'denied' | 'unavailable'>('idle');
   const matchingChurches = React.useMemo(() => {
     const q = churchQuery.trim().toLowerCase();
-    if (!q) return churches;
-    return churches.filter(c =>
-      `${c.name} ${formatChurchAddress(c)}`.toLowerCase().includes(q));
-  }, [churches, churchQuery]);
+    const found = q
+      ? churches.filter(c => `${c.name} ${formatChurchAddress(c)}`.toLowerCase().includes(q))
+      : churches;
+    return here ? sortByDistance(found, here) : found;
+  }, [churches, churchQuery, here]);
+
+  async function sortByNearest() {
+    if (here) { setHere(null); return; }
+    setNearStatus('locating');
+    const result = await getApproxLocation();
+    if (result.status === 'ok') {
+      setHere(result.coords);
+      setNearStatus('idle');
+    } else {
+      setNearStatus(result.status);
+    }
+  }
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [accountError, setAccountError] = useState('');
@@ -852,6 +871,24 @@ export default function ProfileScreen() {
               autoCorrect={false}
               clearButtonMode="while-editing"
             />
+            {churches.some(c => c.latitude != null) && (
+              <View style={styles.nearBlock}>
+                <TouchableOpacity onPress={sortByNearest} disabled={nearStatus === 'locating'} activeOpacity={0.7}>
+                  <Text style={styles.nearBtn}>
+                    {nearStatus === 'locating' ? 'Finding churches near you…'
+                      : here ? 'Sorted by nearest · Show A–Z'
+                      : '◎ Sort by nearest'}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.nearNote}>
+                  {nearStatus === 'denied'
+                    ? 'Location is off for Nepsis, so the list stays A–Z. You can turn it on in your phone’s Settings.'
+                    : nearStatus === 'unavailable'
+                    ? 'Location isn’t available right now, so the list stays A–Z.'
+                    : PRIVACY_COPY.churchLocation}
+                </Text>
+              </View>
+            )}
             <FlatList
               data={matchingChurches}
               keyExtractor={c => c.id}
@@ -1027,6 +1064,9 @@ const styles = lazyThemed(() => StyleSheet.create({
   pickerRowName: { fontFamily: fonts.latoBold, fontSize: 13, color: colors.cream },
   pickerRowNameActive: { color: colors.goldLight },
   pickerSearch: { fontFamily: fonts.lato, fontSize: 14, color: colors.cream, borderWidth: 1, borderColor: colors.border, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10 },
+  nearBlock: { marginBottom: 10 },
+  nearBtn: { fontFamily: fonts.latoBold, fontSize: 12, letterSpacing: 0.4, color: colors.gold, paddingVertical: 4 },
+  nearNote: { fontFamily: fonts.latoLight, fontSize: 11, lineHeight: 15, color: colors.muted, marginTop: 2 },
   pickerEmpty: { fontFamily: fonts.latoLight, fontSize: 13, color: colors.muted, textAlign: 'center', paddingVertical: 24 },
   pickerRowAddress: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.muted, marginTop: 2 },
   pickerCheck: { fontFamily: fonts.latoBold, fontSize: 14, color: colors.gold },

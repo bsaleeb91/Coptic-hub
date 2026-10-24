@@ -41,6 +41,15 @@
       "expo-font",
       "expo-secure-store",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Nepsis uses your location only to list the churches nearest you first. It stays on your phone and is never sent or saved.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Poimen uses your photo library so you can choose a profile picture.",

@@ -30,24 +30,23 @@ The rest of "say plainly what is private" shipped (see Shipped 2026-10-14).
 tutorial, before the first entry is made.
 
 **Sort churches by distance in the picker.**
-The picker searches by name and city (2026-09-07), and `churches` now carries
-structured `address_line1 / city / state / zip / country` instead of one free
-text blob — which is the prerequisite for ordering parishes by how far away
-they are, rather than alphabetically. What is still missing:
-  - Latitude and longitude on `churches`. Geocode on save in the admin form
-    rather than at read time, so the picker stays a single cheap query.
-  - A geocoding provider, and a decision about who pays for it. Nominatim is
-    free with a usage policy that a low-volume admin form fits comfortably;
-    Google and Mapbox are paid but better on partial or misspelled addresses.
-  - Backfill for the churches already entered, including the rows still holding
-    only legacy free text.
-  - Location permission, and what the picker does without it. Distance should
-    be an optional ordering on top of the existing alphabetical list, never a
-    requirement — a member who declines the permission must still be able to
-    find their parish, and refusing should cost them nothing.
-  - Whether distance is shown as a number ("4.2 mi") or only used for ordering.
-    A visible number invites the question of accuracy, which a geocoded street
-    address cannot really answer.
+*(Built 2026-10-23. Live on web; phones need the next App Store build, with a
+version above 1.1.0.)* "◎ Sort by nearest" in the Profile church picker asks
+for location only when tapped and orders the list nearest first, no distance
+shown. Declining keeps the A–Z list. The location is used on the phone only
+(`lib/location.ts`, `lib/geo.ts`) and never sent.
+  - `churches.latitude / longitude`
+    (`20261023020000_church_coordinates.sql`, applied 2026-10-23). The admin
+    form geocodes on save through Nominatim (`lib/geocode.ts`); a church that
+    can't be found still saves and sorts after the placed ones.
+  - Backfilled 4 of 5 churches. "100 Test Ave, Springfield, VA" (St. Mary &
+    Archangel Michael) looks like test data and has no coordinates.
+  - `expo-location` is loaded lazily, so an over-the-air update reaching a
+    1.1.0 phone (no native module) shows "location isn't available" instead
+    of crashing. Still bump the version for the build that ships it.
+  - Test on a phone (Expo Go has location): allow, deny, and deny-then-retry.
+  - No admin way to edit an existing church's address yet, so changing one in
+    the Supabase dashboard leaves its coordinates stale.
 
 **Connecting with friends (v2 or v3).**
 The psalm leaderboard is scoped to a servant's class, which is the right first

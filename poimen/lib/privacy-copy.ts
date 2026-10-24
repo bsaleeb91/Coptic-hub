@@ -87,6 +87,9 @@ export const PRIVACY_COPY = {
     'What you write in Confession stays on your device. Prayer requests and pastoral notes are ' +
     'encrypted so only their intended reader can open them.',
 
+  // Church picker, under "Sort by nearest".
+  churchLocation: 'Your location is used on this phone to order the list and is never sent or saved.',
+
   // Onboarding / tutorial step.
   onboardingTitle: 'What stays on your device',
   onboarding:
