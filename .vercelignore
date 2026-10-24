@@ -1,0 +1,4 @@
+node_modules
+dist
+sources/*.txt
+sources/*-sections.json

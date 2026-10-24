@@ -1,0 +1,38 @@
+{
+  "_about": "Game tuning. Safe to edit; run npm run validate afterwards.",
+  "scriptureTranslation": "NKJV",
+  "rounds": 6,
+  "doubleChallengeRounds": [
+    5,
+    6
+  ],
+  "grace": {
+    "start": 3,
+    "perRound": 1,
+    "max": 8
+  },
+  "bishops": {
+    "total": 318,
+    "startPlayer": 30,
+    "startArius": 30,
+    "toWin": 160
+  },
+  "swing": {
+    "correctBase": 20,
+    "correctPerPower": 2,
+    "partialPerPower": 2,
+    "ariusPerPower": 4
+  },
+  "hand": {
+    "start": 5,
+    "drawPerRound": 2,
+    "max": 7
+  },
+  "scriptureNotice": "Scripture taken from the New King James Version®. Copyright © 1982 by Thomas Nelson. Used by permission. All rights reserved.",
+  "search": {
+    "cost": 1
+  },
+  "ai": {
+    "preferUnanswerable": 0.5
+  }
+}
