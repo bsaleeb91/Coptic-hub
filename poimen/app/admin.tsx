@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { goBack } from '@/lib/nav';
 import { colors, fonts , lazyThemed } from '@/lib/theme';
 import { Card } from '@/components/ui/Card';
@@ -10,6 +10,37 @@ import type { Feedback, FeedbackStatus } from '@/lib/db/feedback';
 import type { SurveyRow } from '@/lib/db/survey';
 import * as db from '@/lib/db';
 import type { AdminSummary, MonthlyActivity, ChurchBreakdown } from '@/lib/db';
+import { FEEDBACK_PAGE_SIZE } from '@/lib/db/feedback';
+import { toCsv, downloadCsv } from '@/lib/csv';
+
+// Chart ranges in months; null = all time.
+const CHART_RANGES: { months: number | null; label: string }[] = [
+  { months: 3, label: '3M' },
+  { months: 6, label: '6M' },
+  { months: 12, label: '12M' },
+  { months: null, label: 'All' },
+];
+
+// Survey answers as shown on screen and in the export.
+type Opt = { v: string; label: string };
+const FREQUENCY_OPTS: Opt[] = [
+  { v: 'daily', label: 'Daily' }, { v: 'weekly_several', label: 'Several times a week' },
+  { v: 'weekly', label: 'About once a week' }, { v: 'rarely', label: 'Rarely' }];
+const CONSISTENCY_OPTS: Opt[] = [
+  { v: 'yes_clearly', label: 'Yes, noticeably' }, { v: 'a_little', label: 'A little' },
+  { v: 'no_change', label: 'No change' }, { v: 'no_canon', label: "Doesn't use the canon" }];
+const MOST_MISSED_OPTS: Opt[] = [
+  { v: 'canon', label: 'Canon' }, { v: 'confession', label: 'Confession' },
+  { v: 'psalms', label: 'Psalms' }, { v: 'prayer', label: 'Prayer' },
+  { v: 'journal', label: 'Journal' }, { v: 'appointments', label: 'Appointments' }];
+const optLabel = (opts: Opt[], v: string | null) => (v == null ? null : opts.find(o => o.v === v)?.label ?? v);
+const yesNo = (b: boolean | null) => (b == null ? null : b ? 'Yes' : 'No');
+
+const SURVEY_PAGE_SIZE = 20;
+
+const shortDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+const today = () => new Date().toISOString().slice(0, 10);
 
 type ChartMetric = 'signups' | 'prayers' | 'confessions' | 'canon_completions' | 'journal_active';
 
@@ -20,6 +51,11 @@ const CHART_METRICS: { key: ChartMetric; label: string; color: string }[] = lazy
   { key: 'canon_completions',label: 'Canons',      color: colors.green },
   { key: 'journal_active',   label: 'Journal',     color: colors.cream },
 ]);
+
+// One section per tab instead of one long scroll. The choice is kept in the
+// URL (?tab=feedback) so a refresh or a shared link opens the same tab.
+type AdminTab = 'overview' | 'feedback' | 'survey' | 'churches';
+const ADMIN_TABS: AdminTab[] = ['overview', 'feedback', 'survey', 'churches'];
 
 function pct(value: number, total: number) {
   if (!total) return '0%';
@@ -65,14 +101,24 @@ function MiniBar({ value, max, color }: { value: number; max: number; color: str
 export default function AdminScreen() {
   const router = useRouter();
   const { profile } = useSession();
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const tab: AdminTab = ADMIN_TABS.includes(params.tab as AdminTab) ? (params.tab as AdminTab) : 'overview';
+  const setTab = (t: AdminTab) => router.setParams({ tab: t });
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [monthly, setMonthly] = useState<MonthlyActivity[]>([]);
   const [churches, setChurches] = useState<ChurchBreakdown[]>([]);
   const [feedback, setFeedback] = useState<Feedback[]>([]);
   const [feedbackFilter, setFeedbackFilter] = useState<'open' | 'all'>('open');
+  const [feedbackOpenCount, setFeedbackOpenCount] = useState(0);
+  const [feedbackHasMore, setFeedbackHasMore] = useState(false);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [survey, setSurvey] = useState<SurveyRow[]>([]);
+  const [surveyShown, setSurveyShown] = useState(SURVEY_PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState<ChartMetric>('signups');
+  const [range, setRange] = useState<number | null>(6);
+  const [chartLoading, setChartLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [newChurchName, setNewChurchName] = useState('');
   // Structured, matching a member's address — so the picker can search on city
   // and street, not just raw text.
@@ -88,26 +134,88 @@ export default function AdminScreen() {
     if (!profile || profile.role !== 'admin') return;
     Promise.all([
       db.getAdminSummary(),
-      db.getMonthlyActivity(),
       db.getChurchBreakdown(),
-      db.getAllFeedback(),
       db.getSurveyResults(),
-    ]).then(([s, m, c, f, sv]) => {
+      db.countOpenFeedback(),
+    ]).then(([s, c, sv, open]) => {
       setSummary(s);
-      setMonthly(m);
       setChurches(c);
-      setFeedback(f);
       setSurvey(sv);
+      setFeedbackOpenCount(open);
       setLoading(false);
     });
   }, [profile]);
+
+  // The chart reloads when the range changes.
+  useEffect(() => {
+    if (!profile || profile.role !== 'admin') return;
+    let cancelled = false;
+    setChartLoading(true);
+    db.getMonthlyActivity(range).then(m => {
+      if (cancelled) return;
+      setMonthly(m);
+      setChartLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [profile, range]);
+
+  // The first page of feedback reloads when the open/all filter changes.
+  useEffect(() => {
+    if (!profile || profile.role !== 'admin') return;
+    let cancelled = false;
+    setFeedbackLoading(true);
+    db.getFeedbackPage(feedbackFilter === 'open').then(f => {
+      if (cancelled) return;
+      setFeedback(f);
+      setFeedbackHasMore(f.length === FEEDBACK_PAGE_SIZE);
+      setFeedbackLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [profile, feedbackFilter]);
+
+  async function loadMoreFeedback() {
+    const last = feedback[feedback.length - 1];
+    if (!last) return;
+    setFeedbackLoading(true);
+    const more = await db.getFeedbackPage(feedbackFilter === 'open', last.created_at);
+    setFeedback(prev => [...prev, ...more.filter(m => !prev.some(p => p.id === m.id))]);
+    setFeedbackHasMore(more.length === FEEDBACK_PAGE_SIZE);
+    setFeedbackLoading(false);
+  }
 
   // Move a report along: new → read → resolved. Optimistic, since the only
   // failure mode is a lost RLS check and the list reloads on next open.
   async function advanceFeedback(f: Feedback) {
     const next: FeedbackStatus = f.status === 'new' ? 'read' : f.status === 'read' ? 'resolved' : 'new';
     setFeedback(prev => prev.map(x => (x.id === f.id ? { ...x, status: next } : x)));
+    const wasOpen = f.status !== 'resolved';
+    const isOpen = next !== 'resolved';
+    if (wasOpen !== isOpen) setFeedbackOpenCount(n => Math.max(0, n + (isOpen ? 1 : -1)));
     await db.setFeedbackStatus(f.id, next);
+  }
+
+  // Exports fetch every report rather than only the pages on screen.
+  // No user ids are included, only what the dashboard itself shows.
+  async function exportFeedback() {
+    setExporting(true);
+    const all = await db.getAllFeedback();
+    downloadCsv(`nepsis-feedback-${today()}.csv`, toCsv(
+      ['date', 'category', 'status', 'role', 'platform', 'app_version', 'account_deleted', 'message'],
+      all.map(f => [f.created_at, f.category, f.status, f.role, f.platform, f.app_version, f.user_id ? 'no' : 'yes', f.message]),
+    ));
+    setExporting(false);
+  }
+
+  function exportSurvey() {
+    downloadCsv(`nepsis-survey-${today()}.csv`, toCsv(
+      ['date', 'role', 'platform', 'app_version', 'frequency', 'canon_consistency', 'would_miss_most', 'one_change', 'holding_back', 'holding_back_detail'],
+      survey.map(r => [
+        r.created_at, r.role, r.platform, r.app_version,
+        optLabel(FREQUENCY_OPTS, r.frequency), optLabel(CONSISTENCY_OPTS, r.consistency),
+        optLabel(MOST_MISSED_OPTS, r.most_missed), r.one_change,
+        yesNo(r.withholding), r.withholding_detail,
+      ]),
+    ));
   }
 
 
@@ -199,8 +307,29 @@ export default function AdminScreen() {
           <Text style={styles.errorText}>Could not load stats. Make sure your role is set to admin in Supabase.</Text>
         ) : (
           <>
+            {/* ── Tabs ── */}
+            {(() => {
+              const labels: Record<AdminTab, string> = {
+                overview: 'Overview',
+                feedback: feedbackOpenCount > 0 ? `Feedback · ${feedbackOpenCount}` : 'Feedback',
+                survey: survey.length > 0 ? `Survey · ${survey.length}` : 'Survey',
+                churches: 'Churches',
+              };
+              return (
+                <View style={styles.adminTabs}>
+                  {ADMIN_TABS.map(t => (
+                    <TouchableOpacity key={t} style={styles.adminTab} onPress={() => setTab(t)}>
+                      <Text style={[styles.adminTabText, tab === t && { color: colors.gold }]}>{labels[t]}</Text>
+                      {tab === t && <View style={styles.adminTabLine} />}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              );
+            })()}
+
+            {tab === 'overview' && (<>
             {/* ── Summary grid ── */}
-            <Text style={[styles.sectionLabel, { marginTop: 24 }]}>OVERVIEW</Text>
+            <Text style={styles.sectionLabel}>OVERVIEW</Text>
             <View style={styles.statGrid}>
               <StatCard value={summary.total_users} label="Total Users" />
               <StatCard value={summary.active_week} label="Active This Week" sub={`${retentionRate}% monthly retention`} />
@@ -237,7 +366,22 @@ export default function AdminScreen() {
             </Card>
 
             {/* ── Activity over time ── */}
-            <Text style={[styles.sectionLabel, { marginTop: 24 }]}>ACTIVITY — LAST 6 MONTHS</Text>
+            <View style={[styles.feedbackHead, { marginTop: 24 }]}>
+              <Text style={styles.sectionLabel}>
+                {range === null ? 'ACTIVITY — ALL TIME' : `ACTIVITY — LAST ${range} MONTHS`}
+              </Text>
+              <View style={styles.rangeRow}>
+                {CHART_RANGES.map(r => (
+                  <TouchableOpacity
+                    key={r.label}
+                    style={[styles.rangeBtn, range === r.months && styles.rangeBtnActive]}
+                    onPress={() => setRange(r.months)}
+                  >
+                    <Text style={[styles.rangeText, range === r.months && { color: colors.gold }]}>{r.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
             <Card title="" titleIcon="">
               <View style={styles.metricTabs}>
                 {CHART_METRICS.map(m => (
@@ -248,7 +392,9 @@ export default function AdminScreen() {
                 ))}
               </View>
 
-              {monthly.length === 0 ? (
+              {chartLoading ? (
+                <ActivityIndicator color={colors.gold} style={{ marginVertical: 20 }} />
+              ) : monthly.length === 0 ? (
                 <Text style={styles.emptyText}>No data yet.</Text>
               ) : (
                 monthly.map((row) => (
@@ -264,15 +410,18 @@ export default function AdminScreen() {
                 ))
               )}
             </Card>
+            </>)}
 
             {/* ── Survey ── */}
-            {survey.length > 0 && (() => {
-              // Anonymous rows are only meaningful in aggregate, so this shows
-              // distributions rather than a list of individual submissions.
+            {tab === 'survey' && survey.length === 0 && (
+              <Text style={styles.emptyText}>No survey responses yet.</Text>
+            )}
+            {tab === 'survey' && survey.length > 0 && (() => {
+              // Distributions first, then each response in full below them.
               // Percentages are of those who ANSWERED that question, not of all
               // responses — every question is skippable, and dividing by the
               // wrong denominator would quietly understate every bar.
-              const dist = (key: keyof SurveyRow, opts: { v: string; label: string }[]) => {
+              const dist = (key: keyof SurveyRow, opts: Opt[]) => {
                 const answered = survey.filter(r => r[key] != null);
                 return { answered: answered.length, rows: opts.map(o => ({
                   label: o.label,
@@ -281,23 +430,21 @@ export default function AdminScreen() {
                 })) };
               };
               const blocks = [
-                { q: 'How often do you use Nepsis?', ...dist('frequency', [
-                  { v: 'daily', label: 'Daily' }, { v: 'weekly_several', label: 'Several times a week' },
-                  { v: 'weekly', label: 'About once a week' }, { v: 'rarely', label: 'Rarely' }]) },
-                { q: 'Canon kept more consistently?', ...dist('consistency', [
-                  { v: 'yes_clearly', label: 'Yes, noticeably' }, { v: 'a_little', label: 'A little' },
-                  { v: 'no_change', label: 'No change' }, { v: 'no_canon', label: "Doesn't use the canon" }]) },
-                { q: 'Would miss most', ...dist('most_missed', [
-                  { v: 'canon', label: 'Canon' }, { v: 'confession', label: 'Confession' },
-                  { v: 'psalms', label: 'Psalms' }, { v: 'prayer', label: 'Prayer' },
-                  { v: 'journal', label: 'Journal' }, { v: 'appointments', label: 'Appointments' }]) },
+                { q: 'How often do you use Nepsis?', ...dist('frequency', FREQUENCY_OPTS) },
+                { q: 'Canon kept more consistently?', ...dist('consistency', CONSISTENCY_OPTS) },
+                { q: 'Would miss most', ...dist('most_missed', MOST_MISSED_OPTS) },
               ];
               const withholders = survey.filter(r => r.withholding === true);
               const withholdAnswered = survey.filter(r => r.withholding != null).length;
               const changes = survey.filter(r => (r.one_change ?? '').trim());
               return (
                 <>
-                  <Text style={[styles.sectionLabel, { marginTop: 24 }]}>SURVEY · {survey.length} RESPONSES</Text>
+                  <View style={styles.feedbackHead}>
+                    <Text style={styles.sectionLabel}>SURVEY · {survey.length} RESPONSES</Text>
+                    <TouchableOpacity onPress={exportSurvey}>
+                      <Text style={styles.feedbackToggle}>Export CSV</Text>
+                    </TouchableOpacity>
+                  </View>
                   {blocks.map(b => (
                     <Card key={b.q} title={b.q} titleIcon="◈">
                       {b.rows.map(r => (
@@ -328,27 +475,73 @@ export default function AdminScreen() {
                       ))}
                     </Card>
                   )}
+
+                  {/* ── Individual responses, newest first ── */}
+                  <Text style={[styles.sectionLabel, { marginTop: 24 }]}>RESPONSES</Text>
+                  {survey.slice(0, surveyShown).map(r => {
+                    const answers: [string, string | null][] = [
+                      ['Uses Nepsis', optLabel(FREQUENCY_OPTS, r.frequency)],
+                      ['Canon more consistent', optLabel(CONSISTENCY_OPTS, r.consistency)],
+                      ['Would miss most', optLabel(MOST_MISSED_OPTS, r.most_missed)],
+                      ['Holding things back', yesNo(r.withholding)],
+                    ];
+                    return (
+                      <Card key={r.id} title="" titleIcon="">
+                        <Text style={styles.fbCat}>
+                          {[shortDate(r.created_at), r.role ?? 'unknown role', r.platform, r.app_version ? `v${r.app_version}` : null]
+                            .filter(Boolean).join(' · ').toUpperCase()}
+                        </Text>
+                        {answers.map(([q, a]) => (
+                          <View key={q} style={styles.respRow}>
+                            <Text style={styles.respQ}>{q}</Text>
+                            <Text style={[styles.respA, a == null && { color: colors.faint }]}>{a ?? 'Skipped'}</Text>
+                          </View>
+                        ))}
+                        {(r.withholding_detail ?? '').trim() ? (
+                          <Text style={styles.svQuote}>Holding back: “{r.withholding_detail}”</Text>
+                        ) : null}
+                        {(r.one_change ?? '').trim() ? (
+                          <Text style={styles.svQuote}>One change: “{r.one_change}”</Text>
+                        ) : null}
+                      </Card>
+                    );
+                  })}
+                  {surveyShown < survey.length && (
+                    <TouchableOpacity style={styles.addChurchBtn} onPress={() => setSurveyShown(n => n + SURVEY_PAGE_SIZE)}>
+                      <Text style={styles.addChurchBtnText}>
+                        Show more ({survey.length - surveyShown} left)
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </>
               );
             })()}
 
             {/* ── Feedback ── */}
-            {(() => {
+            {tab === 'feedback' && (() => {
               const shown = feedbackFilter === 'open'
                 ? feedback.filter(f => f.status !== 'resolved')
                 : feedback;
-              const openCount = feedback.filter(f => f.status !== 'resolved').length;
               return (
                 <>
                   <View style={styles.feedbackHead}>
-                    <Text style={styles.sectionLabel}>FEEDBACK{openCount > 0 ? ` · ${openCount} OPEN` : ''}</Text>
-                    <TouchableOpacity onPress={() => setFeedbackFilter(p => (p === 'open' ? 'all' : 'open'))}>
-                      <Text style={styles.feedbackToggle}>
-                        {feedbackFilter === 'open' ? 'Show resolved' : 'Hide resolved'}
-                      </Text>
-                    </TouchableOpacity>
+                    <Text style={styles.sectionLabel}>FEEDBACK{feedbackOpenCount > 0 ? ` · ${feedbackOpenCount} OPEN` : ''}</Text>
+                    <View style={styles.rangeRow}>
+                      <TouchableOpacity onPress={() => setFeedbackFilter(p => (p === 'open' ? 'all' : 'open'))}>
+                        <Text style={styles.feedbackToggle}>
+                          {feedbackFilter === 'open' ? 'Show resolved' : 'Hide resolved'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={exportFeedback} disabled={exporting}>
+                        <Text style={[styles.feedbackToggle, exporting && { opacity: 0.5 }]}>
+                          {exporting ? 'Exporting…' : 'Export CSV'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  {shown.length === 0 ? (
+                  {feedbackLoading && feedback.length === 0 ? (
+                    <ActivityIndicator color={colors.gold} style={{ marginTop: 20 }} />
+                  ) : shown.length === 0 ? (
                     <Text style={styles.emptyText}>
                       {feedback.length === 0 ? 'No feedback yet.' : 'Nothing open — all resolved.'}
                     </Text>
@@ -377,12 +570,22 @@ export default function AdminScreen() {
                       </Text>
                     </Card>
                   ))}
+                  {feedbackHasMore && (
+                    <TouchableOpacity
+                      style={[styles.addChurchBtn, feedbackLoading && { opacity: 0.5 }]}
+                      disabled={feedbackLoading}
+                      onPress={loadMoreFeedback}
+                    >
+                      <Text style={styles.addChurchBtnText}>{feedbackLoading ? 'Loading…' : 'Load more'}</Text>
+                    </TouchableOpacity>
+                  )}
                 </>
               );
             })()}
 
             {/* ── Churches ── */}
-            <Text style={[styles.sectionLabel, { marginTop: 24 }]}>CHURCHES</Text>
+            {tab === 'churches' && (<>
+            <Text style={styles.sectionLabel}>CHURCHES</Text>
             <Card title="" titleIcon="">
               <TextInput
                 style={styles.addChurchInput}
@@ -489,6 +692,7 @@ export default function AdminScreen() {
                 );
               })
             )}
+            </>)}
           </>
         )}
 
@@ -513,7 +717,18 @@ const styles = lazyThemed(() => StyleSheet.create({
   svMeta: { fontFamily: fonts.latoLight, fontSize: 11, color: colors.faint, marginTop: 6 },
   svBig: { fontFamily: fonts.cormorantMedium, fontSize: 34, color: colors.gold },
   svQuote: { fontFamily: fonts.lato, fontSize: 13, color: colors.cream, lineHeight: 20, marginTop: 10, fontStyle: 'italic' as any },
-  feedbackHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 24 },
+  adminTabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 20 },
+  adminTab: { flex: 1, paddingBottom: 10, alignItems: 'center', position: 'relative' },
+  adminTabText: { fontFamily: fonts.latoBold, fontSize: 11, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.muted },
+  adminTabLine: { position: 'absolute', bottom: 0, left: 4, right: 4, height: 2, borderRadius: 1, backgroundColor: colors.gold },
+  feedbackHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  rangeRow: { flexDirection: 'row', gap: 14, alignItems: 'center', marginBottom: 10 },
+  rangeBtn: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: 'transparent' },
+  rangeBtnActive: { borderColor: colors.gold },
+  rangeText: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 0.6, color: colors.muted },
+  respRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginTop: 8 },
+  respQ: { fontFamily: fonts.latoLight, fontSize: 12, color: colors.muted, flex: 1 },
+  respA: { fontFamily: fonts.lato, fontSize: 12, color: colors.cream, textAlign: 'right' },
   feedbackToggle: { fontFamily: fonts.lato, fontSize: 11, color: colors.gold },
   fbHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   fbCat: { fontFamily: fonts.latoBold, fontSize: 10, letterSpacing: 1.2, color: colors.muted },
@@ -557,7 +772,9 @@ const styles = lazyThemed(() => StyleSheet.create({
   metricTabLine: { position: 'absolute', bottom: 0, left: 4, right: 4, height: 2, borderRadius: 1 },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   barMonth: { fontFamily: fonts.latoBold, fontSize: 9, color: colors.muted, width: 42, letterSpacing: 0.4 },
-  barTrack: { flex: 1, height: 8, backgroundColor: colors.creamDim, borderRadius: 4, overflow: 'hidden' },
+  // No flex: 1 here: the wrapper already fills the row, and on web flex: 1
+  // inside that column wrapper overrides the height and collapses it to 0.
+  barTrack: { height: 8, backgroundColor: colors.creamDim, borderRadius: 4, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 4 },
   barCount: { fontFamily: fonts.latoBold, fontSize: 12, width: 28, textAlign: 'right' },
 

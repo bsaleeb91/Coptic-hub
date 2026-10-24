@@ -52,11 +52,20 @@ export async function submitSurvey(
 }
 
 // Admin only; RLS returns nothing to anyone else rather than erroring.
-export async function getSurveyResults(limit = 500): Promise<SurveyRow[]> {
-  const { data } = await supabase
-    .from('feedback_survey')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(limit);
-  return (data as SurveyRow[]) ?? [];
+// Every response, newest first: the percentages on the dashboard must cover
+// all of them, so this fetches 1000 at a time (the API's row cap) until a
+// short page comes back. The dashboard pages the list on screen instead.
+export async function getSurveyResults(): Promise<SurveyRow[]> {
+  const all: SurveyRow[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from('feedback_survey')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(from, from + 999);
+    if (error || !data) break;
+    all.push(...(data as SurveyRow[]));
+    if (data.length < 1000) break;
+  }
+  return all;
 }

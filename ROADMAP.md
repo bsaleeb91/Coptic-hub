@@ -49,30 +49,6 @@ they are, rather than alphabetically. What is still missing:
     A visible number invites the question of accuracy, which a geocoded street
     address cannot really answer.
 
-**Rework the admin view.**
-`app/admin.tsx` has grown to seven sections on one scrolling page — priest
-requests, overview, health, a six-month activity chart, survey results,
-feedback, churches — with no navigation between them and no way to find
-anything specific. Two of today's additions made that worse rather than
-better.
-  - Sections become tabs or an index rather than one 600-line scroll. Feedback
-    and survey are read regularly; churches and health are consulted rarely.
-  - Individual survey responses, not only distributions. A row already ties all
-    five answers together with role, platform and date, and reading one whole
-    response says more than five separate bars. Weigh against de-anonymising:
-    role plus date plus a distinctive comment can identify someone in a small
-    parish, and the survey's value rests on members believing it is anonymous.
-    Decide whether `role` is worth keeping on the row at all.
-  - A member view: search by name, church or email, see roles and FOC links,
-    and fix a wrong link without going to the Supabase dashboard. Currently
-    there is no way to look up one person from inside the app.
-  - Feedback and survey both grow without bound and are read newest-first;
-    neither paginates today. `getAllFeedback` caps at 100 and
-    `getSurveyResults` at 500, which are silent ceilings, not paging.
-  - Date range on the activity chart, which is fixed at six months.
-  - Export, or a decision not to. A CSV of survey free text is the obvious
-    thing to want and the obvious thing to leak.
-
 **Connecting with friends (v2 or v3).**
 The psalm leaderboard is scoped to a servant's class, which is the right first
 circle — the members already know each other and a servant is accountable for
@@ -216,6 +192,26 @@ dual-written (sealed payload plus a plaintext copy) until build 17 retires.
 Kept here so a finished item is not queued again. Outside the "Next Up" block
 on purpose: scripts/gen-roadmap.mjs stops at the next top-level heading, so
 none of this reaches the in-app roadmap.
+
+### Shipped 2026-10-23
+
+**Rework the admin view.**
+`app/admin.tsx` is split into Overview, Feedback, Survey and Churches tabs; the
+open tab is kept in the URL (`?tab=feedback`).
+  - Survey shows each response in full below the distributions, with role,
+    platform, version and date. Role stays on the row (decided 2026-10-23).
+  - Feedback pages 50 at a time by date with "Load more"; the open count covers
+    the whole table. Survey loads every response so the percentages are
+    complete, and the list shows 20 at a time.
+  - Activity chart takes 3, 6 or 12 months or all time, through
+    `get_monthly_activity(p_months)`
+    (`20261023010000_monthly_activity_range.sql`, applied 2026-10-23 with
+    `supabase db query` — the October migrations are not in the remote
+    history, so `db push` would re-run them).
+  - CSV export of feedback and survey (`lib/csv.ts`). No user ids; text that
+    a spreadsheet would run as a formula is kept as text.
+  - Fixed the chart bars, which had collapsed to zero height on web.
+  - Member lookup: decided not to build (2026-10-23).
 
 ### Shipped 2026-10-21
 

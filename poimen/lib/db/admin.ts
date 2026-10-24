@@ -47,9 +47,14 @@ export async function getAdminSummary(): Promise<AdminSummary | null> {
   return data as AdminSummary;
 }
 
-export async function getMonthlyActivity(): Promise<MonthlyActivity[]> {
-  const { data } = await supabase.rpc('get_monthly_activity');
-  return (data ?? []) as MonthlyActivity[];
+// months: how many months back, including this one; null = all time.
+// The one-argument function comes from 20261023010000_monthly_activity_range.sql.
+// Until that migration is applied, fall back to the fixed six-month version.
+export async function getMonthlyActivity(months: number | null = 6): Promise<MonthlyActivity[]> {
+  const { data, error } = await supabase.rpc('get_monthly_activity', { p_months: months });
+  if (!error) return (data ?? []) as MonthlyActivity[];
+  const fallback = await supabase.rpc('get_monthly_activity');
+  return (fallback.data ?? []) as MonthlyActivity[];
 }
 
 export async function getChurchBreakdown(): Promise<ChurchBreakdown[]> {

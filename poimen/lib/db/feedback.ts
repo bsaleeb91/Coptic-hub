@@ -59,13 +59,47 @@ export async function getMyFeedback(userId: string): Promise<Feedback[]> {
 
 // Admin inbox. RLS returns nothing to a non-admin rather than erroring, so a
 // non-admin caller simply sees an empty list.
-export async function getAllFeedback(limit = 100): Promise<Feedback[]> {
-  const { data } = await supabase
-    .from('app_feedback')
-    .select('*')
+export const FEEDBACK_PAGE_SIZE = 50;
+
+// One page of the inbox, newest first. openOnly leaves out resolved reports.
+// before: created_at of the last report already shown. Paging by date rather
+// than by offset means resolving a report on screen doesn't shift the next
+// page and skip one.
+export async function getFeedbackPage(openOnly: boolean, before?: string): Promise<Feedback[]> {
+  let q = supabase.from('app_feedback').select('*');
+  if (openOnly) q = q.neq('status', 'resolved');
+  if (before) q = q.lt('created_at', before);
+  const { data } = await q
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .limit(FEEDBACK_PAGE_SIZE);
   return (data as Feedback[]) ?? [];
+}
+
+// Count of reports not yet resolved, across the whole table, not just the
+// pages loaded so far.
+export async function countOpenFeedback(): Promise<number> {
+  const { count } = await supabase
+    .from('app_feedback')
+    .select('id', { count: 'exact', head: true })
+    .neq('status', 'resolved');
+  return count ?? 0;
+}
+
+// Every report, for the CSV export. Fetched 1000 at a time (the API's row
+// cap) until a short page comes back.
+export async function getAllFeedback(): Promise<Feedback[]> {
+  const all: Feedback[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from('app_feedback')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(from, from + 999);
+    if (error || !data) break;
+    all.push(...(data as Feedback[]));
+    if (data.length < 1000) break;
+  }
+  return all;
 }
 
 export async function setFeedbackStatus(id: string, status: FeedbackStatus): Promise<boolean> {
