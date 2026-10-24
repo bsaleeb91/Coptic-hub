@@ -1,0 +1,64 @@
+{
+  "_about": "The Creed board. Each 'phrase' must appear word for word in the 325 Creed text below. Each slot is unlocked by one Arius card (its 'unlocksSlot').",
+  "source": "Creed of Nicaea (325), as quoted by Eusebius of Caesarea, Letter to his Diocese §4. Trans. A. Robertson, Nicene and Post-Nicene Fathers, 2nd Series, Vol. 4 (1892), public domain.",
+  "fullText": "We believe in One God, the Father Almighty, Maker of all things visible and invisible: And in One Lord Jesus Christ, the Son of God, begotten of the Father, Only-begotten, that is, from the essence of the Father; God from God, Light from Light, Very God from Very God, begotten not made, One in essence with the Father, by Whom all things were made, both things in heaven and things in earth; Who for us men and for our salvation came down and was made flesh, was made man, suffered, and rose again the third day, ascended into heaven, and cometh to judge quick and dead. And in the Holy Ghost. And those who say, \"Once He was not,\" and \"Before His generation He was not,\" and \"He came to be from nothing,\" or those who pretend that the Son of God is \"Of other subsistence or essence,\" or \"created\" or \"alterable,\" or \"mutable,\" the Catholic Church anathematizes.",
+  "laterNote": "In 381 the Council of Constantinople expanded this Creed, adding more about the Holy Spirit. That longer version is the Creed you pray in the Liturgy.",
+  "slots": [
+    {
+      "id": "only-begotten",
+      "order": 1,
+      "phrase": "begotten of the Father, Only-begotten",
+      "guardsAgainst": "Against calling the Son the first and greatest creature. He is the one and only Son.",
+      "approved": false
+    },
+    {
+      "id": "from-essence",
+      "order": 2,
+      "phrase": "from the essence of the Father",
+      "guardsAgainst": "The Son comes from the Father's own being, not from nothing, so He shares the Father's eternal life.",
+      "approved": false
+    },
+    {
+      "id": "light-from-light",
+      "order": 3,
+      "phrase": "God from God, Light from Light",
+      "guardsAgainst": "Like light and its shine, the Son comes from the Father and was never apart from Him.",
+      "approved": false
+    },
+    {
+      "id": "very-god",
+      "order": 4,
+      "phrase": "Very God from Very God",
+      "guardsAgainst": "Against calling the Son 'god' only as an honorary title. ('Very' is old English for 'true.')",
+      "approved": false
+    },
+    {
+      "id": "begotten-not-made",
+      "order": 5,
+      "phrase": "begotten not made",
+      "guardsAgainst": "Against calling the Son a creature. A father begets a son; a sculptor makes a statue.",
+      "approved": false
+    },
+    {
+      "id": "one-in-essence",
+      "order": 6,
+      "phrase": "One in essence with the Father",
+      "guardsAgainst": "The key word, homoousios: the Son is the same God as the Father, not a lesser being.",
+      "approved": false
+    },
+    {
+      "id": "by-whom-all",
+      "order": 7,
+      "phrase": "by Whom all things were made",
+      "guardsAgainst": "The Son is the Maker, not part of what was made.",
+      "approved": false
+    },
+    {
+      "id": "made-man",
+      "order": 8,
+      "phrase": "for us men and for our salvation came down and was made flesh, was made man",
+      "guardsAgainst": "God Himself became man to save us. His humble human words don't make Him less than God.",
+      "approved": false
+    }
+  ]
+}

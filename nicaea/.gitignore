@@ -1,0 +1,8 @@
+node_modules/
+dist/
+# Extracted source texts. The C.S.M.V. translation is copyrighted, so the full
+# text stays on this machine only. Regenerate with scripts/export_sources.py.
+sources/*.txt
+sources/*-sections.json
+
+.vercel

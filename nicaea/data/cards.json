@@ -1,0 +1,497 @@
+{
+  "_about": "The player's card pool. See CONTENT_GUIDE.md for what each field means. 'flavor' is shown in italics on the card: the verse text for Scripture cards, the exact Athanasius quote for Argument cards.",
+  "cards": [
+    {
+      "id": "scr-john-1-1",
+      "name": "In the Beginning",
+      "type": "scripture",
+      "cost": 3,
+      "power": 4,
+      "text": "Before anything began, the Word already WAS.",
+      "flavor": "In the beginning was the Word, and the Word was with God, and the Word was God.",
+      "scriptureRef": "John 1:1",
+      "themes": [
+        "eternity",
+        "divinity"
+      ],
+      "explanation": "John doesn't say the Word came to be in the beginning. He says the Word already was. When time began, the Son was already there, and He was God.",
+      "quote": {
+        "text": "He ever was and is and never was not.",
+        "work": "orations",
+        "discourse": 1,
+        "section": 9
+      },
+      "citation": "John 1:1; St. Athanasius, Against the Arians I.9",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "scr-john-1-3",
+      "name": "All Things Through Him",
+      "type": "scripture",
+      "cost": 3,
+      "power": 4,
+      "text": "Everything that was made, He made. So He isn't one of the made things.",
+      "flavor": "All things were made through Him, and without Him nothing was made that was made.",
+      "scriptureRef": "John 1:3",
+      "themes": [
+        "creator"
+      ],
+      "explanation": "If not one thing was made without the Word, then the Word can't be one of the things that were made. He stands on the Maker's side of the line, not the creature's side.",
+      "quote": {
+        "text": "the renewal of creation has been wrought by the Self-same Word Who made it in the beginning",
+        "work": "csmv",
+        "section": 1
+      },
+      "citation": "John 1:3; St. Athanasius, On the Incarnation §1",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "scr-john-1-14",
+      "name": "The Word Became Flesh",
+      "type": "scripture",
+      "cost": 2,
+      "power": 3,
+      "text": "God the Word took on a real human body.",
+      "flavor": "And the Word became flesh and dwelt among us",
+      "scriptureRef": "John 1:14",
+      "themes": [
+        "incarnation"
+      ],
+      "explanation": "The Word didn't stop being God when He became man. He put on our flesh. So when Scripture talks about the Son being 'made' or 'created,' look for His human body, not His Godhead.",
+      "quote": {
+        "text": "we do not conceive the whole Word Himself to be flesh, but to have put on flesh and become man",
+        "work": "orations",
+        "discourse": 2,
+        "section": 47
+      },
+      "citation": "John 1:14; St. Athanasius, Against the Arians II.47",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "scr-john-1-18",
+      "name": "The Only-Begotten",
+      "type": "scripture",
+      "cost": 3,
+      "power": 4,
+      "text": "Not the first of many. The ONLY Son.",
+      "flavor": "The only begotten Son, who is in the bosom of the Father, He has declared Him.",
+      "scriptureRef": "John 1:18",
+      "themes": [
+        "sonship"
+      ],
+      "explanation": "'Only-begotten' means there is no one else like Him. He isn't the first in a line of creatures. He is the one and only Son, who lives in the Father's heart.",
+      "quote": {
+        "text": "the term 'Only-begotten' is used where there are no brethren, but 'First-born' because of brethren",
+        "work": "orations",
+        "discourse": 2,
+        "section": 62
+      },
+      "citation": "John 1:18; St. Athanasius, Against the Arians II.62",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "scr-john-10-30",
+      "name": "I and My Father Are One",
+      "type": "scripture",
+      "cost": 4,
+      "power": 5,
+      "text": "The Son says it Himself: one with the Father.",
+      "flavor": "I and My Father are one.",
+      "scriptureRef": "John 10:30",
+      "themes": [
+        "essence",
+        "divinity"
+      ],
+      "explanation": "Jesus doesn't say 'I agree with my Father.' He says 'we are one.' The Son shares the Father's own nature: one God, not a lesser god next to the real one.",
+      "quote": {
+        "text": "proper to the Father's essence and one in nature with it",
+        "work": "orations",
+        "discourse": 1,
+        "section": 58
+      },
+      "citation": "John 10:30; St. Athanasius, Against the Arians I.58",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "scr-john-14-9",
+      "name": "Seen Me, Seen the Father",
+      "type": "scripture",
+      "cost": 3,
+      "power": 4,
+      "text": "Look at the Son and you see the Father.",
+      "flavor": "He who has seen Me has seen the Father",
+      "scriptureRef": "John 14:9",
+      "themes": [
+        "essence",
+        "divinity"
+      ],
+      "explanation": "No creature could say this. Only someone who is the perfect image of the Father, sharing everything the Father is, can show us the Father just by being seen.",
+      "quote": {
+        "text": "He is the expression of the Father's Person, and Light from Light",
+        "work": "orations",
+        "discourse": 1,
+        "section": 9
+      },
+      "citation": "John 14:9; St. Athanasius, Against the Arians I.9",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "scr-phil-2-6-7",
+      "name": "The Form of a Bondservant",
+      "type": "scripture",
+      "cost": 4,
+      "power": 5,
+      "text": "Equal with God, He chose to become a servant for us.",
+      "flavor": "who, being in the form of God, did not consider it robbery to be equal with God, but made Himself of no reputation, taking the form of a bondservant",
+      "scriptureRef": "Philippians 2:6-7",
+      "themes": [
+        "incarnation",
+        "divinity"
+      ],
+      "explanation": "Paul says the Son was already in the form of God, equal with God. Then He humbled Himself and became a servant. He wasn't promoted to God; He was God who stepped down for us.",
+      "quote": {
+        "text": "existing as God, He took the form of a servant, and in taking it, was not promoted but humbled Himself",
+        "work": "orations",
+        "discourse": 1,
+        "section": 40
+      },
+      "citation": "Philippians 2:6-7; St. Athanasius, Against the Arians I.40",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "scr-col-1-16-17",
+      "name": "By Him All Things",
+      "type": "scripture",
+      "cost": 3,
+      "power": 4,
+      "text": "Heaven, earth, angels: all made by Him. He comes before all.",
+      "flavor": "For by Him all things were created that are in heaven and that are on earth... And He is before all things, and in Him all things consist.",
+      "scriptureRef": "Colossians 1:16-17",
+      "themes": [
+        "creator",
+        "eternity"
+      ],
+      "explanation": "Right after calling Him 'firstborn,' Paul says all things were created by Him and He is before all things. So 'firstborn' can't mean 'first creature.' It means He is first in rank over all creation.",
+      "quote": {
+        "text": "because in Him the creation came to be",
+        "work": "orations",
+        "discourse": 2,
+        "section": 63
+      },
+      "citation": "Colossians 1:16-17; St. Athanasius, Against the Arians II.63",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "scr-heb-1-3",
+      "name": "Radiance of His Glory",
+      "type": "scripture",
+      "cost": 3,
+      "power": 4,
+      "text": "The Son is the shining of the Father's glory.",
+      "flavor": "who being the brightness of His glory and the express image of His person",
+      "scriptureRef": "Hebrews 1:3",
+      "themes": [
+        "eternity",
+        "essence"
+      ],
+      "explanation": "Light and its shine always exist together. You never have a sun that hasn't started shining yet. The Son is the Father's radiance, so He has always been with the Father.",
+      "quote": null,
+      "citation": "Hebrews 1:3",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "scr-1john-5-20",
+      "name": "This Is the True God",
+      "type": "scripture",
+      "cost": 3,
+      "power": 5,
+      "text": "John calls the Son Himself 'the true God.'",
+      "flavor": "in His Son Jesus Christ. This is the true God and eternal life.",
+      "scriptureRef": "1 John 5:20",
+      "themes": [
+        "divinity"
+      ],
+      "explanation": "The same apostle who wrote 'the only true God' also calls Jesus Christ 'the true God.' Scripture doesn't contradict itself. The Son is true God along with the Father.",
+      "quote": {
+        "text": "This is the True God and eternal life",
+        "work": "orations",
+        "discourse": 3,
+        "section": 9
+      },
+      "citation": "1 John 5:20; St. Athanasius, Against the Arians III.9",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "scr-john-8-58",
+      "name": "Before Abraham Was",
+      "type": "scripture",
+      "cost": 2,
+      "power": 3,
+      "text": "Not 'I was.' I AM.",
+      "flavor": "before Abraham was, I AM.",
+      "scriptureRef": "John 8:58",
+      "themes": [
+        "eternity",
+        "divinity"
+      ],
+      "explanation": "Jesus doesn't say He existed a long time ago. He says 'I am,' the name God uses for Himself. He is outside of time, not just older than Abraham.",
+      "quote": null,
+      "citation": "John 8:58",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "scr-heb-13-8",
+      "name": "The Same Forever",
+      "type": "scripture",
+      "cost": 2,
+      "power": 3,
+      "text": "He never changes. Not yesterday, not today, not ever.",
+      "flavor": "Jesus Christ is the same yesterday, today, and forever.",
+      "scriptureRef": "Hebrews 13:8",
+      "themes": [
+        "eternity"
+      ],
+      "explanation": "Creatures change: they begin, grow and get older. Christ is 'the same for ever.' Never changing is something only God can be.",
+      "quote": null,
+      "citation": "Hebrews 13:8",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "scr-rom-9-5",
+      "name": "The Eternally Blessed God",
+      "type": "scripture",
+      "cost": 3,
+      "power": 3,
+      "text": "Paul calls Christ 'the eternally blessed God.'",
+      "flavor": "Christ came, who is over all, the eternally blessed God. Amen.",
+      "scriptureRef": "Romans 9:5",
+      "themes": [
+        "divinity"
+      ],
+      "explanation": "Paul says Christ is over all, the eternally blessed God. Not 'a god' or 'like God,' but God over all.",
+      "quote": null,
+      "citation": "Romans 9:5",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "arg-creator",
+      "name": "Only the Maker Can Remake",
+      "type": "argument",
+      "cost": 4,
+      "power": 5,
+      "text": "Sin broke creation. Only its Maker can fix it.",
+      "flavor": "Who, save the Word of God Himself, Who also in the beginning had made all things out of nothing?",
+      "scriptureRef": null,
+      "themes": [
+        "creator",
+        "salvation"
+      ],
+      "explanation": "Athanasius asks who could save us from death and decay. A creature can't re-create other creatures. Only the One who made everything from nothing can make us new, so our Savior must be God.",
+      "quote": {
+        "text": "Who, save the Word of God Himself, Who also in the beginning had made all things out of nothing?",
+        "work": "csmv",
+        "section": 7
+      },
+      "citation": "St. Athanasius, On the Incarnation §7",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "arg-portrait",
+      "name": "The Restored Portrait",
+      "type": "argument",
+      "cost": 3,
+      "power": 4,
+      "text": "A ruined portrait needs the original to sit again.",
+      "flavor": "He, the Image of the Father, came and dwelt in our midst",
+      "scriptureRef": null,
+      "themes": [
+        "salvation",
+        "essence"
+      ],
+      "explanation": "When a portrait is ruined, the artist doesn't throw out the canvas; the person in it sits again. We were made in God's image, so the Father's true Image came Himself to restore us. Only One who shares the Father's nature could be that Image.",
+      "quote": {
+        "text": "He, the Image of the Father, came and dwelt in our midst",
+        "work": "csmv",
+        "section": 14
+      },
+      "citation": "St. Athanasius, On the Incarnation §14",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "arg-king",
+      "name": "The King in the City",
+      "type": "argument",
+      "cost": 3,
+      "power": 4,
+      "text": "One King moves into one house. The whole city is safe.",
+      "flavor": "because of his dwelling in that single house, the whole city is honoured",
+      "scriptureRef": null,
+      "themes": [
+        "salvation",
+        "incarnation"
+      ],
+      "explanation": "When a great king lives in one house, robbers stay away from the whole city. The King of all didn't become King by moving in. He was King already, and took one human body to defeat the enemy for all of us.",
+      "quote": {
+        "text": "because of his dwelling in that single house, the whole city is honoured",
+        "work": "csmv",
+        "section": 9
+      },
+      "citation": "St. Athanasius, On the Incarnation §9",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "arg-death-mocked",
+      "name": "Death Trampled",
+      "type": "argument",
+      "cost": 3,
+      "power": 4,
+      "text": "Even kids laugh at death now. It's been beaten.",
+      "flavor": "nor, if he sees boys making fun of a lion, does he doubt that the brute is either dead or completely bereft of strength",
+      "scriptureRef": null,
+      "themes": [
+        "salvation",
+        "divinity"
+      ],
+      "explanation": "If you saw boys teasing a lion, you'd know the lion was dead or powerless. Christian martyrs, even young ones, faced death without fear. That shows Christ really defeated it, which no creature could do.",
+      "quote": {
+        "text": "nor, if he sees boys making fun of a lion, does he doubt that the brute is either dead or completely bereft of strength",
+        "work": "csmv",
+        "section": 29
+      },
+      "citation": "St. Athanasius, On the Incarnation §29",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "arg-theosis",
+      "name": "God Became Man",
+      "type": "argument",
+      "cost": 4,
+      "power": 4,
+      "text": "He became what we are so we could share in what He is.",
+      "flavor": "He, indeed, assumed humanity that we might become God.",
+      "scriptureRef": null,
+      "themes": [
+        "incarnation",
+        "salvation",
+        "divinity"
+      ],
+      "explanation": "The Son took on our humanity so that we could share in God's own life. So when He speaks humbly as a man, He is still God, who became man for us. A creature couldn't give us God's life.",
+      "quote": {
+        "text": "He, indeed, assumed humanity that we might become God.",
+        "work": "csmv",
+        "section": 54
+      },
+      "citation": "St. Athanasius, On the Incarnation §54",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "arg-radiance",
+      "name": "Light and Its Shine",
+      "type": "argument",
+      "cost": 3,
+      "power": 5,
+      "text": "Was there ever a light that didn't shine? Then the Son was always there.",
+      "flavor": "the Light was once without radiance, and the Fountain was once barren and dry",
+      "scriptureRef": null,
+      "themes": [
+        "eternity",
+        "essence"
+      ],
+      "explanation": "Athanasius shows how silly 'once He was not' really is. It's like saying a light once had no shine, or a spring once had no water. God is always Father, so He always has His Son.",
+      "quote": {
+        "text": "the Light was once without radiance, and the Fountain was once barren and dry",
+        "work": "orations",
+        "discourse": 1,
+        "section": 14
+      },
+      "citation": "St. Athanasius, Against the Arians I.14",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "arg-as-man",
+      "name": "Spoken as Man",
+      "type": "argument",
+      "cost": 2,
+      "power": 4,
+      "text": "Some words Jesus speaks as God. Some He speaks as man.",
+      "flavor": "He made this as those other declarations as man by reason of the flesh",
+      "scriptureRef": null,
+      "themes": [
+        "incarnation"
+      ],
+      "explanation": "The Son truly became man. He got hungry, He wept, and He spoke of not knowing the hour. Those belong to the human nature He took on for us, not to the Word who made all things.",
+      "quote": {
+        "text": "He made this as those other declarations as man by reason of the flesh",
+        "work": "orations",
+        "discourse": 3,
+        "section": 43
+      },
+      "citation": "St. Athanasius, Against the Arians III.43",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    },
+    {
+      "id": "arg-worship",
+      "name": "Worship Belongs to God",
+      "type": "argument",
+      "cost": 3,
+      "power": 4,
+      "text": "Christians worship the Son. Worshipping a creature would be idolatry.",
+      "flavor": "creature does not worship creature, but servant Lord, and creature God",
+      "scriptureRef": null,
+      "themes": [
+        "divinity"
+      ],
+      "explanation": "When Cornelius bowed to Peter, Peter stopped him: 'I myself also am a man.' Angels refuse worship too. But the Son is worshipped, so He is not a creature. He is God.",
+      "quote": {
+        "text": "creature does not worship creature, but servant Lord, and creature God",
+        "work": "orations",
+        "discourse": 2,
+        "section": 23
+      },
+      "citation": "St. Athanasius, Against the Arians II.23",
+      "verify": false,
+      "isTradition": false,
+      "approved": false
+    }
+  ]
+}
